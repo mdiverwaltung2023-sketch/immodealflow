@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Property {
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  title     String
+  price     Int
+  rent      Int
+  location  String
+  size      Float
+
+  analysis  Analysis?
+  offer     Offer?
+}
+
+model Analysis {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+
+  propertyId   String   @unique
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  grossYield   Float
+  cashflow     Float
+  score        Int
+}
+
+model Offer {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+
+  propertyId      String   @unique
+  property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  suggestedPrice  Int
+  message         String
+  model           String?
+}
+

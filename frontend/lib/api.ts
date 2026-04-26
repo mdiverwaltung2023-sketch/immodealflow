@@ -1,0 +1,67 @@
+import { z } from "zod";
+
+export const PropertySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  title: z.string(),
+  price: z.number(),
+  rent: z.number(),
+  location: z.string(),
+  size: z.number()
+});
+
+export const AnalysisSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  propertyId: z.string(),
+  grossYield: z.number(),
+  cashflow: z.number(),
+  score: z.number()
+});
+
+export const OfferSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  propertyId: z.string(),
+  suggestedPrice: z.number(),
+  message: z.string(),
+  model: z.string().nullable().optional()
+});
+
+export const PropertyDetailSchema = PropertySchema.extend({
+  analysis: AnalysisSchema.nullable().optional(),
+  offer: OfferSchema.nullable().optional()
+});
+
+function baseUrl() {
+  const url = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!url) throw new Error("NEXT_PUBLIC_API_BASE_URL fehlt");
+  return url.replace(/\/+$/, "");
+}
+
+export async function apiGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+  const res = await fetch(`${baseUrl()}${path}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET ${path} fehlgeschlagen (${res.status})`);
+  const json = await res.json();
+  return schema.parse(json);
+}
+
+export async function apiPost<T>(
+  path: string,
+  body: unknown | undefined,
+  schema: z.ZodType<T>
+): Promise<T> {
+  const res = await fetch(`${baseUrl()}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`POST ${path} fehlgeschlagen (${res.status}) ${txt}`);
+  }
+  const json = await res.json();
+  return schema.parse(json);
+}
+

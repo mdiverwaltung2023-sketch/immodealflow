@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment files (NIE committen!)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Prisma — das generated/-Verzeichnis NICHT, aber Migrations-Lock-Files sind ok
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+
+# Vercel
+.vercel/
+
+# Turbo / Cache
+.turbo/
+.cache/
