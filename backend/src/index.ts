@@ -113,7 +113,8 @@ app.post("/offer/:id", async (req, res) => {
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
-  return res.status(500).json({ error: "Internal server error" });
+  const message = err instanceof Error ? err.message : "Internal server error";
+  return res.status(500).json({ error: message });
 });
 
 const port = Number(process.env.PORT ?? 4000);

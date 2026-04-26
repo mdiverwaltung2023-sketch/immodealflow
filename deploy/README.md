@@ -14,7 +14,8 @@ Diese BAT-Dateien führen die wichtigsten Setup- und Deploy-Schritte aus.
 | 01 | `01_setup-local.bat` | npm install + git init + erster Commit |
 | — | (manuell) GitHub-Repo auf https://github.com/new anlegen | |
 | 02 | `02_github-remote.bat` | Repo verbinden + erster Push |
-| — | (manuell) Railway-Projekt + Postgres anlegen, `backend/.env` füllen | |
+| — | (manuell) Railway-Projekt + Postgres anlegen, Public DATABASE_URL kopieren | |
+| 02b | `02b_env-setup.bat` | `.env`-Dateien interaktiv füllen (DB-URL + Anthropic-Key) |
 | 03 | `03_db-migrate.bat` | Prisma-Migration anwenden |
 | 04 | `04_dev-start.bat` | Lokal Backend + Frontend starten |
 | — | (manuell) Vercel-Projekt anlegen, ENV setzen | |

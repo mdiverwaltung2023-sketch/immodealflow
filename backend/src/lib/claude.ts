@@ -6,7 +6,7 @@ export type OfferAIResult = {
   model?: string;
 };
 
-const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-latest";
+const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
 
 export async function generateOfferWithClaude(input: {
   price: number;

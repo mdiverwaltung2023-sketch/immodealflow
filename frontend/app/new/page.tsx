@@ -57,7 +57,7 @@ export default function NewPropertyPage() {
 
     setBusy(true);
     try {
-      const res = await fetch(`${api.replace(/\\/+$/, "")}/properties`, {
+      const res = await fetch(`${api.replace(/\/+$/, "")}/properties`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed.data)

@@ -17,7 +17,7 @@ export function PropertyActions({ id }: { id: string }) {
     setBusy(kind);
     try {
       const path = kind === "analyze" ? `/analyze/${id}` : `/offer/${id}`;
-      const res = await fetch(`${api.replace(/\\/+$/, "")}${path}`, { method: "POST" });
+      const res = await fetch(`${api.replace(/\/+$/, "")}${path}`, { method: "POST" });
       if (!res.ok) throw new Error(`Request fehlgeschlagen (${res.status})`);
       router.refresh();
     } catch (e) {

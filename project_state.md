@@ -15,7 +15,7 @@
 | Frontend   | _(noch nicht deployt — Vercel folgt)_             | ⏳ pending |
 | Backend    | _(noch nicht deployt — Railway folgt)_            | ⏳ pending |
 | Health     | `<backend>/health` → `{"ok":true}`                | ⏳ |
-| GitHub-Repo | _(URL nach erstem Push hier eintragen)_          | ⏳ |
+| GitHub-Repo | https://github.com/mdiverwaltung2023-sketch/immodealflow | ✅ |
 
 > **Sobald deployt** hier die echten URLs eintragen, damit Claude direkt darauf
 > zugreifen kann.
@@ -110,15 +110,15 @@ Status der einzelnen Schritte:
 - [x] `deploy/`-Ordner mit BAT-Skripten (`01_setup-local`, `02_github-remote`,
       `03_db-migrate`, `04_dev-start`, `05_git-commit-push`, `99_clean-reinstall`)
 - [x] `AGENTS.md` + `project_state.md` an DealFlow AI angepasst
-- [ ] **Marco:** `01_setup-local.bat` ausführen (npm install + git init + erster Commit)
-- [ ] **Marco:** GitHub-Repo `immodealflow` (privat) anlegen
-- [ ] **Marco:** `02_github-remote.bat` ausführen
-- [ ] **Marco:** Railway-Projekt + Postgres anlegen (Account: `mdiverwaltung.2023@gmail.com`)
-- [ ] **Marco:** `backend/.env` mit echter `DATABASE_URL` und `ANTHROPIC_API_KEY` füllen
-- [ ] **Marco:** `frontend/.env.local` mit `NEXT_PUBLIC_API_BASE_URL` füllen
-- [ ] **Marco:** `03_db-migrate.bat` ausführen → erste Prisma-Migration
-- [ ] **Marco:** `04_dev-start.bat` → lokaler Smoke-Test (Property anlegen, analysieren, Angebot)
-- [ ] **Marco:** Backend auf Railway deployen (Build/Start-Commands gemäß `deploy/README.md`)
+- [x] **Marco:** `01_setup-local.bat` ausgeführt (npm install + git init + erster Commit) — 2026-04-26
+- [x] **Marco:** GitHub-Repo `immodealflow` (privat) angelegt: https://github.com/mdiverwaltung2023-sketch/immodealflow.git
+- [x] **Marco:** `02_github-remote.bat` ausgeführt — Push nach `origin/main` erfolgreich
+- [x] **Marco:** Railway-Projekt + Postgres-Service angelegt — 2026-04-26
+- [x] **Marco:** `02b_env-setup.bat` — `backend/.env` + `frontend/.env.local` gesetzt
+- [x] **Marco:** `03_db-migrate.bat` ausgeführt → Migration `20260426181605_init` auf Railway-DB angewandt
+- [x] **Smoke-Test lokal bestanden** — Property → Analyse → Angebot end-to-end funktioniert; 4 Bugs gefixt (Regex-Escape × 2, Claude-Modell, Error-Handler)
+- [ ] **Code-Fixes + Migration committen + pushen** ← **AKTUELL**
+- [ ] **Marco:** Backend-Service auf Railway konfigurieren (railway.json greift, Variables setzen)
 - [ ] **Marco:** Frontend auf Vercel deployen (Root: `frontend/`)
 - [ ] URLs in dieser Datei aktualisieren
 
