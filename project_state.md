@@ -12,7 +12,7 @@
 
 | Service    | URL                                               | Status |
 |------------|---------------------------------------------------|--------|
-| Frontend   | _(noch nicht deployt — Vercel folgt)_             | ⏳ pending |
+| Frontend   | _(Vercel folgt — Account `mdiverwaltung.2023@gmail.com`)_ | ⏳ pending |
 | Backend    | _(noch nicht deployt — Railway folgt)_            | ⏳ pending |
 | Health     | `<backend>/health` → `{"ok":true}`                | ⏳ |
 | GitHub-Repo | https://github.com/mdiverwaltung2023-sketch/immodealflow | ✅ |
