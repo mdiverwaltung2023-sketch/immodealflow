@@ -4,6 +4,7 @@ import { Card, Stat, StatusBadge } from "@/components/ui";
 import { StatusEditor } from "./StatusEditor";
 import { NotesPanel } from "./NotesPanel";
 import { PropertyHeaderActions } from "./PropertyHeaderActions";
+import { AnalysesPanel } from "./AnalysesPanel";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -11,6 +12,7 @@ function eur(n: number) {
 
 export default async function PropertyPage({ params }: { params: { id: string } }) {
   const p = await apiGet(`/properties/${params.id}`, PropertyDetailSchema);
+  const latestAnalysis = p.analyses && p.analyses.length > 0 ? p.analyses[0] : null;
 
   return (
     <div className="space-y-6">
@@ -45,16 +47,21 @@ export default async function PropertyPage({ params }: { params: { id: string } 
           </div>
         </Card>
 
-        <Card title="Analyse">
-          {p.analysis ? (
+        <Card title="Aktuelle Analyse">
+          {latestAnalysis ? (
             <div className="grid gap-3">
-              <Stat label="Bruttorendite" value={`${p.analysis.grossYield.toFixed(2)} %`} />
-              <Stat label="Cashflow (Monat)" value={eur(p.analysis.cashflow)} />
-              <Stat label="Score" value={`${p.analysis.score} / 100`} />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-400">Szenario</span>
+                <span className="text-sm font-semibold text-white">{latestAnalysis.scenarioName}</span>
+              </div>
+              <Stat label="Bruttorendite" value={`${latestAnalysis.grossYield.toFixed(2)} %`} />
+              <Stat label="Nettorendite" value={`${latestAnalysis.netYield.toFixed(2)} %`} />
+              <Stat label="Cashflow n. Steuer" value={`${eur(latestAnalysis.cashflowAfterTax)}/Mon.`} />
+              <Stat label="Score" value={`${latestAnalysis.score} / 100`} />
             </div>
           ) : (
             <div className="text-sm text-zinc-400">
-              Noch keine Analyse vorhanden. Starte sie im Dashboard über „Analysieren".
+              Noch keine Analyse vorhanden. Lege unten ein Szenario an.
             </div>
           )}
         </Card>
@@ -75,6 +82,10 @@ export default async function PropertyPage({ params }: { params: { id: string } 
           )}
         </Card>
       </div>
+
+      <Card title={`Analyse-Szenarien (${p.analyses?.length ?? 0})`}>
+        <AnalysesPanel id={p.id} initialAnalyses={p.analyses ?? []} />
+      </Card>
 
       <Card title={`Notizen (${p.notes?.length ?? 0})`}>
         <NotesPanel id={p.id} initialNotes={p.notes ?? []} />

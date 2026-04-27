@@ -3,7 +3,11 @@ import express from "express";
 import cors from "cors";
 import { z } from "zod";
 import { prisma } from "./lib/prisma.js";
-import { computeCashflow, computeGrossYield, computeScore } from "./lib/calc.js";
+import {
+  computeFullAnalysis,
+  DEFAULT_ASSUMPTIONS,
+  type AnalysisAssumptions
+} from "./lib/calc.js";
 import { generateOfferWithClaude } from "./lib/claude.js";
 
 const app = express();
@@ -49,6 +53,19 @@ const NoteCreateSchema = z.object({
   body: z.string().min(1).max(5000)
 });
 
+const AnalyzeSchema = z.object({
+  scenarioName: z.string().min(1).max(80).optional(),
+  equityRatio: z.number().min(0).max(1).optional(),
+  loanInterestRate: z.number().min(0).max(0.30).optional(),
+  loanRepaymentRate: z.number().min(0).max(0.30).optional(),
+  taxRateIncome: z.number().min(0).max(1).optional(),
+  closingCostsRate: z.number().min(0).max(0.30).optional(),
+  maintenanceRate: z.number().min(0).max(1).optional(),
+  vacancyRate: z.number().min(0).max(1).optional(),
+  buildingShare: z.number().min(0).max(1).optional(),
+  afaRate: z.number().min(0).max(0.10).optional()
+});
+
 app.post("/properties", async (req, res) => {
   const parsed = PropertyCreateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -69,7 +86,10 @@ app.get("/properties", async (req, res) => {
   const properties = await prisma.property.findMany({
     where: statusParsed?.success ? { status: statusParsed.data } : undefined,
     orderBy: { updatedAt: "desc" },
-    include: { analysis: true, offer: true }
+    include: {
+      analyses: { orderBy: { createdAt: "desc" }, take: 1 },
+      offer: true
+    }
   });
   return res.json(properties);
 });
@@ -79,7 +99,7 @@ app.get("/properties/:id", async (req, res) => {
   const property = await prisma.property.findUnique({
     where: { id },
     include: {
-      analysis: true,
+      analyses: { orderBy: { createdAt: "desc" } },
       offer: true,
       notes: { orderBy: { createdAt: "desc" } }
     }
@@ -134,7 +154,6 @@ app.post("/properties/:id/notes", async (req, res) => {
     }
   });
 
-  // Touch property updatedAt so dashboard sort reflects activity
   await prisma.property.update({ where: { id }, data: { updatedAt: new Date() } });
 
   return res.status(201).json(note);
@@ -151,29 +170,51 @@ app.delete("/notes/:noteId", async (req, res) => {
 
 app.post("/analyze/:id", async (req, res) => {
   const { id } = req.params;
+  const parsed = AnalyzeSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+  }
+
   const property = await prisma.property.findUnique({ where: { id } });
   if (!property) return res.status(404).json({ error: "Not found" });
 
-  const grossYield = computeGrossYield(property.price, property.rent);
-  const cashflow = computeCashflow(property.price, property.rent);
-  const score = computeScore(grossYield, cashflow);
+  const inputs = parsed.data;
+  const assumptions: AnalysisAssumptions = {
+    equityRatio: inputs.equityRatio ?? DEFAULT_ASSUMPTIONS.equityRatio,
+    loanInterestRate: inputs.loanInterestRate ?? DEFAULT_ASSUMPTIONS.loanInterestRate,
+    loanRepaymentRate: inputs.loanRepaymentRate ?? DEFAULT_ASSUMPTIONS.loanRepaymentRate,
+    taxRateIncome: inputs.taxRateIncome ?? DEFAULT_ASSUMPTIONS.taxRateIncome,
+    closingCostsRate: inputs.closingCostsRate ?? DEFAULT_ASSUMPTIONS.closingCostsRate,
+    maintenanceRate: inputs.maintenanceRate ?? DEFAULT_ASSUMPTIONS.maintenanceRate,
+    vacancyRate: inputs.vacancyRate ?? DEFAULT_ASSUMPTIONS.vacancyRate,
+    buildingShare: inputs.buildingShare ?? DEFAULT_ASSUMPTIONS.buildingShare,
+    afaRate: inputs.afaRate ?? DEFAULT_ASSUMPTIONS.afaRate
+  };
 
-  const analysis = await prisma.analysis.upsert({
-    where: { propertyId: id },
-    create: {
+  const result = computeFullAnalysis(property.price, property.rent, assumptions);
+
+  const analysis = await prisma.analysis.create({
+    data: {
       propertyId: id,
-      grossYield,
-      cashflow,
-      score
-    },
-    update: {
-      grossYield,
-      cashflow,
-      score
+      scenarioName: inputs.scenarioName ?? "Standard",
+      ...assumptions,
+      ...result
     }
   });
 
-  return res.json(analysis);
+  // Touch property updatedAt damit Dashboard die Aktivität reflektiert
+  await prisma.property.update({ where: { id }, data: { updatedAt: new Date() } });
+
+  return res.status(201).json(analysis);
+});
+
+app.delete("/analyses/:analysisId", async (req, res) => {
+  const { analysisId } = req.params;
+  const existing = await prisma.analysis.findUnique({ where: { id: analysisId } });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+
+  await prisma.analysis.delete({ where: { id: analysisId } });
+  return res.status(204).end();
 });
 
 app.post("/offer/:id", async (req, res) => {

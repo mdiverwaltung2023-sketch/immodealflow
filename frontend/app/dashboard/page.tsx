@@ -89,8 +89,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: S
                   </div>
                   <div className="mt-1 text-xs text-zinc-400">
                     {p.location} • {p.size} m² • Preis {eur(p.price)} • Miete {eur(p.rent)}/Monat
-                    {p.analysis ? (
-                      <> • Score <span className="text-zinc-200">{p.analysis.score}/100</span></>
+                    {p.analyses && p.analyses.length > 0 ? (
+                      <> • Score <span className="text-zinc-200">{p.analyses[0].score}/100</span></>
                     ) : null}
                   </div>
                 </div>

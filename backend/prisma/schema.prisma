@@ -30,7 +30,7 @@ model Property {
 
   status    DealStatus @default(WATCHING)
 
-  analysis  Analysis?
+  analyses  Analysis[]
   offer     Offer?
   notes     Note[]
 }
@@ -39,12 +39,38 @@ model Analysis {
   id           String   @id @default(cuid())
   createdAt    DateTime @default(now())
 
-  propertyId   String   @unique
+  propertyId   String
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  grossYield   Float
-  cashflow     Float
-  score        Int
+  scenarioName String   @default("Standard")
+
+  // Inputs / Annahmen
+  equityRatio       Float @default(0.20)
+  loanInterestRate  Float @default(0.038)
+  loanRepaymentRate Float @default(0.02)
+  taxRateIncome     Float @default(0.42)
+  closingCostsRate  Float @default(0.10)
+  maintenanceRate   Float @default(0.30)
+  vacancyRate       Float @default(0.05)
+  buildingShare     Float @default(0.80)
+  afaRate           Float @default(0.02)
+
+  // Outputs / Berechnete Werte
+  closingCosts        Int   @default(0)
+  totalInvestment     Int   @default(0)
+  equity              Int   @default(0)
+  loan                Int   @default(0)
+  monthlyInterest     Float @default(0)
+  monthlyRepayment    Float @default(0)
+  monthlyAfA          Float @default(0)
+  monthlyMaintenance  Float @default(0)
+  monthlyVacancyLoss  Float @default(0)
+
+  grossYield        Float @default(0)
+  netYield          Float @default(0)
+  cashflow          Float @default(0)
+  cashflowAfterTax  Float @default(0)
+  score             Int   @default(0)
 }
 
 model Offer {

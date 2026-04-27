@@ -101,7 +101,18 @@ Quelle: `backend/src/index.ts`.
 
 UI-Primitives: `frontend/components/ui.tsx` (Card, Button, Input, Label, Stat).
 
-## Aktuelle Phase: **Stage 0 — Setup & Deploy**
+## Aktuelle Phase: **Block A erledigt — Pipeline-Sicht live**
+
+### Block A (2026-04-27)
+
+- ✅ Prisma: Enum `DealStatus` (WATCHING, INQUIRED, NEGOTIATING, LOI, NOTAR, CLOSED, REJECTED) auf Property + neues `Note`-Model
+- ✅ Migration `20260426202823_add_status_and_notes` auf Railway-DB angewandt
+- ✅ Backend: PATCH/DELETE `/properties/:id`, POST `/properties/:id/notes`, DELETE `/notes/:noteId`, Status-Filter `?status=…`, Sort by `updatedAt`
+- ✅ Frontend: Status-Badge (7 Farben), Filter-Tabs mit Counts, Score in Liste, Status-Quick-Edit auf Detail-Seite, Notes-Panel (Add/Delete), Edit-Seite, Delete-Buttons (Dashboard + Detail)
+- ✅ Bug-Fix: ESLint `react/no-unescaped-entities` deaktiviert (deutsche Anführungszeichen in JSX)
+- ✅ Production-Smoke-Test bestanden: PATCH Status → NEGOTIATING, POST Note, GET mit Filter — alles end-to-end
+
+## Aktuelle Phase: **Stage 0 — Setup & Deploy** *(abgeschlossen)*
 
 Status der einzelnen Schritte:
 

@@ -48,7 +48,7 @@ export function PropertyActions({ id }: { id: string }) {
         variant="secondary"
         onClick={() => run("analyze")}
         disabled={busy !== null}
-        title="Berechnet Rendite, Cashflow und Score"
+        title="Erzeugt einen neuen Analyse-Snapshot mit Standard-Annahmen"
       >
         {busy === "analyze" ? "Analysiere…" : "Analysieren"}
       </Button>
