@@ -101,7 +101,17 @@ Quelle: `backend/src/index.ts`.
 
 UI-Primitives: `frontend/components/ui.tsx` (Card, Button, Input, Label, Stat).
 
-## Aktuelle Phase: **Block A erledigt — Pipeline-Sicht live**
+## Aktuelle Phase: **Block B erledigt — Finanzielle Tiefe live**
+
+### Block B (2026-04-27)
+
+- ✅ Prisma: `Analysis` von 1:1 auf 1:n umgestellt, `scenarioName` + 9 Annahme-Felder + 11 berechnete Output-Felder mit Defaults
+- ✅ Migration `20260427xxxxxx_analysis_snapshots` auf Railway-DB angewandt
+- ✅ Calc-Lib: `computeFullAnalysis(price, rent, assumptions)` mit Kaufnebenkosten, Eigenkapital, Zins, Tilgung, AfA (Gebäudeanteil × Satz), Steuer (Verlustverrechnung möglich), Brutto-/Nettorendite, Cashflow vor/nach Steuer, Score (Netto-Rendite + CF n. Steuer)
+- ✅ Backend: POST `/analyze/:id` akzeptiert optionale Annahmen, **erzeugt jeden Aufruf einen neuen Snapshot** statt zu überschreiben; DELETE `/analyses/:id`; GET `/properties` liefert nur jüngsten Snapshot, GET `/properties/:id` alle absteigend
+- ✅ Frontend: Analyse-Szenarien-Card mit Vergleichstabelle, „Schnell-Analyse" (Defaults) + „Eigenes Szenario" mit allen 9 Annahmen, Defaults vorbelegt, Datum+Szenario-Name+EK/Zins/Tilg/Total-Investment/Renditen/CF/Score in Tabellenform; Detail-Seite zeigt aktuellen Snapshot oben in 3-Spalten-Layout
+
+### Block A (2026-04-27)
 
 ### Block A (2026-04-27)
 

@@ -94,10 +94,14 @@ export function computeFullAnalysis(
   const cashflow =
     effectiveRent - monthlyMaintenance - monthlyInterest - monthlyRepayment;
 
-  // Steuerliches Ergebnis: Tilgung NICHT abzugsfähig, AfA dafür schon
+  // Steuerliches Ergebnis: Tilgung NICHT abzugsfähig, AfA dafür schon.
+  // Bei negativem Ergebnis: Verluste werden mit anderen Einkünften verrechnet
+  // → negative Steuer = Steuerersparnis. Setzt voraus, dass der Investor
+  // ausreichend andere positive Einkünfte hat (sonst wäre der 42%-Annahme
+  // ohnehin nicht stimmig).
   const taxableMonthly =
     effectiveRent - monthlyMaintenance - monthlyInterest - monthlyAfA;
-  const monthlyTax = taxableMonthly > 0 ? taxableMonthly * a.taxRateIncome : 0;
+  const monthlyTax = taxableMonthly * a.taxRateIncome;
 
   const cashflowAfterTax = cashflow - monthlyTax;
 
