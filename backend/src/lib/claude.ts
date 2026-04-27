@@ -184,8 +184,15 @@ export type ExtractedAuction = {
 
 export async function extractAuctionFromText(text: string): Promise<ExtractedAuction & { model: string }> {
   const { data, model } = await callWithTool<ExtractedAuction>({
-    systemPrompt:
-      "Du extrahierst die Eckdaten einer Immobilien-Versteigerung aus einer ZVG-Bekanntmachung, einem Auktionskatalog (DGA, SDL, Karhausen) oder ähnlichem Text. Achte auf deutsche Datums- und Zahlenformate (1.234.567,89). Verkehrswert ist üblicherweise mit „Verkehrswert" oder „Wert" beschriftet. Termin oft mit „Versteigerungstermin", „Termin", „Verhandlungstermin" benannt. Wenn die Miete nicht direkt steht aber implizit ableitbar (z. B. Bruttomiete pro Jahr / 12), schätze sie. Aktenzeichen sind in der Regel im Format '5 K 123/24' oder ähnlich.",
+    systemPrompt: [
+      "Du extrahierst die Eckdaten einer Immobilien-Versteigerung aus einer ZVG-Bekanntmachung, ",
+      "einem Auktionskatalog (DGA, SDL, Karhausen) oder ähnlichem Text. ",
+      "Achte auf deutsche Datums- und Zahlenformate (1.234.567,89). ",
+      "Verkehrswert ist üblicherweise mit 'Verkehrswert' oder 'Wert' beschriftet. ",
+      "Termin oft mit 'Versteigerungstermin', 'Termin' oder 'Verhandlungstermin' benannt. ",
+      "Wenn die Miete nicht direkt steht aber implizit ableitbar (z. B. Bruttomiete pro Jahr / 12), schätze sie. ",
+      "Aktenzeichen sind in der Regel im Format '5 K 123/24' oder ähnlich."
+    ].join(""),
     userMessage: `Bekanntmachungs-/Katalog-Text:\n\n${text}`,
     toolName: "extract_auction",
     toolDescription: "Extrahiert die strukturierten Eckdaten einer Immobilien-Versteigerung.",
