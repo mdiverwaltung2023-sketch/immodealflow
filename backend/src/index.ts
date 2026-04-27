@@ -5,14 +5,17 @@ import { z } from "zod";
 import { prisma } from "./lib/prisma.js";
 import {
   computeFullAnalysis,
+  computeBidLimit,
   DEFAULT_ASSUMPTIONS,
   type AnalysisAssumptions
 } from "./lib/calc.js";
 import {
   generateOfferWithClaude,
   extractPropertyFromText,
+  extractAuctionFromText,
   marketComparisonForProperty
 } from "./lib/claude.js";
+import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 
 const app = express();
 
@@ -74,6 +77,15 @@ const ImportExposeSchema = z.object({
   text: z.string().min(20).max(50000)
 });
 
+const ImportAuctionSchema = z.object({
+  text: z.string().min(20).max(80000).optional(),
+  pdfBase64: z.string().min(100).optional(),
+  url: z.string().url().optional()
+}).refine(
+  (v) => !!v.text || !!v.pdfBase64 || !!v.url,
+  { message: "Eines der Felder text, pdfBase64 oder url ist erforderlich." }
+);
+
 app.post("/properties", async (req, res) => {
   const parsed = PropertyCreateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -96,7 +108,8 @@ app.get("/properties", async (req, res) => {
     orderBy: { updatedAt: "desc" },
     include: {
       analyses: { orderBy: { createdAt: "desc" }, take: 1 },
-      offer: true
+      offer: true,
+      auction: true
     }
   });
   return res.json(properties);
@@ -110,7 +123,8 @@ app.get("/properties/:id", async (req, res) => {
       analyses: { orderBy: { createdAt: "desc" } },
       offer: true,
       notes: { orderBy: { createdAt: "desc" } },
-      marketComparison: true
+      marketComparison: true,
+      auction: true
     }
   });
   if (!property) return res.status(404).json({ error: "Not found" });
@@ -325,6 +339,158 @@ app.post("/properties/:id/market-comparison", async (req, res) => {
   await prisma.property.update({ where: { id }, data: { updatedAt: new Date() } });
 
   return res.json(mc);
+});
+
+app.post("/import/auction", async (req, res) => {
+  const parsed = ImportAuctionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+  }
+
+  // 1) Text gewinnen
+  let text = parsed.data.text ?? "";
+
+  if (!text && parsed.data.pdfBase64) {
+    try {
+      const pdf = await extractTextFromPdfBase64(parsed.data.pdfBase64);
+      text = pdf.text;
+    } catch (e) {
+      return res.status(400).json({
+        error: `PDF konnte nicht gelesen werden: ${e instanceof Error ? e.message : "unbekannter Fehler"}`
+      });
+    }
+  }
+
+  if (!text && parsed.data.url) {
+    try {
+      const r = await fetch(parsed.data.url, {
+        headers: {
+          "User-Agent": "DealFlow-AI/1.0 (Investor Research Tool)",
+          Accept: "text/html,application/pdf,*/*"
+        }
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const ct = r.headers.get("content-type") ?? "";
+      if (ct.includes("pdf")) {
+        const buf = Buffer.from(await r.arrayBuffer());
+        const pdf = await extractTextFromPdfBase64(buf.toString("base64"));
+        text = pdf.text;
+      } else {
+        const html = await r.text();
+        // Sehr einfache HTML-Bereinigung — Claude verträgt etwas Struktur,
+        // aber nicht 1 MB Boilerplate. Wir werfen nur Script/Style raus.
+        text = html
+          .replace(/<script[\s\S]*?<\/script>/gi, " ")
+          .replace(/<style[\s\S]*?<\/style>/gi, " ")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/&nbsp;/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text.length > 30000) text = text.slice(0, 30000);
+      }
+    } catch (e) {
+      return res.status(400).json({
+        error: `URL konnte nicht geladen werden: ${e instanceof Error ? e.message : "unbekannter Fehler"}`
+      });
+    }
+  }
+
+  if (text.length < 20) {
+    return res.status(400).json({ error: "Zu wenig Text für eine Extraktion." });
+  }
+
+  // 2) Claude-Extraktion
+  const ai = await extractAuctionFromText(text);
+
+  // 3) Bietlimit berechnen — falls Miete da ist
+  const rent = ai.estimatedRent && ai.estimatedRent > 0 ? Math.round(ai.estimatedRent) : 0;
+  const bidLimit = rent > 0 ? computeBidLimit(rent, DEFAULT_ASSUMPTIONS, 0) : null;
+  const bidLimitNeutral = bidLimit;
+
+  // 4) Property + AuctionInfo + Standard-Analyse anlegen
+  const startPrice = ai.marketValue && ai.marketValue > 0
+    ? Math.round(ai.marketValue * 0.7) // Gericht startet typisch bei 70 % Verkehrswert (kein Zuschlag unter 5/10 in 1. Termin)
+    : (bidLimit ?? rent * 200); // Fallback
+
+  const property = await prisma.property.create({
+    data: {
+      title: ai.title || `Versteigerung (${ai.auctionType ?? "ZVG"})`,
+      price: startPrice,
+      rent,
+      location: ai.address || ai.auctionLocation || "Unbekannt",
+      size: ai.size && ai.size > 0 ? ai.size : 50,
+      dealType: "AUCTION",
+      auction: {
+        create: {
+          auctionType: (ai.auctionType ?? "ZVG") as "ZVG" | "DGA" | "SDL" | "KARHAUSEN" | "OTHER",
+          caseNumber: ai.caseNumber,
+          marketValue: ai.marketValue && ai.marketValue > 0 ? Math.round(ai.marketValue) : null,
+          auctionDate: ai.auctionDateIso ? new Date(ai.auctionDateIso) : null,
+          auctionLocation: ai.auctionLocation,
+          sourceUrl: parsed.data.url ?? null,
+          rawText: text.length > 8000 ? text.slice(0, 8000) : text,
+          bidLimit,
+          bidLimitNeutral,
+          notes: ai.notes
+        }
+      }
+    },
+    include: { auction: true }
+  });
+
+  // Wenn Miete vorhanden: Standard-Analyse direkt mitberechnen
+  if (rent > 0) {
+    const result = computeFullAnalysis(property.price, rent, DEFAULT_ASSUMPTIONS);
+    await prisma.analysis.create({
+      data: {
+        propertyId: property.id,
+        scenarioName: "Standard (Versteigerung Importzeit)",
+        ...DEFAULT_ASSUMPTIONS,
+        ...result
+      }
+    });
+  }
+
+  return res.status(201).json(property);
+});
+
+app.post("/properties/:id/recompute-bid-limit", async (req, res) => {
+  const { id } = req.params;
+  const parsed = AnalyzeSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+  }
+
+  const property = await prisma.property.findUnique({
+    where: { id },
+    include: { auction: true }
+  });
+  if (!property) return res.status(404).json({ error: "Not found" });
+  if (!property.auction) return res.status(400).json({ error: "Property hat keine AuctionInfo" });
+  if (property.rent <= 0) return res.status(400).json({ error: "Keine Miete hinterlegt — Bietlimit nicht berechenbar" });
+
+  const inputs = parsed.data;
+  const assumptions: AnalysisAssumptions = {
+    equityRatio: inputs.equityRatio ?? DEFAULT_ASSUMPTIONS.equityRatio,
+    loanInterestRate: inputs.loanInterestRate ?? DEFAULT_ASSUMPTIONS.loanInterestRate,
+    loanRepaymentRate: inputs.loanRepaymentRate ?? DEFAULT_ASSUMPTIONS.loanRepaymentRate,
+    taxRateIncome: inputs.taxRateIncome ?? DEFAULT_ASSUMPTIONS.taxRateIncome,
+    closingCostsRate: inputs.closingCostsRate ?? DEFAULT_ASSUMPTIONS.closingCostsRate,
+    maintenanceRate: inputs.maintenanceRate ?? DEFAULT_ASSUMPTIONS.maintenanceRate,
+    vacancyRate: inputs.vacancyRate ?? DEFAULT_ASSUMPTIONS.vacancyRate,
+    buildingShare: inputs.buildingShare ?? DEFAULT_ASSUMPTIONS.buildingShare,
+    afaRate: inputs.afaRate ?? DEFAULT_ASSUMPTIONS.afaRate
+  };
+
+  const bidLimit = computeBidLimit(property.rent, assumptions, 0);
+  const bidLimitNeutral = bidLimit;
+
+  const updated = await prisma.auctionInfo.update({
+    where: { propertyId: id },
+    data: { bidLimit, bidLimitNeutral }
+  });
+
+  return res.json(updated);
 });
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -66,6 +66,43 @@ export type AnalysisResult = {
   score: number;
 };
 
+/**
+ * Reverse Block-B: gegeben Miete + Annahmen, finde den höchsten Kaufpreis,
+ * bei dem `cashflowAfterTax` noch ≥ targetCashflow ist (Default 0 = Break-Even).
+ *
+ * Findet beide Werte als Tupel:
+ *   - bidLimit: max Preis für Cashflow n. Steuer ≥ 0
+ *   - bidLimitNeutral: ist eigentlich der gleiche Wert wenn target=0,
+ *     wir geben ihn separat raus, falls man später z. B. 100 €/Monat verlangt.
+ *
+ * Verwendet Bisektion zwischen 0 und einer großzügigen Obergrenze.
+ */
+export function computeBidLimit(
+  rentMonthly: number,
+  assumptions: AnalysisAssumptions = DEFAULT_ASSUMPTIONS,
+  targetMonthlyCashflowAfterTax = 0
+): number {
+  if (rentMonthly <= 0) return 0;
+
+  let low = 0;
+  let high = Math.max(50_000, rentMonthly * 12 * 50); // 50× Bruttojahresmiete als Obergrenze
+  let best = 0;
+
+  for (let i = 0; i < 60; i++) {
+    const mid = (low + high) / 2;
+    const result = computeFullAnalysis(mid, rentMonthly, assumptions);
+    if (result.cashflowAfterTax >= targetMonthlyCashflowAfterTax) {
+      best = mid;
+      low = mid;
+    } else {
+      high = mid;
+    }
+    if (high - low < 100) break;
+  }
+
+  return Math.floor(best);
+}
+
 export function computeFullAnalysis(
   price: number,
   rentMonthly: number,

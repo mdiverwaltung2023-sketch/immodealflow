@@ -40,7 +40,8 @@ export const PropertySchema = z.object({
   rent: z.number(),
   location: z.string(),
   size: z.number(),
-  status: DealStatusEnum
+  status: DealStatusEnum,
+  dealType: z.enum(["FREE_SALE", "AUCTION"]).default("FREE_SALE")
 });
 
 export const AnalysisSchema = z.object({
@@ -132,6 +133,39 @@ export const MarketComparisonSchema = z.object({
 
 export type MarketComparisonT = z.infer<typeof MarketComparisonSchema>;
 
+export const DealTypeEnum = z.enum(["FREE_SALE", "AUCTION"]);
+export type DealType = z.infer<typeof DealTypeEnum>;
+
+export const AuctionTypeEnum = z.enum(["ZVG", "DGA", "SDL", "KARHAUSEN", "OTHER"]);
+export type AuctionTypeT = z.infer<typeof AuctionTypeEnum>;
+
+export const AUCTION_TYPE_LABELS: Record<AuctionTypeT, string> = {
+  ZVG: "Zwangsversteigerung",
+  DGA: "Deutsche Grundstücksauktionen",
+  SDL: "SDL Auktionen",
+  KARHAUSEN: "Karhausen",
+  OTHER: "Andere"
+};
+
+export const AuctionInfoSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  propertyId: z.string(),
+  auctionType: AuctionTypeEnum,
+  caseNumber: z.string().nullable().optional(),
+  marketValue: z.number().nullable().optional(),
+  auctionDate: z.string().nullable().optional(),
+  auctionLocation: z.string().nullable().optional(),
+  sourceUrl: z.string().nullable().optional(),
+  rawText: z.string().nullable().optional(),
+  bidLimit: z.number().nullable().optional(),
+  bidLimitNeutral: z.number().nullable().optional(),
+  notes: z.string().nullable().optional()
+});
+
+export type AuctionInfoT = z.infer<typeof AuctionInfoSchema>;
+
 export const ImportExposeResponseSchema = z.object({
   title: z.string(),
   price: z.number(),
@@ -144,14 +178,16 @@ export const ImportExposeResponseSchema = z.object({
 
 export const PropertyListItemSchema = PropertySchema.extend({
   analyses: z.array(AnalysisSchema).optional(),
-  offer: OfferSchema.nullable().optional()
+  offer: OfferSchema.nullable().optional(),
+  auction: AuctionInfoSchema.nullable().optional()
 });
 
 export const PropertyDetailSchema = PropertySchema.extend({
   analyses: z.array(AnalysisSchema).optional(),
   offer: OfferSchema.nullable().optional(),
   notes: z.array(NoteSchema).optional(),
-  marketComparison: MarketComparisonSchema.nullable().optional()
+  marketComparison: MarketComparisonSchema.nullable().optional(),
+  auction: AuctionInfoSchema.nullable().optional()
 });
 
 function baseUrl() {

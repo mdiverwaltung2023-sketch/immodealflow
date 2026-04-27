@@ -166,6 +166,83 @@ export async function extractPropertyFromText(text: string): Promise<ExtractedPr
 }
 
 // ============================================================
+// Use-Case 4: Versteigerungs-Bekanntmachung → strukturierte Felder
+// ============================================================
+
+export type ExtractedAuction = {
+  title: string;
+  caseNumber?: string;
+  marketValue?: number;
+  auctionDateIso?: string;
+  auctionLocation?: string;
+  auctionType?: "ZVG" | "DGA" | "SDL" | "KARHAUSEN" | "OTHER";
+  address?: string;
+  size?: number;
+  estimatedRent?: number;
+  notes?: string;
+};
+
+export async function extractAuctionFromText(text: string): Promise<ExtractedAuction & { model: string }> {
+  const { data, model } = await callWithTool<ExtractedAuction>({
+    systemPrompt:
+      "Du extrahierst die Eckdaten einer Immobilien-Versteigerung aus einer ZVG-Bekanntmachung, einem Auktionskatalog (DGA, SDL, Karhausen) oder ähnlichem Text. Achte auf deutsche Datums- und Zahlenformate (1.234.567,89). Verkehrswert ist üblicherweise mit „Verkehrswert" oder „Wert" beschriftet. Termin oft mit „Versteigerungstermin", „Termin", „Verhandlungstermin" benannt. Wenn die Miete nicht direkt steht aber implizit ableitbar (z. B. Bruttomiete pro Jahr / 12), schätze sie. Aktenzeichen sind in der Regel im Format '5 K 123/24' oder ähnlich.",
+    userMessage: `Bekanntmachungs-/Katalog-Text:\n\n${text}`,
+    toolName: "extract_auction",
+    toolDescription: "Extrahiert die strukturierten Eckdaten einer Immobilien-Versteigerung.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Kurzer prägnanter Titel mit Lage, Objekttyp, m². z. B. '3-Zi-ETW Köln-Ehrenfeld, 78 m² (ZVG)'"
+        },
+        caseNumber: {
+          type: "string",
+          description: "Aktenzeichen, z. B. '5 K 123/24'. Leer lassen wenn nicht gefunden."
+        },
+        marketValue: {
+          type: "number",
+          description: "Verkehrswert lt. Gutachten in EUR (ganze Zahl, ohne Punkte/Kommata). 0 oder weglassen wenn nicht angegeben."
+        },
+        auctionDateIso: {
+          type: "string",
+          description: "Versteigerungstermin im ISO-Format YYYY-MM-DDTHH:MM. Wenn nur Datum bekannt: YYYY-MM-DDT09:00. Leer lassen wenn nicht gefunden."
+        },
+        auctionLocation: {
+          type: "string",
+          description: "Amtsgericht oder Online-Plattform, z. B. 'Amtsgericht Köln, Saal 142' oder 'DGA Online'."
+        },
+        auctionType: {
+          type: "string",
+          enum: ["ZVG", "DGA", "SDL", "KARHAUSEN", "OTHER"],
+          description: "Art der Versteigerung. Default ZVG (Zwangsversteigerung) wenn unklar."
+        },
+        address: {
+          type: "string",
+          description: "Genaue Adresse oder Lagebezeichnung des Objekts."
+        },
+        size: {
+          type: "number",
+          description: "Wohnfläche in m² (Zahl, kann Dezimal sein)."
+        },
+        estimatedRent: {
+          type: "number",
+          description: "Geschätzte oder genannte Kalt-Miete pro Monat in EUR. 0 wenn unklar."
+        },
+        notes: {
+          type: "string",
+          description: "Auffälligkeiten: Vermietungssituation, bekannte Belastungen, Renovierungsbedarf, Sondereigentum, etc."
+        }
+      },
+      required: ["title"]
+    },
+    maxTokens: 800
+  });
+
+  return { ...data, model };
+}
+
+// ============================================================
 // Use-Case 3: Marktvergleich für eine Lage
 // ============================================================
 

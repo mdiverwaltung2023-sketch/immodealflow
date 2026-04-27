@@ -101,6 +101,16 @@ Quelle: `backend/src/index.ts`.
 
 UI-Primitives: `frontend/components/ui.tsx` (Card, Button, Input, Label, Stat).
 
+## Aktuelle Phase: **Block C erledigt — KI-Magie live**
+
+### Block C (2026-04-27)
+
+- ✅ `claude.ts` refactored: Helper `callWithTool` zwingt strukturierte Antworten via `tool_choice`. Drei Use-Cases: `generateOfferWithClaude` (Tool `propose_offer`), `extractPropertyFromText` (Tool `extract_property`), `marketComparisonForProperty` (Tool `market_comparison`). Kein freies JSON-Parsing mehr.
+- ✅ Prisma: neuer Enum `MarketRating` (below_market/fair/above_market), neues Model `MarketComparison` (1:1 Property), Migration `20260427xxxxxx_market_comparison`
+- ✅ Backend: POST `/import/expose` (Body `{text}` → extrahierte Felder), POST `/properties/:id/market-comparison` (upsert, gibt `MarketComparison` zurück), GET `/properties/:id` liefert jetzt auch `marketComparison`
+- ✅ Frontend: neue Card „Schnell-Import aus Inserat" auf `/new` mit Textarea + Import-Button → Form-Felder werden vorbefüllt; neue Card „Marktvergleich (Claude)" auf Property-Detail mit m²-Spannen, Eigenwert-Vergleich, Rating-Badge, Rationale, Daten-Caveat
+- ✅ Production-Smoke-Test bestanden: Hamburg-Eimsbüttel-Inserat → korrekte Extraktion mit Konfidenz „high"; München-Marktvergleich → realistische Spannen 8.500–11.500 €/m² Kaufpreis, 20–28 €/m² Miete, Bewertung „below_market"; Offer mit Tool-Use → strukturierte Antwort 420 k EUR
+
 ## Aktuelle Phase: **Block B erledigt — Finanzielle Tiefe live**
 
 ### Block B (2026-04-27)

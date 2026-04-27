@@ -17,6 +17,19 @@ enum DealStatus {
   REJECTED
 }
 
+enum DealType {
+  FREE_SALE
+  AUCTION
+}
+
+enum AuctionType {
+  ZVG
+  DGA
+  SDL
+  KARHAUSEN
+  OTHER
+}
+
 enum MarketRating {
   below_market
   fair
@@ -35,11 +48,13 @@ model Property {
   size      Float
 
   status    DealStatus @default(WATCHING)
+  dealType  DealType   @default(FREE_SALE)
 
   analyses           Analysis[]
   offer              Offer?
   notes              Note[]
   marketComparison   MarketComparison?
+  auction            AuctionInfo?
 }
 
 model Analysis {
@@ -116,4 +131,25 @@ model MarketComparison {
   rationale        String
   dataCaveat       String
   model            String?
+}
+
+model AuctionInfo {
+  id              String       @id @default(cuid())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  propertyId      String       @unique
+  property        Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  auctionType     AuctionType  @default(ZVG)
+  caseNumber      String?      // Aktenzeichen, z. B. "5K 123/24"
+  marketValue     Int?         // Verkehrswert lt. Gutachten in EUR
+  auctionDate     DateTime?    // Versteigerungstermin
+  auctionLocation String?      // Amtsgericht / Plattform
+  sourceUrl       String?      // Link zur Bekanntmachung / zum Termin
+  rawText         String?      // Original-Bekanntmachungstext (max ein paar KB) zum Nachschlagen
+
+  bidLimit        Int?         // Berechnetes Bietlimit (max Kaufpreis bei CF n. Steuer ≥ 0)
+  bidLimitNeutral Int?         // Bietlimit für CF n. Steuer = 0 (Break-Even)
+  notes           String?      // Auffälligkeiten aus der Extraktion
 }

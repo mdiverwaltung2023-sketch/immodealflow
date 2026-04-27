@@ -6,6 +6,7 @@ import { NotesPanel } from "./NotesPanel";
 import { PropertyHeaderActions } from "./PropertyHeaderActions";
 import { AnalysesPanel } from "./AnalysesPanel";
 import { MarketComparisonPanel } from "./MarketComparisonPanel";
+import { AuctionPanel } from "./AuctionPanel";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -34,6 +35,12 @@ export default async function PropertyPage({ params }: { params: { id: string } 
           </Link>
         </div>
       </div>
+
+      {p.dealType === "AUCTION" && p.auction ? (
+        <Card title="Versteigerung">
+          <AuctionPanel id={p.id} initial={p.auction} />
+        </Card>
+      ) : null}
 
       <Card title="Pipeline-Status">
         <StatusEditor id={p.id} initialStatus={p.status} />
