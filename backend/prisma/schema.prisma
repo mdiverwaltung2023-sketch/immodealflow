@@ -17,6 +17,12 @@ enum DealStatus {
   REJECTED
 }
 
+enum MarketRating {
+  below_market
+  fair
+  above_market
+}
+
 model Property {
   id        String     @id @default(cuid())
   createdAt DateTime   @default(now())
@@ -30,9 +36,10 @@ model Property {
 
   status    DealStatus @default(WATCHING)
 
-  analyses  Analysis[]
-  offer     Offer?
-  notes     Note[]
+  analyses           Analysis[]
+  offer              Offer?
+  notes              Note[]
+  marketComparison   MarketComparison?
 }
 
 model Analysis {
@@ -44,7 +51,6 @@ model Analysis {
 
   scenarioName String   @default("Standard")
 
-  // Inputs / Annahmen
   equityRatio       Float @default(0.20)
   loanInterestRate  Float @default(0.038)
   loanRepaymentRate Float @default(0.02)
@@ -55,7 +61,6 @@ model Analysis {
   buildingShare     Float @default(0.80)
   afaRate           Float @default(0.02)
 
-  // Outputs / Berechnete Werte
   closingCosts        Int   @default(0)
   totalInvestment     Int   @default(0)
   equity              Int   @default(0)
@@ -93,4 +98,22 @@ model Note {
   property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   body        String
+}
+
+model MarketComparison {
+  id          String       @id @default(cuid())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  propertyId  String       @unique
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  rentPerSqmLow    Float
+  rentPerSqmHigh   Float
+  pricePerSqmLow   Float
+  pricePerSqmHigh  Float
+  rating           MarketRating
+  rationale        String
+  dataCaveat       String
+  model            String?
 }

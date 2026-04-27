@@ -106,6 +106,42 @@ export const NoteSchema = z.object({
   body: z.string()
 });
 
+export const MarketRatingEnum = z.enum(["below_market", "fair", "above_market"]);
+export type MarketRating = z.infer<typeof MarketRatingEnum>;
+
+export const MARKET_RATING_LABELS: Record<MarketRating, string> = {
+  below_market: "Unter Marktwert",
+  fair: "Fairer Preis",
+  above_market: "Über Marktwert"
+};
+
+export const MarketComparisonSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  propertyId: z.string(),
+  rentPerSqmLow: z.number(),
+  rentPerSqmHigh: z.number(),
+  pricePerSqmLow: z.number(),
+  pricePerSqmHigh: z.number(),
+  rating: MarketRatingEnum,
+  rationale: z.string(),
+  dataCaveat: z.string(),
+  model: z.string().nullable().optional()
+});
+
+export type MarketComparisonT = z.infer<typeof MarketComparisonSchema>;
+
+export const ImportExposeResponseSchema = z.object({
+  title: z.string(),
+  price: z.number(),
+  rent: z.number(),
+  location: z.string(),
+  size: z.number(),
+  confidence: z.string().optional(),
+  notes: z.string().optional()
+});
+
 export const PropertyListItemSchema = PropertySchema.extend({
   analyses: z.array(AnalysisSchema).optional(),
   offer: OfferSchema.nullable().optional()
@@ -114,7 +150,8 @@ export const PropertyListItemSchema = PropertySchema.extend({
 export const PropertyDetailSchema = PropertySchema.extend({
   analyses: z.array(AnalysisSchema).optional(),
   offer: OfferSchema.nullable().optional(),
-  notes: z.array(NoteSchema).optional()
+  notes: z.array(NoteSchema).optional(),
+  marketComparison: MarketComparisonSchema.nullable().optional()
 });
 
 function baseUrl() {

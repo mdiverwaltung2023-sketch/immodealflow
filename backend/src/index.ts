@@ -8,7 +8,11 @@ import {
   DEFAULT_ASSUMPTIONS,
   type AnalysisAssumptions
 } from "./lib/calc.js";
-import { generateOfferWithClaude } from "./lib/claude.js";
+import {
+  generateOfferWithClaude,
+  extractPropertyFromText,
+  marketComparisonForProperty
+} from "./lib/claude.js";
 
 const app = express();
 
@@ -66,6 +70,10 @@ const AnalyzeSchema = z.object({
   afaRate: z.number().min(0).max(0.10).optional()
 });
 
+const ImportExposeSchema = z.object({
+  text: z.string().min(20).max(50000)
+});
+
 app.post("/properties", async (req, res) => {
   const parsed = PropertyCreateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -101,7 +109,8 @@ app.get("/properties/:id", async (req, res) => {
     include: {
       analyses: { orderBy: { createdAt: "desc" } },
       offer: true,
-      notes: { orderBy: { createdAt: "desc" } }
+      notes: { orderBy: { createdAt: "desc" } },
+      marketComparison: true
     }
   });
   if (!property) return res.status(404).json({ error: "Not found" });
@@ -202,7 +211,6 @@ app.post("/analyze/:id", async (req, res) => {
     }
   });
 
-  // Touch property updatedAt damit Dashboard die Aktivität reflektiert
   await prisma.property.update({ where: { id }, data: { updatedAt: new Date() } });
 
   return res.status(201).json(analysis);
@@ -247,6 +255,76 @@ app.post("/offer/:id", async (req, res) => {
     suggested_price: offer.suggestedPrice,
     message: offer.message
   });
+});
+
+// ============================================================
+// Block C — KI-Magie
+// ============================================================
+
+app.post("/import/expose", async (req, res) => {
+  const parsed = ImportExposeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+  }
+
+  try {
+    const extracted = await extractPropertyFromText(parsed.data.text);
+    return res.json({
+      title: extracted.title,
+      price: Math.round(extracted.price),
+      rent: Math.round(extracted.rent),
+      location: extracted.location,
+      size: extracted.size,
+      confidence: extracted.confidence ?? "medium",
+      notes: extracted.notes ?? ""
+    });
+  } catch (err) {
+    return res.status(502).json({
+      error: err instanceof Error ? err.message : "Extraction failed"
+    });
+  }
+});
+
+app.post("/properties/:id/market-comparison", async (req, res) => {
+  const { id } = req.params;
+  const property = await prisma.property.findUnique({ where: { id } });
+  if (!property) return res.status(404).json({ error: "Not found" });
+
+  const ai = await marketComparisonForProperty({
+    price: property.price,
+    rent: property.rent,
+    location: property.location,
+    size: property.size
+  });
+
+  const mc = await prisma.marketComparison.upsert({
+    where: { propertyId: id },
+    create: {
+      propertyId: id,
+      rentPerSqmLow: ai.comparable_rent_per_sqm_low,
+      rentPerSqmHigh: ai.comparable_rent_per_sqm_high,
+      pricePerSqmLow: ai.comparable_price_per_sqm_low,
+      pricePerSqmHigh: ai.comparable_price_per_sqm_high,
+      rating: ai.rating,
+      rationale: ai.rationale,
+      dataCaveat: ai.data_caveat,
+      model: ai.model
+    },
+    update: {
+      rentPerSqmLow: ai.comparable_rent_per_sqm_low,
+      rentPerSqmHigh: ai.comparable_rent_per_sqm_high,
+      pricePerSqmLow: ai.comparable_price_per_sqm_low,
+      pricePerSqmHigh: ai.comparable_price_per_sqm_high,
+      rating: ai.rating,
+      rationale: ai.rationale,
+      dataCaveat: ai.data_caveat,
+      model: ai.model
+    }
+  });
+
+  await prisma.property.update({ where: { id }, data: { updatedAt: new Date() } });
+
+  return res.json(mc);
 });
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -5,6 +5,7 @@ import { StatusEditor } from "./StatusEditor";
 import { NotesPanel } from "./NotesPanel";
 import { PropertyHeaderActions } from "./PropertyHeaderActions";
 import { AnalysesPanel } from "./AnalysesPanel";
+import { MarketComparisonPanel } from "./MarketComparisonPanel";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -82,6 +83,14 @@ export default async function PropertyPage({ params }: { params: { id: string } 
           )}
         </Card>
       </div>
+
+      <Card title="Marktvergleich (Claude)">
+        <MarketComparisonPanel
+          id={p.id}
+          initial={p.marketComparison ?? null}
+          property={{ price: p.price, rent: p.rent, size: p.size }}
+        />
+      </Card>
 
       <Card title={`Analyse-Szenarien (${p.analyses?.length ?? 0})`}>
         <AnalysesPanel id={p.id} initialAnalyses={p.analyses ?? []} />

@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Button, Card, Input, Label } from "@/components/ui";
+import { Button, Card, Input, Label, Textarea } from "@/components/ui";
+import { ImportExposeResponseSchema } from "@/lib/api";
 
 const Schema = z.object({
   title: z.string().min(1),
@@ -32,6 +33,12 @@ export default function NewPropertyPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Import-State
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importNote, setImportNote] = useState<string | null>(null);
+
   const parsed = useMemo(() => {
     return Schema.safeParse({
       title: form.title,
@@ -41,6 +48,43 @@ export default function NewPropertyPage() {
       size: toNumber(form.size)
     });
   }, [form]);
+
+  async function runImport() {
+    if (!api) return;
+    if (importText.trim().length < 20) {
+      setImportNote("Bitte mehr Inserat-Text einfügen (mind. 20 Zeichen).");
+      return;
+    }
+    setImportNote(null);
+    setImportBusy(true);
+    try {
+      const res = await fetch(`${api.replace(/\/+$/, "")}/import/expose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: importText })
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Import fehlgeschlagen (${res.status}) ${txt}`);
+      }
+      const data = ImportExposeResponseSchema.parse(await res.json());
+      setForm({
+        title: data.title,
+        price: String(data.price),
+        rent: String(data.rent),
+        location: data.location,
+        size: String(data.size)
+      });
+      const conf = data.confidence ? ` Konfidenz: ${data.confidence}.` : "";
+      const notes = data.notes ? ` Hinweis: ${data.notes}` : "";
+      setImportNote(`Übernommen.${conf}${notes} Bitte Werte prüfen.`);
+      setShowImport(false);
+    } catch (e) {
+      setImportNote(e instanceof Error ? e.message : "Fehler");
+    } finally {
+      setImportBusy(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,6 +127,46 @@ export default function NewPropertyPage() {
           Lege ein Objekt an. Danach kannst du analysieren und ein Angebot generieren.
         </div>
       </div>
+
+      <Card title="Schnell-Import aus Inserat">
+        <div className="space-y-3">
+          <div className="text-xs text-zinc-400">
+            Kopiere den Inserats-Text (z. B. von Immoscout24, Immowelt, eBay-Kleinanzeigen)
+            und Claude extrahiert Titel, Preis, Miete, Lage und Größe automatisch.
+          </div>
+          {!showImport ? (
+            <Button variant="secondary" onClick={() => setShowImport(true)}>
+              Aus Inserat-Text importieren …
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <Textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="Inserat-Text hier einfügen …"
+                className="min-h-[180px]"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={runImport} disabled={importBusy}>
+                  {importBusy ? "Extrahiere…" : "Felder extrahieren"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowImport(false);
+                    setImportText("");
+                    setImportNote(null);
+                  }}
+                  disabled={importBusy}
+                >
+                  Abbrechen
+                </Button>
+              </div>
+            </div>
+          )}
+          {importNote ? <div className="text-sm text-zinc-300">{importNote}</div> : null}
+        </div>
+      </Card>
 
       <Card title="Property anlegen">
         <form onSubmit={onSubmit} className="space-y-4">
@@ -147,4 +231,3 @@ export default function NewPropertyPage() {
     </div>
   );
 }
-
