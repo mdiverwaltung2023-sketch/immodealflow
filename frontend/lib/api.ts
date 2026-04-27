@@ -1,5 +1,36 @@
 import { z } from "zod";
 
+export const DealStatusEnum = z.enum([
+  "WATCHING",
+  "INQUIRED",
+  "NEGOTIATING",
+  "LOI",
+  "NOTAR",
+  "CLOSED",
+  "REJECTED"
+]);
+export type DealStatus = z.infer<typeof DealStatusEnum>;
+
+export const STATUS_LABELS: Record<DealStatus, string> = {
+  WATCHING: "Beobachtung",
+  INQUIRED: "Angefragt",
+  NEGOTIATING: "Verhandlung",
+  LOI: "LOI",
+  NOTAR: "Notartermin",
+  CLOSED: "Gekauft",
+  REJECTED: "Abgelehnt"
+};
+
+export const STATUS_ORDER: DealStatus[] = [
+  "WATCHING",
+  "INQUIRED",
+  "NEGOTIATING",
+  "LOI",
+  "NOTAR",
+  "CLOSED",
+  "REJECTED"
+];
+
 export const PropertySchema = z.object({
   id: z.string(),
   createdAt: z.string(),
@@ -8,7 +39,8 @@ export const PropertySchema = z.object({
   price: z.number(),
   rent: z.number(),
   location: z.string(),
-  size: z.number()
+  size: z.number(),
+  status: DealStatusEnum
 });
 
 export const AnalysisSchema = z.object({
@@ -29,9 +61,22 @@ export const OfferSchema = z.object({
   model: z.string().nullable().optional()
 });
 
-export const PropertyDetailSchema = PropertySchema.extend({
+export const NoteSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  propertyId: z.string(),
+  body: z.string()
+});
+
+export const PropertyListItemSchema = PropertySchema.extend({
   analysis: AnalysisSchema.nullable().optional(),
   offer: OfferSchema.nullable().optional()
+});
+
+export const PropertyDetailSchema = PropertySchema.extend({
+  analysis: AnalysisSchema.nullable().optional(),
+  offer: OfferSchema.nullable().optional(),
+  notes: z.array(NoteSchema).optional()
 });
 
 function baseUrl() {
@@ -64,4 +109,3 @@ export async function apiPost<T>(
   const json = await res.json();
   return schema.parse(json);
 }
-

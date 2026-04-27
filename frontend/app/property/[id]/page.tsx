@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { apiGet, PropertyDetailSchema } from "@/lib/api";
-import { Card, Stat } from "@/components/ui";
+import { Card, Stat, StatusBadge } from "@/components/ui";
+import { StatusEditor } from "./StatusEditor";
+import { NotesPanel } from "./NotesPanel";
+import { PropertyHeaderActions } from "./PropertyHeaderActions";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -13,15 +16,25 @@ export default async function PropertyPage({ params }: { params: { id: string } 
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-2xl font-semibold">{p.title}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-2xl font-semibold">{p.title}</div>
+            <StatusBadge status={p.status} />
+          </div>
           <div className="mt-1 text-sm text-zinc-400">
             {p.location} • {p.size} m² • Preis {eur(p.price)} • Miete {eur(p.rent)}/Monat
           </div>
         </div>
-        <Link href="/dashboard" className="text-sm text-zinc-300 hover:underline">
-          ← Zurück zum Dashboard
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <PropertyHeaderActions id={p.id} />
+          <Link href="/dashboard" className="text-sm text-zinc-300 hover:underline">
+            ← Zurück zum Dashboard
+          </Link>
+        </div>
       </div>
+
+      <Card title="Pipeline-Status">
+        <StatusEditor id={p.id} initialStatus={p.status} />
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card title="Objekt">
@@ -41,7 +54,7 @@ export default async function PropertyPage({ params }: { params: { id: string } 
             </div>
           ) : (
             <div className="text-sm text-zinc-400">
-              Noch keine Analyse vorhanden. Starte sie im Dashboard über „Analysieren“.
+              Noch keine Analyse vorhanden. Starte sie im Dashboard über „Analysieren".
             </div>
           )}
         </Card>
@@ -57,12 +70,15 @@ export default async function PropertyPage({ params }: { params: { id: string } 
             </div>
           ) : (
             <div className="text-sm text-zinc-400">
-              Noch kein Angebot vorhanden. Erzeuge es im Dashboard über „Angebot generieren“.
+              Noch kein Angebot vorhanden. Erzeuge es im Dashboard über „Angebot generieren".
             </div>
           )}
         </Card>
       </div>
+
+      <Card title={`Notizen (${p.notes?.length ?? 0})`}>
+        <NotesPanel id={p.id} initialNotes={p.notes ?? []} />
+      </Card>
     </div>
   );
 }
-

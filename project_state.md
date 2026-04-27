@@ -12,9 +12,9 @@
 
 | Service    | URL                                               | Status |
 |------------|---------------------------------------------------|--------|
-| Frontend   | _(Vercel folgt — Account `mdiverwaltung.2023@gmail.com`)_ | ⏳ pending |
-| Backend    | _(noch nicht deployt — Railway folgt)_            | ⏳ pending |
-| Health     | `<backend>/health` → `{"ok":true}`                | ⏳ |
+| Frontend   | https://immodealflow-frontend.vercel.app | ✅ live |
+| Backend    | https://dealflow-ai-backend-production.up.railway.app | ✅ live |
+| Health     | https://dealflow-ai-backend-production.up.railway.app/health → `{"ok":true}` | ✅ |
 | GitHub-Repo | https://github.com/mdiverwaltung2023-sketch/immodealflow | ✅ |
 
 > **Sobald deployt** hier die echten URLs eintragen, damit Claude direkt darauf
@@ -117,8 +117,11 @@ Status der einzelnen Schritte:
 - [x] **Marco:** `02b_env-setup.bat` — `backend/.env` + `frontend/.env.local` gesetzt
 - [x] **Marco:** `03_db-migrate.bat` ausgeführt → Migration `20260426181605_init` auf Railway-DB angewandt
 - [x] **Smoke-Test lokal bestanden** — Property → Analyse → Angebot end-to-end funktioniert; 4 Bugs gefixt (Regex-Escape × 2, Claude-Modell, Error-Handler)
-- [ ] **Code-Fixes + Migration committen + pushen** ← **AKTUELL**
-- [ ] **Marco:** Backend-Service auf Railway konfigurieren (railway.json greift, Variables setzen)
+- [x] **Code-Fixes + Migration committet + gepusht** — Commit `fix: regex-escape, claude-model, error-handler + railway.json + initial migration`
+- [x] **Backend auf Railway live** — Variables (DATABASE_URL Reference, ANTHROPIC_API_KEY, ANTHROPIC_MODEL=claude-sonnet-4-6, FRONTEND_ORIGIN=*, PORT=4000), Domain generiert, End-to-End-Test in Production bestanden
+- [x] **Frontend auf Vercel deployt** — `immodealflow-frontend.vercel.app`, Root=frontend, Next.js 14, NEXT_PUBLIC_API_BASE_URL → Railway-Backend
+- [x] **`FRONTEND_ORIGIN` auf Railway** = `https://immodealflow-frontend.vercel.app,http://localhost:3000` (CORS für Production + lokale Dev)
+- [x] **End-to-End-Test in Production bestanden** — Dashboard zeigt 2 Properties, CORS-Direktcall vom Frontend ans Backend funktioniert
 - [ ] **Marco:** Frontend auf Vercel deployen (Root: `frontend/`)
 - [ ] URLs in dieser Datei aktualisieren
 

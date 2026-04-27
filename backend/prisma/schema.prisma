@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum DealStatus {
+  WATCHING
+  INQUIRED
+  NEGOTIATING
+  LOI
+  NOTAR
+  CLOSED
+  REJECTED
+}
+
 model Property {
   id        String     @id @default(cuid())
   createdAt DateTime   @default(now())
@@ -18,8 +28,11 @@ model Property {
   location  String
   size      Float
 
+  status    DealStatus @default(WATCHING)
+
   analysis  Analysis?
   offer     Offer?
+  notes     Note[]
 }
 
 model Analysis {
@@ -46,3 +59,12 @@ model Offer {
   model           String?
 }
 
+model Note {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  body        String
+}

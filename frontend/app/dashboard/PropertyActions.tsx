@@ -6,7 +6,7 @@ import { Button } from "@/components/ui";
 
 export function PropertyActions({ id }: { id: string }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<null | "analyze" | "offer">(null);
+  const [busy, setBusy] = useState<null | "analyze" | "offer" | "delete">(null);
   const api = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   async function run(kind: "analyze" | "offer") {
@@ -19,6 +19,21 @@ export function PropertyActions({ id }: { id: string }) {
       const path = kind === "analyze" ? `/analyze/${id}` : `/offer/${id}`;
       const res = await fetch(`${api.replace(/\/+$/, "")}${path}`, { method: "POST" });
       if (!res.ok) throw new Error(`Request fehlgeschlagen (${res.status})`);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Fehler");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onDelete() {
+    if (!api) return;
+    if (!confirm("Dieses Objekt inkl. Analyse, Angebot und Notizen unwiderruflich löschen?")) return;
+    setBusy("delete");
+    try {
+      const res = await fetch(`${api.replace(/\/+$/, "")}/properties/${id}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error(`DELETE fehlgeschlagen (${res.status})`);
       router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Fehler");
@@ -44,7 +59,14 @@ export function PropertyActions({ id }: { id: string }) {
       >
         {busy === "offer" ? "Generiere…" : "Angebot generieren"}
       </Button>
+      <Button
+        variant="ghost"
+        onClick={onDelete}
+        disabled={busy !== null}
+        title="Property löschen"
+      >
+        {busy === "delete" ? "Lösche…" : "Löschen"}
+      </Button>
     </div>
   );
 }
-
