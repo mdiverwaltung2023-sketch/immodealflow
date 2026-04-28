@@ -7,17 +7,16 @@ export default function BookmarkletPage() {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
   const frontBase = typeof window !== "undefined" ? `${window.location.protocol}//${window.location.host}` : "";
 
-  // Bookmarklet-Code als kompakter, einzeiliger IIFE.
-  // Backticks und Quotes werden bewusst minimal gehalten — der Code muss
-  // im javascript:-URL-Schema funktionieren und durch encodeURIComponent
-  // gehen.
+  // Bookmarklet-Code als kompakter IIFE. Wir nutzen ein dynamisches
+  // POST-Form (kein fetch), damit die CSP `connect-src`-Direktive der
+  // Quell-Seite (z. B. immobilienscout24.de) den Aufruf nicht blockiert.
+  // Der Frontend-Route-Handler `/bookmarklet/receive` nimmt die Daten
+  // entgegen und ruft das Backend serverseitig (kein CSP-Problem).
   const bookmarkletSource = `
     (function(){
-      var API='${apiBase}';
       var FRONT='${frontBase}';
       var bodyText=(document.body&&document.body.innerText||'').slice(0,80000);
       var pageUrl=window.location.href;
-      var pageTitle=document.title;
       var choice=prompt(
         'DealFlow Import — was ist das?\\n\\n'+
         '1 = Einzelnes Inserat (Immoscout, Immowelt, Kleinanzeigen, ...)\\n'+
@@ -27,22 +26,33 @@ export default function BookmarkletPage() {
       );
       if(!choice)return;
       var c=String(choice).trim();
-      var path,body;
-      if(c==='1'){path='/import/expose';body={text:bodyText};}
-      else if(c==='2'){path='/import/auction';body={text:bodyText};}
-      else if(c==='3'){path='/import/auction-list';body={text:bodyText,sourceUrl:pageUrl};}
+      var mode;
+      if(c==='1')mode='expose';
+      else if(c==='2')mode='auction';
+      else if(c==='3')mode='auction-list';
       else{alert('Ungueltige Wahl: '+c);return;}
-      fetch(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-        .then(function(r){return r.json().then(function(d){return{s:r.status,d:d};});})
-        .then(function(o){
-          if(o.s>=400){alert('DealFlow Fehler ('+o.s+'):\\n\\n'+(o.d.error||JSON.stringify(o.d)));return;}
-          if(o.d.id){window.open(FRONT+'/property/'+o.d.id,'_blank');return;}
-          if(typeof o.d.imported==='number'){alert('DealFlow: '+o.d.imported+' Auktionen importiert ('+o.d.detectedType+').');window.open(FRONT+'/auctions','_blank');return;}
-          alert('DealFlow: Erfolg.\\n\\n'+JSON.stringify(o.d));
-        })
-        .catch(function(e){alert('DealFlow Netzwerk-Fehler:\\n\\n'+(e&&e.message||e));});
+      try{
+        var f=document.createElement('form');
+        f.method='POST';
+        f.action=FRONT+'/bookmarklet/receive';
+        f.target='_blank';
+        f.enctype='application/x-www-form-urlencoded';
+        f.style.display='none';
+        function add(name,value){var i=document.createElement('input');i.type='hidden';i.name=name;i.value=value==null?'':String(value);f.appendChild(i);}
+        add('mode',mode);
+        add('text',bodyText);
+        add('sourceUrl',pageUrl);
+        document.body.appendChild(f);
+        f.submit();
+        setTimeout(function(){try{f.parentNode&&f.parentNode.removeChild(f);}catch(e){}},2000);
+      }catch(e){
+        alert('DealFlow konnte das Form nicht senden:\\n\\n'+(e&&e.message||e));
+      }
     })();
   `.replace(/\s+/g, " ").trim();
+  // apiBase wird hier nicht mehr im Bookmarklet referenziert — der Aufruf
+  // läuft jetzt server-zu-server über den Route-Handler.
+  void apiBase;
 
   const bookmarkletHref = `javascript:${encodeURIComponent(bookmarkletSource)}`;
 

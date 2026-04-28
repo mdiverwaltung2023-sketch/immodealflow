@@ -29,9 +29,17 @@ function daysUntil(iso: string): number {
   return Math.round((t - now) / (1000 * 60 * 60 * 24));
 }
 
-export default async function AuctionsPage() {
+export default async function AuctionsPage({
+  searchParams
+}: {
+  searchParams?: { imported?: string; skipped?: string; detected?: string };
+}) {
   const all = await apiGet("/properties", PropertiesSchema);
   const auctions = all.filter((p) => p.dealType === "AUCTION" && p.auction);
+  const importedNum = Number(searchParams?.imported ?? "");
+  const skippedNum = Number(searchParams?.skipped ?? "");
+  const detected = searchParams?.detected ?? "";
+  const showBanner = Number.isFinite(importedNum) && importedNum > 0;
 
   // Sortierung: zuerst zukünftige Termine nach Datum aufsteigend, dann ohne Datum, dann vergangene
   auctions.sort((a, b) => {
@@ -51,6 +59,14 @@ export default async function AuctionsPage() {
 
   return (
     <div className="space-y-6">
+      {showBanner ? (
+        <div className="rounded-xl border border-emerald-900 bg-emerald-950/40 p-4 text-sm text-emerald-200">
+          <strong>{importedNum}</strong> Versteigerung{importedNum === 1 ? "" : "en"} importiert
+          {detected ? ` (Quelle: ${detected})` : ""}
+          {skippedNum > 0 ? ` · ${skippedNum} übersprungen` : ""}.
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="text-2xl font-semibold">Versteigerungen</div>
