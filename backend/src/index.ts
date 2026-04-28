@@ -13,6 +13,7 @@ import {
   generateOfferWithClaude,
   extractPropertyFromText,
   extractAuctionFromText,
+  extractAuctionListFromText,
   marketComparisonForProperty
 } from "./lib/claude.js";
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
@@ -85,6 +86,47 @@ const ImportAuctionSchema = z.object({
   (v) => !!v.text || !!v.pdfBase64 || !!v.url,
   { message: "Eines der Felder text, pdfBase64 oder url ist erforderlich." }
 );
+
+const ImportAuctionListSchema = z.object({
+  url: z.string().url()
+});
+
+function detectAuctionTypeFromUrl(url: string): "ZVG" | "DGA" | "SDL" | "KARHAUSEN" | "OTHER" {
+  const u = url.toLowerCase();
+  if (u.includes("dga-ag.de") || u.includes("deutsche-grundstuecksauktionen") || u.includes("dga.")) return "DGA";
+  if (u.includes("sdl-auktion") || u.includes("sdl.")) return "SDL";
+  if (u.includes("karhausen")) return "KARHAUSEN";
+  if (u.includes("zvg-portal") || u.includes("zvg.")) return "ZVG";
+  return "OTHER";
+}
+
+async function fetchAndCleanHtml(url: string, maxChars = 60000): Promise<string> {
+  const r = await fetch(url, {
+    headers: {
+      "User-Agent": "DealFlow-AI/1.0 (Investor Research Tool)",
+      Accept: "text/html,*/*"
+    }
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const html = await r.text();
+  let text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+    // a-Tags vor dem Strip behalten — Hrefs sind wichtig für detailUrl
+    .replace(/<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, " [$2 -> $1] ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length > maxChars) text = text.slice(0, maxChars);
+  return text;
+}
 
 app.post("/properties", async (req, res) => {
   const parsed = PropertyCreateSchema.safeParse(req.body);
@@ -452,6 +494,120 @@ app.post("/import/auction", async (req, res) => {
   }
 
   return res.status(201).json(property);
+});
+
+app.post("/import/auction-list", async (req, res) => {
+  const parsed = ImportAuctionListSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+  }
+
+  const { url } = parsed.data;
+  let pageText: string;
+  try {
+    pageText = await fetchAndCleanHtml(url, 60000);
+  } catch (e) {
+    return res.status(400).json({
+      error: `URL konnte nicht geladen werden: ${e instanceof Error ? e.message : "unbekannter Fehler"}`
+    });
+  }
+
+  if (pageText.length < 50) {
+    return res.status(400).json({ error: "Seite enthält zu wenig Text für eine Listen-Extraktion." });
+  }
+
+  const auctionType = detectAuctionTypeFromUrl(url);
+  const { items } = await extractAuctionListFromText(pageText);
+
+  if (items.length === 0) {
+    return res.status(200).json({
+      imported: 0,
+      skipped: 0,
+      detectedType: auctionType,
+      message: "Claude hat keine Auktions-Einträge in dieser Seite gefunden. Eventuell ist es eine Detail-Seite — dann nutze stattdessen den Single-Import."
+    });
+  }
+
+  // Absolute Detail-URLs herstellen (wenn relative)
+  const baseUrl = (() => {
+    try {
+      const u = new URL(url);
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      return null;
+    }
+  })();
+
+  const importedIds: string[] = [];
+  let skipped = 0;
+
+  for (const item of items) {
+    if (!item.title) {
+      skipped++;
+      continue;
+    }
+
+    let detailUrl = item.detailUrl ?? null;
+    if (detailUrl && !detailUrl.startsWith("http") && baseUrl) {
+      detailUrl = baseUrl + (detailUrl.startsWith("/") ? "" : "/") + detailUrl;
+    }
+
+    const rent = item.estimatedRent && item.estimatedRent > 0 ? Math.round(item.estimatedRent) : 0;
+    const bidLimit = rent > 0 ? computeBidLimit(rent, DEFAULT_ASSUMPTIONS, 0) : null;
+    const startPrice = item.marketValue && item.marketValue > 0
+      ? Math.round(item.marketValue * 0.7)
+      : (bidLimit ?? Math.max(50_000, rent * 200));
+
+    try {
+      const property = await prisma.property.create({
+        data: {
+          title: item.title,
+          price: startPrice,
+          rent,
+          location: item.address || item.auctionLocation || "Unbekannt",
+          size: item.size && item.size > 0 ? item.size : 50,
+          dealType: "AUCTION",
+          auction: {
+            create: {
+              auctionType,
+              caseNumber: item.caseNumber,
+              marketValue: item.marketValue && item.marketValue > 0 ? Math.round(item.marketValue) : null,
+              auctionDate: item.auctionDateIso ? new Date(item.auctionDateIso) : null,
+              auctionLocation: item.auctionLocation,
+              sourceUrl: detailUrl ?? url,
+              rawText: null,
+              bidLimit,
+              bidLimitNeutral: bidLimit,
+              notes: item.notes
+            }
+          }
+        }
+      });
+      importedIds.push(property.id);
+
+      if (rent > 0) {
+        const result = computeFullAnalysis(property.price, rent, DEFAULT_ASSUMPTIONS);
+        await prisma.analysis.create({
+          data: {
+            propertyId: property.id,
+            scenarioName: "Standard (Listen-Import)",
+            ...DEFAULT_ASSUMPTIONS,
+            ...result
+          }
+        });
+      }
+    } catch (e) {
+      console.error(`Konnte Listen-Eintrag nicht anlegen: ${item.title}`, e);
+      skipped++;
+    }
+  }
+
+  return res.status(201).json({
+    imported: importedIds.length,
+    skipped,
+    detectedType: auctionType,
+    propertyIds: importedIds
+  });
 });
 
 app.post("/properties/:id/recompute-bid-limit", async (req, res) => {

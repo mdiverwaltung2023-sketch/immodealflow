@@ -250,6 +250,71 @@ export async function extractAuctionFromText(text: string): Promise<ExtractedAuc
 }
 
 // ============================================================
+// Use-Case 4b: Liste mehrerer Versteigerungen (Katalog-/Übersichtsseite)
+// ============================================================
+
+export type ExtractedAuctionListItem = {
+  title: string;
+  caseNumber?: string;
+  marketValue?: number;
+  auctionDateIso?: string;
+  auctionLocation?: string;
+  address?: string;
+  size?: number;
+  estimatedRent?: number;
+  detailUrl?: string;
+  notes?: string;
+};
+
+export async function extractAuctionListFromText(
+  text: string
+): Promise<{ items: ExtractedAuctionListItem[]; model: string }> {
+  const { data, model } = await callWithTool<{ items: ExtractedAuctionListItem[] }>({
+    systemPrompt: [
+      "Du extrahierst eine Liste von Immobilien-Versteigerungen aus einer Übersichts-/Katalogseite ",
+      "(z. B. DGA, SDL, Karhausen oder zvg-portal Listenansicht). ",
+      "Jeder Eintrag muss mindestens einen aussagekräftigen Titel haben. ",
+      "Verkehrswert/Mindestpreis, Termin und Adresse extrahierst du, wenn vorhanden. ",
+      "Wenn Detail-Links als URL erkennbar sind (relative Links absolut machen), gib sie als detailUrl an. ",
+      "Achte auf deutsche Datums- und Zahlenformate. ",
+      "Liefere maximal 50 Einträge."
+    ].join(""),
+    userMessage: `Übersichts-/Katalogseite (Text):\n\n${text}`,
+    toolName: "extract_auction_list",
+    toolDescription: "Extrahiert eine Liste mehrerer Versteigerungs-Einträge aus einer Übersichtsseite.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          maxItems: 50,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Kurzer Titel des Objekts" },
+              caseNumber: { type: "string", description: "Aktenzeichen, falls vorhanden" },
+              marketValue: { type: "number", description: "Verkehrswert oder Mindestpreis in EUR" },
+              auctionDateIso: { type: "string", description: "Termin im ISO-Format YYYY-MM-DDTHH:MM" },
+              auctionLocation: { type: "string", description: "Amtsgericht oder Plattform" },
+              address: { type: "string", description: "Adresse oder Lagebezeichnung" },
+              size: { type: "number", description: "Wohnfläche in m²" },
+              estimatedRent: { type: "number", description: "Kalt-Miete in EUR/Monat, falls angegeben" },
+              detailUrl: { type: "string", description: "Absolute URL zur Detail-Ansicht" },
+              notes: { type: "string", description: "Auffälligkeiten" }
+            },
+            required: ["title"]
+          }
+        }
+      },
+      required: ["items"]
+    },
+    maxTokens: 4000
+  });
+
+  return { items: data.items ?? [], model };
+}
+
+// ============================================================
 // Use-Case 3: Marktvergleich für eine Lage
 // ============================================================
 

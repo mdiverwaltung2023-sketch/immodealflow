@@ -101,6 +101,26 @@ Quelle: `backend/src/index.ts`.
 
 UI-Primitives: `frontend/components/ui.tsx` (Card, Button, Input, Label, Stat).
 
+## Aktuelle Phase: **Phase 1 (Versteigerungen) erledigt — ZVG-Importer + Bietlimit live**
+
+### Phase 1 (2026-04-28)
+
+- ✅ Prisma: neuer Enum `DealType` (FREE_SALE/AUCTION), `AuctionType` (ZVG/DGA/SDL/KARHAUSEN/OTHER), `Property.dealType`, neues Model `AuctionInfo` (1:1) mit Aktenzeichen, Verkehrswert, Termin, Amtsgericht, Source-URL, RawText, Bietlimit, Notes
+- ✅ Migration `20260427xxxxxx_add_auctions` auf Railway-DB
+- ✅ Calc-Lib: `computeBidLimit(rent, assumptions, target=0)` — Bisektion zwischen 0 und 50× Bruttojahresmiete, findet Max-Preis bei Cashflow nach Steuer ≥ 0
+- ✅ Claude: neuer Tool-Use `extract_auction` für ZVG-Bekanntmachungen (Aktenzeichen, Verkehrswert, Termin ISO, Adresse, Größe, Miete, Auktionstyp, Notes)
+- ✅ PDF-Parser: `pdf-parse@1.1.1` mit eigener Type-Shim `backend/src/types/pdf-parse-lib.d.ts` (Sub-Pfad-Import wegen Test-Side-Effect im Hauptmodul)
+- ✅ Backend-Endpoints: `POST /import/auction` (Body `{text}` ODER `{pdfBase64}` ODER `{url}`), `POST /properties/:id/recompute-bid-limit`. Importiert legt Property mit `dealType=AUCTION` + AuctionInfo + Standard-Analyse + Bietlimit an. Startpreis = 70 % Verkehrswert (Zuschlagsschwelle).
+- ✅ Frontend: neue Page `/auctions` mit Sortierung anstehend → ohne Termin → vergangen, Spalten Termin/Objekt/Lage/Verkehrswert/Bietlimit/Aktenzeichen/Typ. Page `/auctions/import` mit drei Tabs (Text/PDF/URL). Auction-Card auf Property-Detail mit Termin-Banner (rot wenn ≤ 14 Tage), Verkehrswert, Bietlimit prominent grün, Aktenzeichen, „Bietlimit neu berechnen"-Button.
+- ✅ Production-Smoke-Test: Beispiel-ZVG „Köln-Ehrenfeld, 90 K 142/24" → korrekte Extraktion, Bietlimit 107.578 € bei 720 € Miete, Termin 17.06.2026, Notes mit Mieterschutz § 57a ZVG / Hausgeld / Geringstes Gebot 5/10 / Zuschlag ab 7/10
+- ⚠️ Bekannt: Zeitzone der `auctionDate` wird als UTC gespeichert, im Browser mit +2 h CEST angezeigt (09:30 UTC → 11:30 CEST). Fix später: Europe/Berlin als Default beim Parsen.
+
+### Roadmap nach Phase 1
+
+- **Phase 2** Versteigerungen — DGA + SDL Crawler (Auktionskataloge der Online-Versteigerer)
+- **Phase 3** Versteigerungen — Universal-Bookmarklet für jedes Inserat-Portal
+- **Finanzierung Stufe 1** — Bonitäts-Selbsteinschätzung (max Darlehen aus Einkommen + EK + Verbindlichkeiten), automatischer Filter „leistbare Properties" im Dashboard
+
 ## Aktuelle Phase: **Block C erledigt — KI-Magie live**
 
 ### Block C (2026-04-27)
