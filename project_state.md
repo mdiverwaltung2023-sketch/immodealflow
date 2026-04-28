@@ -115,10 +115,16 @@ UI-Primitives: `frontend/components/ui.tsx` (Card, Button, Input, Label, Stat).
 - ✅ Production-Smoke-Test: Beispiel-ZVG „Köln-Ehrenfeld, 90 K 142/24" → korrekte Extraktion, Bietlimit 107.578 € bei 720 € Miete, Termin 17.06.2026, Notes mit Mieterschutz § 57a ZVG / Hausgeld / Geringstes Gebot 5/10 / Zuschlag ab 7/10
 - ⚠️ Bekannt: Zeitzone der `auctionDate` wird als UTC gespeichert, im Browser mit +2 h CEST angezeigt (09:30 UTC → 11:30 CEST). Fix später: Europe/Berlin als Default beim Parsen.
 
-### Roadmap nach Phase 1
+### Phase 2 (2026-04-28) — Listen-Import live, aber JS-Seiten brauchen Phase 3
 
-- **Phase 2** Versteigerungen — DGA + SDL Crawler (Auktionskataloge der Online-Versteigerer)
-- **Phase 3** Versteigerungen — Universal-Bookmarklet für jedes Inserat-Portal
+- ✅ Claude `extract_auction_list` (max 50 Items pro Seite)
+- ✅ Endpoint `POST /import/auction-list` mit URL → fetched HTML, bereinigt, extrahiert, legt Bulk-Properties + AuctionInfos an, AuctionType aus Domain (DGA/SDL/KARHAUSEN/ZVG/OTHER)
+- ✅ Frontend `/auctions/import` 4. Tab „Liste importieren" mit Beispiel-Quick-Buttons
+- ⚠️ **Bekannte Limitierung**: DGA-Site ist Single-Page-App (Hash-Fragment-URLs), Server-Side-HTML enthält keine Listen-Items. Aktuell auch `Sommerkatalog erst ab 22.05.2026 verfügbar`. Listen-Crawling funktioniert nur bei Server-Side-rendered Seiten (z. B. zvg-portal). Für JS-Anbieter ist Phase 3 = Bookmarklet die saubere Lösung.
+
+### Roadmap nach Phase 2
+
+- **Phase 3** (priorisiert) — Universal-Bookmarklet: User klickt auf jeder Inserats-/Auktions-Seite den Bookmarklet-Button, das gegrabbt den fertig gerenderten DOM-Inhalt und schickt ihn an `/import/expose` oder `/import/auction-list`. Funktioniert auf DGA, SDL, Immoscout, Immowelt, Kleinanzeigen — überall wo der User selbst surft.
 - **Finanzierung Stufe 1** — Bonitäts-Selbsteinschätzung (max Darlehen aus Einkommen + EK + Verbindlichkeiten), automatischer Filter „leistbare Properties" im Dashboard
 
 ## Aktuelle Phase: **Block C erledigt — KI-Magie live**

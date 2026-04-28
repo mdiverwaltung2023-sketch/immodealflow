@@ -20,12 +20,22 @@ import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 
 const app = express();
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "2mb" }));
+
+// Standard-CORS: nur Vercel-Domain + localhost (FRONTEND_ORIGIN env)
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN?.split(",").map((s) => s.trim()) ?? true
   })
 );
+
+// Bookmarklet-CORS: offen für alle Origins, aber nur für die /import/*-Endpoints.
+// Das Bookmarklet läuft auf der Origin der jeweiligen Inserate-Seite (Immoscout, DGA, …)
+// und braucht daher Wildcard-Cors für genau diese drei Routen.
+const bookmarkletCors = cors({ origin: "*", methods: ["POST", "OPTIONS"] });
+app.options("/import/expose", bookmarkletCors);
+app.options("/import/auction", bookmarkletCors);
+app.options("/import/auction-list", bookmarkletCors);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
@@ -88,8 +98,13 @@ const ImportAuctionSchema = z.object({
 );
 
 const ImportAuctionListSchema = z.object({
-  url: z.string().url()
-});
+  url: z.string().url().optional(),
+  text: z.string().min(50).max(120000).optional(),
+  sourceUrl: z.string().url().optional() // optional: Original-URL für Detection des AuctionType
+}).refine(
+  (v) => !!v.url || !!v.text,
+  { message: "Eines der Felder url oder text ist erforderlich." }
+);
 
 function detectAuctionTypeFromUrl(url: string): "ZVG" | "DGA" | "SDL" | "KARHAUSEN" | "OTHER" {
   const u = url.toLowerCase();
@@ -317,7 +332,7 @@ app.post("/offer/:id", async (req, res) => {
 // Block C — KI-Magie
 // ============================================================
 
-app.post("/import/expose", async (req, res) => {
+app.post("/import/expose", bookmarkletCors, async (req, res) => {
   const parsed = ImportExposeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -383,7 +398,7 @@ app.post("/properties/:id/market-comparison", async (req, res) => {
   return res.json(mc);
 });
 
-app.post("/import/auction", async (req, res) => {
+app.post("/import/auction", bookmarkletCors, async (req, res) => {
   const parsed = ImportAuctionSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -496,27 +511,36 @@ app.post("/import/auction", async (req, res) => {
   return res.status(201).json(property);
 });
 
-app.post("/import/auction-list", async (req, res) => {
+app.post("/import/auction-list", bookmarkletCors, async (req, res) => {
   const parsed = ImportAuctionListSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const { url } = parsed.data;
+  const { url, text, sourceUrl } = parsed.data;
   let pageText: string;
-  try {
-    pageText = await fetchAndCleanHtml(url, 60000);
-  } catch (e) {
-    return res.status(400).json({
-      error: `URL konnte nicht geladen werden: ${e instanceof Error ? e.message : "unbekannter Fehler"}`
-    });
+
+  if (text) {
+    // Bookmarklet-Variante: fertig gerenderter DOM-Text vom Client
+    pageText = text;
+  } else if (url) {
+    try {
+      pageText = await fetchAndCleanHtml(url, 60000);
+    } catch (e) {
+      return res.status(400).json({
+        error: `URL konnte nicht geladen werden: ${e instanceof Error ? e.message : "unbekannter Fehler"}`
+      });
+    }
+  } else {
+    return res.status(400).json({ error: "Weder url noch text geliefert." });
   }
 
   if (pageText.length < 50) {
-    return res.status(400).json({ error: "Seite enthält zu wenig Text für eine Listen-Extraktion." });
+    return res.status(400).json({ error: "Zu wenig Text für eine Listen-Extraktion." });
   }
 
-  const auctionType = detectAuctionTypeFromUrl(url);
+  const detectionUrl = url ?? sourceUrl ?? "";
+  const auctionType = detectAuctionTypeFromUrl(detectionUrl);
   const { items } = await extractAuctionListFromText(pageText);
 
   if (items.length === 0) {
@@ -528,10 +552,12 @@ app.post("/import/auction-list", async (req, res) => {
     });
   }
 
-  // Absolute Detail-URLs herstellen (wenn relative)
+  // Absolute Detail-URLs herstellen (wenn relative). Basis-URL = Source-URL oder explizit übergebene sourceUrl
+  const baseRef = url ?? sourceUrl;
   const baseUrl = (() => {
+    if (!baseRef) return null;
     try {
-      const u = new URL(url);
+      const u = new URL(baseRef);
       return `${u.protocol}//${u.host}`;
     } catch {
       return null;
@@ -574,7 +600,7 @@ app.post("/import/auction-list", async (req, res) => {
               marketValue: item.marketValue && item.marketValue > 0 ? Math.round(item.marketValue) : null,
               auctionDate: item.auctionDateIso ? new Date(item.auctionDateIso) : null,
               auctionLocation: item.auctionLocation,
-              sourceUrl: detailUrl ?? url,
+              sourceUrl: detailUrl ?? baseRef ?? null,
               rawText: null,
               bidLimit,
               bidLimitNeutral: bidLimit,
