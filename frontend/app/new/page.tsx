@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { ImportExposeResponseSchema } from "@/lib/api";
+import { useApiFetch } from "@/lib/client-fetch";
 
 const Schema = z.object({
   title: z.string().min(1),
@@ -21,7 +22,7 @@ function toNumber(v: string) {
 
 export default function NewPropertyPage() {
   const router = useRouter();
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const apiFetch = useApiFetch();
 
   const [form, setForm] = useState({
     title: "",
@@ -50,7 +51,6 @@ export default function NewPropertyPage() {
   }, [form]);
 
   async function runImport() {
-    if (!api) return;
     if (importText.trim().length < 20) {
       setImportNote("Bitte mehr Inserat-Text einfügen (mind. 20 Zeichen).");
       return;
@@ -58,9 +58,8 @@ export default function NewPropertyPage() {
     setImportNote(null);
     setImportBusy(true);
     try {
-      const res = await fetch(`${api.replace(/\/+$/, "")}/import/expose`, {
+      const res = await apiFetch(`/import/expose`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: importText })
       });
       if (!res.ok) {
@@ -90,10 +89,6 @@ export default function NewPropertyPage() {
     e.preventDefault();
     setError(null);
 
-    if (!api) {
-      setError("NEXT_PUBLIC_API_BASE_URL fehlt");
-      return;
-    }
     if (!parsed.success) {
       setError("Bitte prüfe deine Eingaben.");
       return;
@@ -101,9 +96,8 @@ export default function NewPropertyPage() {
 
     setBusy(true);
     try {
-      const res = await fetch(`${api.replace(/\/+$/, "")}/properties`, {
+      const res = await apiFetch(`/properties`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed.data)
       });
       if (!res.ok) {

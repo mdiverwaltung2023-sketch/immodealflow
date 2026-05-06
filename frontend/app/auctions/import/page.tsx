@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui";
+import { useApiFetch } from "@/lib/client-fetch";
 
 type Mode = "text" | "pdf" | "url" | "list";
 
@@ -15,7 +16,7 @@ const LIST_EXAMPLES: { label: string; url: string }[] = [
 
 export default function AuctionImportPage() {
   const router = useRouter();
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const apiFetch = useApiFetch();
 
   const [mode, setMode] = useState<Mode>("text");
   const [text, setText] = useState("");
@@ -49,7 +50,6 @@ export default function AuctionImportPage() {
   }
 
   async function submitSingle() {
-    if (!api) return;
     setError(null);
 
     let body: Record<string, string> = {};
@@ -75,9 +75,8 @@ export default function AuctionImportPage() {
 
     setBusy(true);
     try {
-      const res = await fetch(`${api.replace(/\/+$/, "")}/import/auction`, {
+      const res = await apiFetch(`/import/auction`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
       if (!res.ok) {
@@ -94,7 +93,6 @@ export default function AuctionImportPage() {
   }
 
   async function submitList() {
-    if (!api) return;
     setError(null);
     setListResult(null);
 
@@ -105,9 +103,8 @@ export default function AuctionImportPage() {
 
     setBusy(true);
     try {
-      const res = await fetch(`${api.replace(/\/+$/, "")}/import/auction-list`, {
+      const res = await apiFetch(`/import/auction-list`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: listUrl })
       });
       if (!res.ok) {

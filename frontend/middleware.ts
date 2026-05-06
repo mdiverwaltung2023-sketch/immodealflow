@@ -1,15 +1,21 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// In Push A1 läuft die Middleware, aber **schützt noch keine Routes**.
-// Ziel: Sign-in/Sign-up funktionieren, UserButton zeigt eingeloggten User —
-// alle bestehenden Routes (Dashboard, Auctions, …) bleiben offen, damit ein
-// Bug im Login keine Live-App lahmlegt. In Push A2 erweitern wir das hier
-// um createRouteMatcher + auth().protect() für die privaten Bereiche.
-export default clerkMiddleware();
+// Öffentliche Routes — alles andere ist geschützt
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/bookmarklet(.*)" // damit das Bookmarklet die Anleitungs-Seite ohne Login lesen kann; receive-Endpoint hat eigene Auth-Logik
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req)) {
+    await auth.protect();
+  }
+});
 
 export const config = {
   matcher: [
-    // Alle Pfade außer Static und _next
     "/((?!_next|.*\\..*).*)",
     "/(api|trpc)(.*)"
   ]

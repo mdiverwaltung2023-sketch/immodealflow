@@ -3,21 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
+import { useApiFetch } from "@/lib/client-fetch";
 
 export function PropertyActions({ id }: { id: string }) {
   const router = useRouter();
+  const apiFetch = useApiFetch();
   const [busy, setBusy] = useState<null | "analyze" | "offer" | "delete">(null);
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   async function run(kind: "analyze" | "offer") {
-    if (!api) {
-      alert("NEXT_PUBLIC_API_BASE_URL fehlt");
-      return;
-    }
     setBusy(kind);
     try {
       const path = kind === "analyze" ? `/analyze/${id}` : `/offer/${id}`;
-      const res = await fetch(`${api.replace(/\/+$/, "")}${path}`, { method: "POST" });
+      const res = await apiFetch(path, { method: "POST" });
       if (!res.ok) throw new Error(`Request fehlgeschlagen (${res.status})`);
       router.refresh();
     } catch (e) {
@@ -28,11 +25,10 @@ export function PropertyActions({ id }: { id: string }) {
   }
 
   async function onDelete() {
-    if (!api) return;
     if (!confirm("Dieses Objekt inkl. Analyse, Angebot und Notizen unwiderruflich löschen?")) return;
     setBusy("delete");
     try {
-      const res = await fetch(`${api.replace(/\/+$/, "")}/properties/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/properties/${id}`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error(`DELETE fehlgeschlagen (${res.status})`);
       router.refresh();
     } catch (e) {

@@ -4,22 +4,22 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, StatusBadge } from "@/components/ui";
 import { STATUS_LABELS, STATUS_ORDER, type DealStatus } from "@/lib/api";
+import { useApiFetch } from "@/lib/client-fetch";
 
 export function StatusEditor({ id, initialStatus }: { id: string; initialStatus: DealStatus }) {
   const router = useRouter();
+  const apiFetch = useApiFetch();
   const [status, setStatus] = useState<DealStatus>(initialStatus);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   async function changeTo(next: DealStatus) {
     if (next === status || busy) return;
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/properties/${id}`, {
+      const res = await apiFetch(`/properties/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: next })
       });
       if (!res.ok) throw new Error(`PATCH fehlgeschlagen (${res.status})`);

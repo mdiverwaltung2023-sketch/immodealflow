@@ -8,6 +8,7 @@ import {
   MarketComparisonSchema,
   type MarketComparisonT
 } from "@/lib/api";
+import { useApiFetch } from "@/lib/client-fetch";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
@@ -43,16 +44,16 @@ export function MarketComparisonPanel({
   property: { price: number; rent: number; size: number };
 }) {
   const router = useRouter();
+  const apiFetch = useApiFetch();
   const [mc, setMc] = useState<MarketComparisonT | null>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   async function refresh() {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/properties/${id}/market-comparison`, {
+      const res = await apiFetch(`/properties/${id}/market-comparison`, {
         method: "POST"
       });
       if (!res.ok) {

@@ -3,8 +3,17 @@ import { z } from "zod";
 import { apiGet, PropertyListItemSchema, STATUS_ORDER, STATUS_LABELS, DealStatusEnum, type DealStatus } from "@/lib/api";
 import { Card, StatusBadge } from "@/components/ui";
 import { PropertyActions } from "./PropertyActions";
+import { ClaimLegacyBanner } from "./ClaimLegacyBanner";
 
 const PropertiesSchema = z.array(PropertyListItemSchema);
+
+const MeSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string().nullable().optional(),
+  role: z.string(),
+  legacyCount: z.number()
+});
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -20,7 +29,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: S
   })();
 
   const path = statusFilter ? `/properties?status=${statusFilter}` : "/properties";
-  const properties = await apiGet(path, PropertiesSchema);
+  const [properties, me] = await Promise.all([
+    apiGet(path, PropertiesSchema),
+    apiGet("/me", MeSchema).catch(() => ({ legacyCount: 0 }))
+  ]);
 
   // Counts (zweiter Call ohne Filter, damit die Tabs immer Anzahl zeigen — oder von properties wenn kein Filter)
   const all = statusFilter ? await apiGet("/properties", PropertiesSchema) : properties;
@@ -41,6 +53,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: S
 
   return (
     <div className="space-y-6">
+      <ClaimLegacyBanner count={me.legacyCount ?? 0} />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="text-2xl font-semibold">Dashboard</div>

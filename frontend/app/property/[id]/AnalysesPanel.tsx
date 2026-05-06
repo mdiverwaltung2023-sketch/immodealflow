@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label } from "@/components/ui";
 import { AnalysisSchema, DEFAULT_ASSUMPTIONS, type Analysis } from "@/lib/api";
+import { useApiFetch } from "@/lib/client-fetch";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -71,12 +72,12 @@ export function AnalysesPanel({
   initialAnalyses: Analysis[];
 }) {
   const router = useRouter();
+  const apiFetch = useApiFetch();
   const [analyses, setAnalyses] = useState<Analysis[]>(initialAnalyses);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -106,9 +107,8 @@ export function AnalysesPanel({
 
     setBusy(true);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/analyze/${id}`, {
+      const res = await apiFetch(`/analyze/${id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
       if (!res.ok) {
@@ -130,9 +130,8 @@ export function AnalysesPanel({
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/analyze/${id}`, {
+      const res = await apiFetch(`/analyze/${id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenarioName: "Standard" })
       });
       if (!res.ok) throw new Error(`Fehlgeschlagen (${res.status})`);
@@ -150,7 +149,7 @@ export function AnalysesPanel({
     if (!confirm("Diese Analyse wirklich löschen?")) return;
     setError(null);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/analyses/${analysisId}`, { method: "DELETE" });
+      const res = await apiFetch(`/analyses/${analysisId}`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error(`DELETE fehlgeschlagen (${res.status})`);
       setAnalyses((prev) => prev.filter((a) => a.id !== analysisId));
       router.refresh();

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button, Card, Input, Label, Select } from "@/components/ui";
 import { DealStatusEnum, STATUS_LABELS, STATUS_ORDER, type DealStatus } from "@/lib/api";
+import { useApiFetch } from "@/lib/client-fetch";
 
 const Schema = z.object({
   title: z.string().min(1),
@@ -35,7 +36,7 @@ export function EditForm({
   };
 }) {
   const router = useRouter();
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const apiFetch = useApiFetch();
 
   const [form, setForm] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -56,10 +57,6 @@ export function EditForm({
     e.preventDefault();
     setError(null);
 
-    if (!api) {
-      setError("NEXT_PUBLIC_API_BASE_URL fehlt");
-      return;
-    }
     if (!parsed.success) {
       setError("Bitte prüfe deine Eingaben.");
       return;
@@ -67,9 +64,8 @@ export function EditForm({
 
     setBusy(true);
     try {
-      const res = await fetch(`${api.replace(/\/+$/, "")}/properties/${id}`, {
+      const res = await apiFetch(`/properties/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed.data)
       });
       if (!res.ok) {

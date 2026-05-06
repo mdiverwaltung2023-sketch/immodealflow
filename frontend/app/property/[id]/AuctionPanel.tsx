@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { AuctionInfoSchema, AUCTION_TYPE_LABELS, type AuctionInfoT } from "@/lib/api";
+import { useApiFetch } from "@/lib/client-fetch";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
@@ -35,18 +36,17 @@ export function AuctionPanel({
   initial: AuctionInfoT;
 }) {
   const router = useRouter();
+  const apiFetch = useApiFetch();
   const [auction, setAuction] = useState<AuctionInfoT>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   async function recompute() {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/properties/${id}/recompute-bid-limit`, {
+      const res = await apiFetch(`/properties/${id}/recompute-bid-limit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({})
       });
       if (!res.ok) {

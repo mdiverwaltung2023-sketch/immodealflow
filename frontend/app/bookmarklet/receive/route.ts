@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 
 export const runtime = "nodejs";
 
 const ALLOWED_MODES = new Set(["expose", "auction", "auction-list"]);
 
 export async function POST(req: NextRequest) {
+  // Auth-Check: User muss in DealFlow eingeloggt sein, damit das Bookmarklet
+  // die Properties seinem Account zuordnen kann.
+  const a = await auth();
+  if (!a.userId) {
+    return redirectError(req, "Nicht eingeloggt. Bitte erst auf DealFlow anmelden, dann das Bookmarklet erneut klicken.");
+  }
+  const token = await a.getToken();
+  if (!token) {
+    return redirectError(req, "Kein Auth-Token verfügbar.");
+  }
+  const authHeader = { Authorization: `Bearer ${token}` };
+
   let mode: string;
   let text: string;
   let sourceUrl: string;
@@ -36,7 +49,7 @@ export async function POST(req: NextRequest) {
       // /import/auction legt schon ein Property an und gibt es zurück
       const r = await fetch(`${apiBase}/import/auction`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify({ text })
       });
       const data = await r.json().catch(() => ({}));
@@ -49,7 +62,7 @@ export async function POST(req: NextRequest) {
     if (mode === "auction-list") {
       const r = await fetch(`${apiBase}/import/auction-list`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify({ text, sourceUrl: sourceUrl || undefined })
       });
       const data = await r.json().catch(() => ({}));
@@ -69,7 +82,7 @@ export async function POST(req: NextRequest) {
     // mode === "expose": zwei Calls: erst extrahieren, dann anlegen
     const extractRes = await fetch(`${apiBase}/import/expose`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeader },
       body: JSON.stringify({ text })
     });
     const extracted = await extractRes.json().catch(() => ({}));
@@ -90,7 +103,7 @@ export async function POST(req: NextRequest) {
 
     const createRes = await fetch(`${apiBase}/properties`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeader },
       body: JSON.stringify({
         title,
         price: Math.round(price),

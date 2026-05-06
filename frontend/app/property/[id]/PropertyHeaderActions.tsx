@@ -3,15 +3,16 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui";
+import { useApiFetch } from "@/lib/client-fetch";
 
 export function PropertyHeaderActions({ id }: { id: string }) {
   const router = useRouter();
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const apiFetch = useApiFetch();
 
   async function onDelete() {
     if (!confirm("Dieses Objekt inkl. Analyse, Angebot und Notizen unwiderruflich löschen?")) return;
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/properties/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/properties/${id}`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error(`DELETE fehlgeschlagen (${res.status})`);
       router.push("/dashboard");
       router.refresh();

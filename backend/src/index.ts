@@ -17,6 +17,7 @@ import {
   marketComparisonForProperty
 } from "./lib/claude.js";
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
+import { requireAuth } from "./lib/auth.js";
 
 const app = express();
 
@@ -38,6 +39,18 @@ app.options("/import/auction", bookmarkletCors);
 app.options("/import/auction-list", bookmarkletCors);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// --- Auth-Schutz für alle datenrelevanten Routes -----------------
+// /import/* und /health bleiben ohne requireAuth — /import/* braucht eigene
+// Logik, die wir per Endpoint selbst behandeln (Bookmarklet-Endpoints
+// können von beliebigen Origins kommen, müssen den User aber identifizieren).
+app.use("/properties", requireAuth);
+app.use("/analyze", requireAuth);
+app.use("/offer", requireAuth);
+app.use("/notes", requireAuth);
+app.use("/analyses", requireAuth);
+app.use("/me", requireAuth);
+// /import/* wird gleich pro-Endpoint gehandhabt (siehe weiter unten).
 
 const DealStatusEnum = z.enum([
   "WATCHING",
@@ -149,7 +162,9 @@ app.post("/properties", async (req, res) => {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const property = await prisma.property.create({ data: parsed.data });
+  const property = await prisma.property.create({
+    data: { ...parsed.data, ownerId: req.userId! }
+  });
   return res.status(201).json(property);
 });
 
@@ -161,7 +176,10 @@ app.get("/properties", async (req, res) => {
   }
 
   const properties = await prisma.property.findMany({
-    where: statusParsed?.success ? { status: statusParsed.data } : undefined,
+    where: {
+      ownerId: req.userId!,
+      ...(statusParsed?.success ? { status: statusParsed.data } : {})
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       analyses: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -174,8 +192,8 @@ app.get("/properties", async (req, res) => {
 
 app.get("/properties/:id", async (req, res) => {
   const { id } = req.params;
-  const property = await prisma.property.findUnique({
-    where: { id },
+  const property = await prisma.property.findFirst({
+    where: { id, ownerId: req.userId! },
     include: {
       analyses: { orderBy: { createdAt: "desc" } },
       offer: true,
@@ -198,7 +216,7 @@ app.patch("/properties/:id", async (req, res) => {
     return res.status(400).json({ error: "No fields to update" });
   }
 
-  const existing = await prisma.property.findUnique({ where: { id } });
+  const existing = await prisma.property.findFirst({ where: { id, ownerId: req.userId! } });
   if (!existing) return res.status(404).json({ error: "Not found" });
 
   const property = await prisma.property.update({
@@ -210,7 +228,7 @@ app.patch("/properties/:id", async (req, res) => {
 
 app.delete("/properties/:id", async (req, res) => {
   const { id } = req.params;
-  const existing = await prisma.property.findUnique({ where: { id } });
+  const existing = await prisma.property.findFirst({ where: { id, ownerId: req.userId! } });
   if (!existing) return res.status(404).json({ error: "Not found" });
 
   await prisma.property.delete({ where: { id } });
@@ -224,7 +242,7 @@ app.post("/properties/:id/notes", async (req, res) => {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const existing = await prisma.property.findUnique({ where: { id } });
+  const existing = await prisma.property.findFirst({ where: { id, ownerId: req.userId! } });
   if (!existing) return res.status(404).json({ error: "Not found" });
 
   const note = await prisma.note.create({
@@ -241,9 +259,13 @@ app.post("/properties/:id/notes", async (req, res) => {
 
 app.delete("/notes/:noteId", async (req, res) => {
   const { noteId } = req.params;
-  const existing = await prisma.note.findUnique({ where: { id: noteId } });
-  if (!existing) return res.status(404).json({ error: "Not found" });
-
+  const existing = await prisma.note.findUnique({
+    where: { id: noteId },
+    include: { property: { select: { ownerId: true } } }
+  });
+  if (!existing || existing.property.ownerId !== req.userId) {
+    return res.status(404).json({ error: "Not found" });
+  }
   await prisma.note.delete({ where: { id: noteId } });
   return res.status(204).end();
 });
@@ -255,7 +277,7 @@ app.post("/analyze/:id", async (req, res) => {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const property = await prisma.property.findUnique({ where: { id } });
+  const property = await prisma.property.findFirst({ where: { id, ownerId: req.userId! } });
   if (!property) return res.status(404).json({ error: "Not found" });
 
   const inputs = parsed.data;
@@ -289,16 +311,20 @@ app.post("/analyze/:id", async (req, res) => {
 
 app.delete("/analyses/:analysisId", async (req, res) => {
   const { analysisId } = req.params;
-  const existing = await prisma.analysis.findUnique({ where: { id: analysisId } });
-  if (!existing) return res.status(404).json({ error: "Not found" });
-
+  const existing = await prisma.analysis.findUnique({
+    where: { id: analysisId },
+    include: { property: { select: { ownerId: true } } }
+  });
+  if (!existing || existing.property.ownerId !== req.userId) {
+    return res.status(404).json({ error: "Not found" });
+  }
   await prisma.analysis.delete({ where: { id: analysisId } });
   return res.status(204).end();
 });
 
 app.post("/offer/:id", async (req, res) => {
   const { id } = req.params;
-  const property = await prisma.property.findUnique({ where: { id } });
+  const property = await prisma.property.findFirst({ where: { id, ownerId: req.userId! } });
   if (!property) return res.status(404).json({ error: "Not found" });
 
   const ai = await generateOfferWithClaude({
@@ -332,7 +358,7 @@ app.post("/offer/:id", async (req, res) => {
 // Block C — KI-Magie
 // ============================================================
 
-app.post("/import/expose", bookmarkletCors, async (req, res) => {
+app.post("/import/expose", bookmarkletCors, requireAuth, async (req, res) => {
   const parsed = ImportExposeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -358,7 +384,7 @@ app.post("/import/expose", bookmarkletCors, async (req, res) => {
 
 app.post("/properties/:id/market-comparison", async (req, res) => {
   const { id } = req.params;
-  const property = await prisma.property.findUnique({ where: { id } });
+  const property = await prisma.property.findFirst({ where: { id, ownerId: req.userId! } });
   if (!property) return res.status(404).json({ error: "Not found" });
 
   const ai = await marketComparisonForProperty({
@@ -398,7 +424,7 @@ app.post("/properties/:id/market-comparison", async (req, res) => {
   return res.json(mc);
 });
 
-app.post("/import/auction", bookmarkletCors, async (req, res) => {
+app.post("/import/auction", bookmarkletCors, requireAuth, async (req, res) => {
   const parsed = ImportAuctionSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -477,6 +503,7 @@ app.post("/import/auction", bookmarkletCors, async (req, res) => {
       location: ai.address || ai.auctionLocation || "Unbekannt",
       size: ai.size && ai.size > 0 ? ai.size : 50,
       dealType: "AUCTION",
+      ownerId: req.userId!,
       auction: {
         create: {
           auctionType: (ai.auctionType ?? "ZVG") as "ZVG" | "DGA" | "SDL" | "KARHAUSEN" | "OTHER",
@@ -511,7 +538,7 @@ app.post("/import/auction", bookmarkletCors, async (req, res) => {
   return res.status(201).json(property);
 });
 
-app.post("/import/auction-list", bookmarkletCors, async (req, res) => {
+app.post("/import/auction-list", bookmarkletCors, requireAuth, async (req, res) => {
   const parsed = ImportAuctionListSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
@@ -593,6 +620,7 @@ app.post("/import/auction-list", bookmarkletCors, async (req, res) => {
           location: item.address || item.auctionLocation || "Unbekannt",
           size: item.size && item.size > 0 ? item.size : 50,
           dealType: "AUCTION",
+          ownerId: req.userId!,
           auction: {
             create: {
               auctionType,
@@ -643,8 +671,8 @@ app.post("/properties/:id/recompute-bid-limit", async (req, res) => {
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
 
-  const property = await prisma.property.findUnique({
-    where: { id },
+  const property = await prisma.property.findFirst({
+    where: { id, ownerId: req.userId! },
     include: { auction: true }
   });
   if (!property) return res.status(404).json({ error: "Not found" });
@@ -673,6 +701,31 @@ app.post("/properties/:id/recompute-bid-limit", async (req, res) => {
   });
 
   return res.json(updated);
+});
+
+// /me — eingeloggter User selbst
+app.get("/me", async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const legacyCount = await prisma.property.count({ where: { ownerId: null } });
+  return res.json({
+    id: user.id,
+    clerkId: user.clerkId,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    legacyCount
+  });
+});
+
+// Übernimmt alle bestandenen Properties ohne Owner. Einmalig nach dem
+// ersten Login auszuführen, damit Marco seine alten Daten wieder sieht.
+app.post("/me/claim-legacy", async (req, res) => {
+  const result = await prisma.property.updateMany({
+    where: { ownerId: null },
+    data: { ownerId: req.userId! }
+  });
+  return res.json({ claimed: result.count });
 });
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

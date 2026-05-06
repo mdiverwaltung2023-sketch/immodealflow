@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Textarea } from "@/components/ui";
 import type { z } from "zod";
 import { NoteSchema } from "@/lib/api";
+import { useApiFetch } from "@/lib/client-fetch";
 
 type Note = z.infer<typeof NoteSchema>;
 
@@ -24,11 +25,11 @@ function formatDate(iso: string) {
 
 export function NotesPanel({ id, initialNotes }: { id: string; initialNotes: Note[] }) {
   const router = useRouter();
+  const apiFetch = useApiFetch();
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const api = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   async function addNote(e: React.FormEvent) {
     e.preventDefault();
@@ -36,9 +37,8 @@ export function NotesPanel({ id, initialNotes }: { id: string; initialNotes: Not
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/properties/${id}/notes`, {
+      const res = await apiFetch(`/properties/${id}/notes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: body.trim() })
       });
       if (!res.ok) throw new Error(`POST fehlgeschlagen (${res.status})`);
@@ -57,7 +57,7 @@ export function NotesPanel({ id, initialNotes }: { id: string; initialNotes: Not
     if (!confirm("Notiz wirklich löschen?")) return;
     setError(null);
     try {
-      const res = await fetch(`${api?.replace(/\/+$/, "")}/notes/${noteId}`, { method: "DELETE" });
+      const res = await apiFetch(`/notes/${noteId}`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error(`DELETE fehlgeschlagen (${res.status})`);
       setNotes((prev) => prev.filter((n) => n.id !== noteId));
       router.refresh();
