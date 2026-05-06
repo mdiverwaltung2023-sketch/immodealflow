@@ -1,6 +1,6 @@
 # PROJECT STATE — DealFlow AI (ImmoDealFlow)
 
-> Stand: **2026-04-26**. Diese Datei ist die Single Source of Truth für den
+> Stand: **2026-05-06**. Diese Datei ist die Single Source of Truth für den
 > aktuellen Projektstand. Bei jeder substanziellen Änderung (neuer Endpoint,
 > neuer Deploy, neuer Bug, Status-Update) hier nachziehen.
 
@@ -10,17 +10,15 @@
 
 ### URLs
 
-| Service    | URL                                               | Status |
-|------------|---------------------------------------------------|--------|
-| Frontend   | https://immodealflow-frontend.vercel.app | ✅ live |
-| Backend    | https://dealflow-ai-backend-production.up.railway.app | ✅ live |
-| Health     | https://dealflow-ai-backend-production.up.railway.app/health → `{"ok":true}` | ✅ |
-| GitHub-Repo | https://github.com/mdiverwaltung2023-sketch/immodealflow | ✅ |
+| Service     | URL                                                                                | Status  |
+|-------------|------------------------------------------------------------------------------------|---------|
+| Frontend    | https://immodealflow-frontend.vercel.app                                           | ✅ live |
+| Backend     | https://dealflow-ai-backend-production.up.railway.app                              | ✅ live |
+| Health      | https://dealflow-ai-backend-production.up.railway.app/health → `{"ok":true}`        | ✅      |
+| GitHub-Repo | https://github.com/mdiverwaltung2023-sketch/immodealflow                           | ✅      |
+| Auth        | Clerk (`pk_test_bGFzdGluZy1mbGFtaW5nby0xNS5jbGVyay5hY2NvdW50cy5kZXYk`)              | ✅ live |
 
-> **Sobald deployt** hier die echten URLs eintragen, damit Claude direkt darauf
-> zugreifen kann.
-
-### Lokaler Zugang (jetzt)
+### Lokaler Zugang
 
 ```
 Backend:  http://localhost:4000  (Health: /health)
@@ -29,213 +27,253 @@ Frontend: http://localhost:3000
 
 Start: `deploy\04_dev-start.bat` doppelklicken.
 
+### Auth-Flow
+
+Alle API-Routen außer `/health`, `/bookmarklet/*` und Public Pages (`/`, `/sign-in`,
+`/sign-up`, `/bookmarklet`) sind durch Clerk geschützt:
+
+1. Frontend holt JWT via `auth.getToken()` (Server) oder `useAuth().getToken()` (Client).
+2. Token geht als `Authorization: Bearer …` an Backend.
+3. Backend (`backend/src/lib/auth.ts`) verifiziert Token mit `@clerk/backend`,
+   provisioniert User Just-in-Time (`User.clerkId` unique) und setzt `req.userId`.
+4. Alle Routes filtern auf `where: { ownerId: req.userId }` — Multi-Tenant ab Tag 1.
+
 ### Test-Reihenfolge nach Deploy
 
-1. **Health-Check:** `GET <backend>/health` → erwartet `{"ok":true}` →
-   bestätigt, dass Build + Start durchlief.
-2. **Property anlegen:** `POST <backend>/properties` mit Test-Payload.
-3. **Analyse:** `POST <backend>/analyze/<id>` → erwartet `grossYield`,
-   `cashflow`, `score`.
-4. **Angebot:** `POST <backend>/offer/<id>` → erwartet `suggested_price`,
-   `message` (Claude-Call, dauert 2–5 s).
-5. **Frontend:** Vercel-URL aufrufen → Dashboard, "Neues Objekt"-Flow
-   end-to-end klicken.
+1. **Health-Check:** `GET <backend>/health` → erwartet `{"ok":true}`.
+2. **Auth-Probe:** Frontend `/dashboard` aufrufen — wenn nicht eingeloggt,
+   Redirect auf Sign-in. Nach Login: Dashboard rendert eigene Properties.
+3. **/me-Probe:** im Browser-Console `await fetch("/me", { headers })` →
+   liefert `{ id, clerkId, email, name, role, legacyCount }`.
+4. **Property-Detail:** Auction-Card (für ZVG), Analyse-Snapshot, Marktvergleich,
+   Notes — alles mit Owner-Filter.
+5. **Bookmarklet-Flow** (siehe `/bookmarklet`).
 
 ---
 
 ## Projekt
 
-**DealFlow AI** — MVP zur Analyse von Immobilien-Deals.
+**DealFlow AI** — Tool zur Analyse von Immobilien-Deals (Investor-Perspektive)
+mit langfristigem Ziel: **Two-Sided Marketplace MFH/Gewerbe**, in dem Verkäufer
+das Investor-Profil (Trackrecord, Finanzierung) sehen können. Marco hat
+Maklererlaubnis nach § 34c GewO. Aktueller Funktionsumfang abgeschlossen:
 
-User legt ein Objekt an (Preis, Miete, Lage, Größe), bekommt eine
-heuristische Analyse (Bruttorendite, Cashflow, Score 0–100) und einen
-KI-generierten Kaufpreisvorschlag + Anschreiben an den Verkäufer (Claude).
-
-**Ziel der nächsten Phase:** echte Deal-Pipeline — Status, Notizen, mehrere
-Analysen pro Objekt, realistischere Finanzkalkulation.
+- Property-Pipeline (7 Status), Notes, Edit/Delete
+- Mehrere Analyse-Snapshots pro Objekt mit Annahmen-Variation
+- Claude-Tool-Use für Angebots-Generierung, Exposé-Import, Marktvergleich
+- ZVG/DGA-Versteigerungen (Bietlimit-Berechnung, PDF/Text/URL-Import,
+  Listen-Import, Universal-Bookmarklet)
+- Auth + Multi-Tenant (Clerk + User-Modell + `ownerId`-Filter)
 
 ## Architektur
 
 - **Frontend:** Next.js 14 (App Router) + React 18 + Tailwind 3 + Zod (`frontend/`)
+- **Auth:** Clerk (`@clerk/nextjs` + `@clerk/backend`), `clerkMiddleware` schützt
+  alle nicht-Public-Routen, JWT-Forwarding via `lib/api-server.ts` (Server-Components)
+  und `lib/client-fetch.ts` (Client-Components)
 - **Backend:** Node.js + Express 5 + Prisma 6 + Zod, TypeScript ESM (`backend/`)
-- **DB:** PostgreSQL (Railway, später)
-- **KI:** Anthropic API (`@anthropic-ai/sdk` 0.70), Modell `claude-3-5-sonnet-latest`
+- **DB:** PostgreSQL (Railway)
+- **KI:** Anthropic API (`@anthropic-ai/sdk` 0.70), Modell `claude-sonnet-4-6`,
+  Tool-Use überall (`callWithTool`)
 - **Hosting:** Backend → Railway, Frontend → Vercel
 - **Monorepo:** npm workspaces
 
-Keine Auth, kein Multi-Tenant — bewusst minimal fürs MVP.
-
 ## Datenmodell (Prisma)
 
-```prisma
-Property { id, createdAt, updatedAt, title, price, rent, location, size }
-   ↓ 1:1
-Analysis  { id, createdAt, propertyId, grossYield, cashflow, score }
-   ↓ 1:1
-Offer     { id, createdAt, propertyId, suggestedPrice, message, model? }
+Quelle: `backend/prisma/schema.prisma`. Aktuelle Migrationen siehe
+`backend/prisma/migrations/`.
+
+```
+User { id, clerkId(unique), email, name?, role(UserRole) }
+   ↓ 1:n
+Property { id, title, price, rent, location, size, status(DealStatus),
+           dealType(DealType), ownerId? }
+   ├── Analysis[]         (1:n, Snapshots mit 9 Annahmen + 11 Outputs)
+   ├── Offer?             (1:1, Claude-Vorschlag + Anschreiben)
+   ├── Note[]             (1:n)
+   ├── MarketComparison?  (1:1, Claude-Marktdaten + Rating)
+   └── AuctionInfo?       (1:1, ZVG/DGA-Daten + Bietlimit)
 ```
 
-Quelle: `backend/prisma/schema.prisma`.
+Enums: `UserRole {INVESTOR, SELLER, BOTH}`, `DealStatus {WATCHING, INQUIRED,
+NEGOTIATING, LOI, NOTAR, CLOSED, REJECTED}`, `DealType {FREE_SALE, AUCTION}`,
+`AuctionType {ZVG, DGA, SDL, KARHAUSEN, OTHER}`, `MarketRating {below_market,
+fair, above_market}`.
 
 ## Backend-Endpunkte
 
-| Methode | Pfad                | Zweck                                                  |
-|---------|---------------------|--------------------------------------------------------|
-| GET     | `/health`           | Healthcheck                                            |
-| GET     | `/properties`       | Liste aller Properties                                 |
-| POST    | `/properties`       | Property anlegen (Zod-validiert)                       |
-| GET     | `/properties/:id`   | Detail inkl. `analysis` + `offer`                       |
-| POST    | `/analyze/:id`      | Heuristische Analyse berechnen + speichern (upsert)    |
-| POST    | `/offer/:id`        | Claude-Call für Preisvorschlag + Anschreiben (upsert)  |
+Public (kein Auth):
 
-Quelle: `backend/src/index.ts`.
+| Methode | Pfad                  | Zweck                                          |
+|---------|-----------------------|------------------------------------------------|
+| GET     | `/health`             | Healthcheck                                    |
+
+Auth-geschützt (`requireAuth`):
+
+| Methode | Pfad                              | Zweck                                                  |
+|---------|-----------------------------------|--------------------------------------------------------|
+| GET     | `/me`                             | Aktueller User + `legacyCount` (Properties ohne Owner) |
+| POST    | `/me/claim-legacy`                | Übernimmt alle ownerId=null Properties auf den User    |
+| GET     | `/properties`                     | Liste eigener Properties (mit `?status=` Filter)       |
+| POST    | `/properties`                     | Property anlegen (Zod-validiert), `ownerId=req.userId` |
+| GET     | `/properties/:id`                 | Detail (eigene), inkl. Auction/Analyse/Markt/Offer/Notes |
+| PATCH   | `/properties/:id`                 | Felder updaten                                         |
+| DELETE  | `/properties/:id`                 | Property löschen                                       |
+| POST    | `/properties/:id/notes`           | Notiz anlegen                                          |
+| DELETE  | `/notes/:noteId`                  | Notiz löschen                                          |
+| POST    | `/analyze/:id`                    | Neuer Analyse-Snapshot (optionale Annahmen)            |
+| DELETE  | `/analyses/:id`                   | Analyse-Snapshot löschen                               |
+| POST    | `/offer/:id`                      | Claude-Tool-Use `propose_offer` → `Offer` upsert       |
+| POST    | `/properties/:id/market-comparison` | Claude-Tool-Use `market_comparison` → upsert         |
+| POST    | `/properties/:id/recompute-bid-limit` | Bietlimit per Bisektion neu berechnen              |
+| POST    | `/import/expose`                  | Claude-Tool-Use `extract_property` (Text → Felder)     |
+| POST    | `/import/auction`                 | ZVG-Import (Body `{text}`/`{pdfBase64}`/`{url}`)       |
+| POST    | `/import/auction-list`            | Listen-Import (Body `{url}` oder `{text}`)             |
+
+Quelle: `backend/src/index.ts`, `backend/src/lib/auth.ts`.
 
 ## Frontend-Routen
 
+Public (Clerk-Middleware lässt durch):
+
 | Pfad                  | Zweck                                                  |
 |-----------------------|--------------------------------------------------------|
-| `/`                   | Redirect → `/dashboard`                                |
-| `/dashboard`          | Liste aller Properties + Buttons "Analysieren" / "Angebot generieren" |
-| `/new`                | Formular: neues Objekt anlegen                         |
-| `/property/[id]`      | Detail-Seite: Stats + Analyse + Angebot                |
+| `/`                   | Landing für nicht-eingeloggte User                     |
+| `/sign-in`, `/sign-up`| Clerk-Auth-Pages                                       |
+| `/bookmarklet`        | Anleitung + Drag-to-Bookmarks                          |
+| `/bookmarklet/receive`| POST-Empfänger (server-to-server an Backend)           |
 
-UI-Primitives: `frontend/components/ui.tsx` (Card, Button, Input, Label, Stat).
+Geschützt (Login erforderlich):
 
-## Aktuelle Phase: **Phase 1 (Versteigerungen) erledigt — ZVG-Importer + Bietlimit live**
+| Pfad                  | Zweck                                                  |
+|-----------------------|--------------------------------------------------------|
+| `/dashboard`          | Eigene Properties, Status-Filter, Score, Claim-Banner  |
+| `/new`                | Neue Property + Schnell-Import-Card                    |
+| `/property/[id]`      | Detail (Auction/Analyse/Markt/Offer/Notes)             |
+| `/property/[id]/edit` | Edit-Form                                              |
+| `/auctions`           | Versteigerungs-Liste sortiert nach Termin              |
+| `/auctions/import`    | 4 Tabs (Text/PDF/URL/Liste)                            |
 
-### Phase 1 (2026-04-28)
+Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
+top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
+nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-- ✅ Prisma: neuer Enum `DealType` (FREE_SALE/AUCTION), `AuctionType` (ZVG/DGA/SDL/KARHAUSEN/OTHER), `Property.dealType`, neues Model `AuctionInfo` (1:1) mit Aktenzeichen, Verkehrswert, Termin, Amtsgericht, Source-URL, RawText, Bietlimit, Notes
-- ✅ Migration `20260427xxxxxx_add_auctions` auf Railway-DB
-- ✅ Calc-Lib: `computeBidLimit(rent, assumptions, target=0)` — Bisektion zwischen 0 und 50× Bruttojahresmiete, findet Max-Preis bei Cashflow nach Steuer ≥ 0
-- ✅ Claude: neuer Tool-Use `extract_auction` für ZVG-Bekanntmachungen (Aktenzeichen, Verkehrswert, Termin ISO, Adresse, Größe, Miete, Auktionstyp, Notes)
-- ✅ PDF-Parser: `pdf-parse@1.1.1` mit eigener Type-Shim `backend/src/types/pdf-parse-lib.d.ts` (Sub-Pfad-Import wegen Test-Side-Effect im Hauptmodul)
-- ✅ Backend-Endpoints: `POST /import/auction` (Body `{text}` ODER `{pdfBase64}` ODER `{url}`), `POST /properties/:id/recompute-bid-limit`. Importiert legt Property mit `dealType=AUCTION` + AuctionInfo + Standard-Analyse + Bietlimit an. Startpreis = 70 % Verkehrswert (Zuschlagsschwelle).
-- ✅ Frontend: neue Page `/auctions` mit Sortierung anstehend → ohne Termin → vergangen, Spalten Termin/Objekt/Lage/Verkehrswert/Bietlimit/Aktenzeichen/Typ. Page `/auctions/import` mit drei Tabs (Text/PDF/URL). Auction-Card auf Property-Detail mit Termin-Banner (rot wenn ≤ 14 Tage), Verkehrswert, Bietlimit prominent grün, Aktenzeichen, „Bietlimit neu berechnen"-Button.
-- ✅ Production-Smoke-Test: Beispiel-ZVG „Köln-Ehrenfeld, 90 K 142/24" → korrekte Extraktion, Bietlimit 107.578 € bei 720 € Miete, Termin 17.06.2026, Notes mit Mieterschutz § 57a ZVG / Hausgeld / Geringstes Gebot 5/10 / Zuschlag ab 7/10
-- ⚠️ Bekannt: Zeitzone der `auctionDate` wird als UTC gespeichert, im Browser mit +2 h CEST angezeigt (09:30 UTC → 11:30 CEST). Fix später: Europe/Berlin als Default beim Parsen.
+## Aktuelle Phase: **Push A2 erledigt — Auth + Multi-Tenant live**
 
-### Phase 2 (2026-04-28) — Listen-Import live, aber JS-Seiten brauchen Phase 3
+### Push A2 (2026-05-06) — User-Modell + Owner-Filter
 
-- ✅ Claude `extract_auction_list` (max 50 Items pro Seite)
-- ✅ Endpoint `POST /import/auction-list` mit URL → fetched HTML, bereinigt, extrahiert, legt Bulk-Properties + AuctionInfos an, AuctionType aus Domain (DGA/SDL/KARHAUSEN/ZVG/OTHER)
-- ✅ Frontend `/auctions/import` 4. Tab „Liste importieren" mit Beispiel-Quick-Buttons
-- ⚠️ **Bekannte Limitierung**: DGA-Site ist Single-Page-App (Hash-Fragment-URLs), Server-Side-HTML enthält keine Listen-Items. Aktuell auch `Sommerkatalog erst ab 22.05.2026 verfügbar`. Listen-Crawling funktioniert nur bei Server-Side-rendered Seiten (z. B. zvg-portal). Für JS-Anbieter ist Phase 3 = Bookmarklet die saubere Lösung.
+- ✅ Prisma: Enum `UserRole`, neues Model `User { clerkId(unique), email, name, role }`,
+  `Property.ownerId` nullable + `onDelete: SetNull`. Migration
+  `20260506175214_add_users_and_owner` auf Railway.
+- ✅ Backend `requireAuth` (`backend/src/lib/auth.ts`): verifiziert Clerk-JWT,
+  provisioniert User Just-in-Time, hängt `req.userId` an. `app.use("/properties",
+  requireAuth)` etc. — alle API-Routen geschützt außer `/health`.
+- ✅ Owner-Filter überall: `findUnique` durch `findFirst({ where: { id, ownerId } })`,
+  CREATEs setzen `ownerId: req.userId`.
+- ✅ `GET /me` + `POST /me/claim-legacy` für Migration bestehender Pre-Auth-Daten.
+- ✅ Frontend: `lib/api-server.ts` (NEU, server-only) + `lib/client-fetch.ts`
+  (NEU, `useApiFetch` Hook). Alle Server-Components und Client-Components
+  umgezogen. `lib/api.ts` hat jetzt nur noch Zod-Schemas.
+- ✅ `middleware.ts` schützt `/dashboard`, `/property/*`, `/auctions/*`, `/new`
+  via `auth.protect()`.
+- ✅ Landing-Page `/` für nicht-eingeloggte User.
+- ✅ `ClaimLegacyBanner` auf Dashboard, wenn `legacyCount > 0`.
+- ✅ Bookmarklet-Receiver `/bookmarklet/receive/route.ts` mit Auth-Check und
+  Token-Forwarding ans Backend.
+- ✅ Production-Smoke-Test 2026-05-06: 3 Pre-Auth-Properties via Claim-Legacy
+  auf Marcos Account übernommen, `/me` liefert `legacyCount=0`, alle Detail-Cards
+  rendern, Notes-CRUD funktioniert.
 
-### Roadmap nach Phase 2
+### Push A1 (Davor) — Clerk-Integration
 
-- **Phase 3** (priorisiert) — Universal-Bookmarklet: User klickt auf jeder Inserats-/Auktions-Seite den Bookmarklet-Button, das gegrabbt den fertig gerenderten DOM-Inhalt und schickt ihn an `/import/expose` oder `/import/auction-list`. Funktioniert auf DGA, SDL, Immoscout, Immowelt, Kleinanzeigen — überall wo der User selbst surft.
-- **Finanzierung Stufe 1** — Bonitäts-Selbsteinschätzung (max Darlehen aus Einkommen + EK + Verbindlichkeiten), automatischer Filter „leistbare Properties" im Dashboard
+- ✅ Clerk-App angelegt, Keys in Vercel + Railway eingetragen
+- ✅ `@clerk/nextjs` integriert, `<ClerkProvider>` in Root-Layout
+- ✅ Sign-up/Sign-in funktioniert end-to-end
 
-## Aktuelle Phase: **Block C erledigt — KI-Magie live**
+### Roadmap nach Push A2
 
-### Block C (2026-04-27)
+**Push A3** — Onboarding + Rolle wählen (`UserRole`-Auswahl beim ersten Login):
+INVESTOR / SELLER / BOTH. Voraussetzung für Marketplace-Phase B.
 
-- ✅ `claude.ts` refactored: Helper `callWithTool` zwingt strukturierte Antworten via `tool_choice`. Drei Use-Cases: `generateOfferWithClaude` (Tool `propose_offer`), `extractPropertyFromText` (Tool `extract_property`), `marketComparisonForProperty` (Tool `market_comparison`). Kein freies JSON-Parsing mehr.
-- ✅ Prisma: neuer Enum `MarketRating` (below_market/fair/above_market), neues Model `MarketComparison` (1:1 Property), Migration `20260427xxxxxx_market_comparison`
-- ✅ Backend: POST `/import/expose` (Body `{text}` → extrahierte Felder), POST `/properties/:id/market-comparison` (upsert, gibt `MarketComparison` zurück), GET `/properties/:id` liefert jetzt auch `marketComparison`
-- ✅ Frontend: neue Card „Schnell-Import aus Inserat" auf `/new` mit Textarea + Import-Button → Form-Felder werden vorbefüllt; neue Card „Marktvergleich (Claude)" auf Property-Detail mit m²-Spannen, Eigenwert-Vergleich, Rating-Badge, Rationale, Daten-Caveat
-- ✅ Production-Smoke-Test bestanden: Hamburg-Eimsbüttel-Inserat → korrekte Extraktion mit Konfidenz „high"; München-Marktvergleich → realistische Spannen 8.500–11.500 €/m² Kaufpreis, 20–28 €/m² Miete, Bewertung „below_market"; Offer mit Tool-Use → strukturierte Antwort 420 k EUR
+**Phase B** (Marketplace-Pivot, Memory `project_marketplace_pivot.md`) —
+Investor-Profil + Trackrecord + Finanzierungsrahmen + Region-Tags.
+Verkäufer-Sicht erst in Phase C.
 
-## Aktuelle Phase: **Block B erledigt — Finanzielle Tiefe live**
+### Phase 3 (2026-04-29) — Universal-Bookmarklet
 
-### Block B (2026-04-27)
+- ✅ Backend CORS auf `/import/*` für beliebige Origins offen (`bookmarkletCors`)
+- ✅ POST `/bookmarklet/receive` (Frontend Route Handler) als CSP-sicherer
+  Server-Side-Proxy: Bookmarklet macht Form-POST (umgeht Immoscout `connect-src`),
+  Frontend ruft Backend mit Token auf
+- ✅ `/bookmarklet`-Page mit Drag-to-Bookmarks-Anleitung (Auction-/Expose-Modus)
+- ✅ Live-Test auf Immoscout24 (Expose) und ZVG-Portal (Auction) bestanden
 
-- ✅ Prisma: `Analysis` von 1:1 auf 1:n umgestellt, `scenarioName` + 9 Annahme-Felder + 11 berechnete Output-Felder mit Defaults
-- ✅ Migration `20260427xxxxxx_analysis_snapshots` auf Railway-DB angewandt
-- ✅ Calc-Lib: `computeFullAnalysis(price, rent, assumptions)` mit Kaufnebenkosten, Eigenkapital, Zins, Tilgung, AfA (Gebäudeanteil × Satz), Steuer (Verlustverrechnung möglich), Brutto-/Nettorendite, Cashflow vor/nach Steuer, Score (Netto-Rendite + CF n. Steuer)
-- ✅ Backend: POST `/analyze/:id` akzeptiert optionale Annahmen, **erzeugt jeden Aufruf einen neuen Snapshot** statt zu überschreiben; DELETE `/analyses/:id`; GET `/properties` liefert nur jüngsten Snapshot, GET `/properties/:id` alle absteigend
-- ✅ Frontend: Analyse-Szenarien-Card mit Vergleichstabelle, „Schnell-Analyse" (Defaults) + „Eigenes Szenario" mit allen 9 Annahmen, Defaults vorbelegt, Datum+Szenario-Name+EK/Zins/Tilg/Total-Investment/Renditen/CF/Score in Tabellenform; Detail-Seite zeigt aktuellen Snapshot oben in 3-Spalten-Layout
+### Phase 2 (2026-04-28) — Listen-Import
 
-### Block A (2026-04-27)
+- ✅ Claude `extract_auction_list` (max 50 Items)
+- ✅ `POST /import/auction-list` (URL → Server-Side-fetch → bulk insert,
+  AuctionType aus Domain), neuer Tab in `/auctions/import`
+- ⚠️ Bekannte Limitierung: SPAs (DGA) brauchen Bookmarklet (Phase 3)
 
-### Block A (2026-04-27)
+### Phase 1 (2026-04-28) — ZVG-Importer + Bietlimit
 
-- ✅ Prisma: Enum `DealStatus` (WATCHING, INQUIRED, NEGOTIATING, LOI, NOTAR, CLOSED, REJECTED) auf Property + neues `Note`-Model
-- ✅ Migration `20260426202823_add_status_and_notes` auf Railway-DB angewandt
-- ✅ Backend: PATCH/DELETE `/properties/:id`, POST `/properties/:id/notes`, DELETE `/notes/:noteId`, Status-Filter `?status=…`, Sort by `updatedAt`
-- ✅ Frontend: Status-Badge (7 Farben), Filter-Tabs mit Counts, Score in Liste, Status-Quick-Edit auf Detail-Seite, Notes-Panel (Add/Delete), Edit-Seite, Delete-Buttons (Dashboard + Detail)
-- ✅ Bug-Fix: ESLint `react/no-unescaped-entities` deaktiviert (deutsche Anführungszeichen in JSX)
-- ✅ Production-Smoke-Test bestanden: PATCH Status → NEGOTIATING, POST Note, GET mit Filter — alles end-to-end
+- ✅ `DealType` + `AuctionType` Enums, `Property.dealType`, `AuctionInfo` 1:1
+- ✅ Calc-Lib: `computeBidLimit(rent, assumptions)` per Bisektion (max Preis
+  bei CF n. Steuer ≥ 0)
+- ✅ Claude Tool-Use `extract_auction` für ZVG-Bekanntmachungen
+- ✅ PDF-Parser `pdf-parse` mit eigener Type-Shim
+- ✅ `POST /import/auction` (Text/PDF/URL), `POST /properties/:id/recompute-bid-limit`
+- ✅ `/auctions`-Page (sortiert anstehend → ohne Termin → vergangen),
+  `/auctions/import`, Auction-Card auf Property-Detail mit Termin-Banner
+- ⚠️ Bekannt: `auctionDate` als UTC, im Browser +2 h CEST. Fix später.
 
-## Aktuelle Phase: **Stage 0 — Setup & Deploy** *(abgeschlossen)*
+### Block C (2026-04-27) — KI-Magie
 
-Status der einzelnen Schritte:
+- ✅ `claude.ts` refactored: `callWithTool` mit `tool_choice`, drei Use-Cases
+  (`propose_offer`, `extract_property`, `market_comparison`)
+- ✅ `MarketComparison` Model + Migration
+- ✅ POST `/import/expose`, POST `/properties/:id/market-comparison`
+- ✅ Schnell-Import-Card auf `/new`, Marktvergleich-Card auf Property-Detail
 
-- [x] Code von Claude Code generiert (Backend + Frontend lauffähig im Prinzip)
-- [x] `.gitignore` angelegt
-- [x] `deploy/`-Ordner mit BAT-Skripten (`01_setup-local`, `02_github-remote`,
-      `03_db-migrate`, `04_dev-start`, `05_git-commit-push`, `99_clean-reinstall`)
-- [x] `AGENTS.md` + `project_state.md` an DealFlow AI angepasst
-- [x] **Marco:** `01_setup-local.bat` ausgeführt (npm install + git init + erster Commit) — 2026-04-26
-- [x] **Marco:** GitHub-Repo `immodealflow` (privat) angelegt: https://github.com/mdiverwaltung2023-sketch/immodealflow.git
-- [x] **Marco:** `02_github-remote.bat` ausgeführt — Push nach `origin/main` erfolgreich
-- [x] **Marco:** Railway-Projekt + Postgres-Service angelegt — 2026-04-26
-- [x] **Marco:** `02b_env-setup.bat` — `backend/.env` + `frontend/.env.local` gesetzt
-- [x] **Marco:** `03_db-migrate.bat` ausgeführt → Migration `20260426181605_init` auf Railway-DB angewandt
-- [x] **Smoke-Test lokal bestanden** — Property → Analyse → Angebot end-to-end funktioniert; 4 Bugs gefixt (Regex-Escape × 2, Claude-Modell, Error-Handler)
-- [x] **Code-Fixes + Migration committet + gepusht** — Commit `fix: regex-escape, claude-model, error-handler + railway.json + initial migration`
-- [x] **Backend auf Railway live** — Variables (DATABASE_URL Reference, ANTHROPIC_API_KEY, ANTHROPIC_MODEL=claude-sonnet-4-6, FRONTEND_ORIGIN=*, PORT=4000), Domain generiert, End-to-End-Test in Production bestanden
-- [x] **Frontend auf Vercel deployt** — `immodealflow-frontend.vercel.app`, Root=frontend, Next.js 14, NEXT_PUBLIC_API_BASE_URL → Railway-Backend
-- [x] **`FRONTEND_ORIGIN` auf Railway** = `https://immodealflow-frontend.vercel.app,http://localhost:3000` (CORS für Production + lokale Dev)
-- [x] **End-to-End-Test in Production bestanden** — Dashboard zeigt 2 Properties, CORS-Direktcall vom Frontend ans Backend funktioniert
-- [ ] **Marco:** Frontend auf Vercel deployen (Root: `frontend/`)
-- [ ] URLs in dieser Datei aktualisieren
+### Block B (2026-04-27) — Finanzielle Tiefe
 
-## Nach Stage 0: Roadmap Stage 1
+- ✅ `Analysis` 1:1 → 1:n, 9 Annahmen + 11 Outputs mit Defaults
+- ✅ `computeFullAnalysis` (Kaufnebenkosten, EK, Zins, Tilgung, AfA, Steuer,
+  Renditen, Cashflow vor/nach Steuer, Score)
+- ✅ Snapshots statt Upsert, DELETE `/analyses/:id`
+- ✅ Analyse-Szenarien-Card mit Vergleichstabelle, Schnell-Analyse + Eigenes Szenario
 
-Priorisierte Liste, abhängig davon, was Marco zuerst will:
+### Block A (2026-04-26) — Pipeline-Sicht
 
-### Block A — "Pipeline-Sicht" (operativer Mehrwert)
-- `Property.status` (Enum: `WATCHING | INQUIRED | NEGOTIATING | LOI | NOTAR | CLOSED | REJECTED`)
-- `PUT /properties/:id` (Edit) und `DELETE /properties/:id`
-- Dashboard-Filter nach Status, Sortierung nach `updatedAt`
-- Notizen pro Property (`Note { id, propertyId, createdAt, body }`)
+- ✅ `DealStatus` Enum, `Note` Model
+- ✅ PATCH/DELETE `/properties/:id`, Notes-CRUD, Status-Filter
+- ✅ Status-Badge, Filter-Tabs, Score in Liste, Notes-Panel, Edit-Seite
 
-### Block B — "Finanzielle Tiefe" (analytischer Mehrwert)
-- Erweiterte Analyse: Kaufnebenkosten (Grunderwerbsteuer regional, Notar,
-  Makler ~10–15 %), Eigenkapital, Tilgung, Zins, AfA, NetCashflow nach Steuer
-- Mehrere Analyse-Snapshots pro Property (`Analysis[]` statt `1:1`)
-- Szenarien-Vergleich (best/middle/worst case)
+### Stage 0 (2026-04-26) — Setup & Deploy
 
-### Block C — "KI-Magie" (Wow-Effekt)
-- **Exposé-Import:** URL von Immoscout/Immowelt → Claude extrahiert Felder
-- **Marktvergleich:** Claude schätzt Vergleichsmieten/Kaufpreise für Lage
-- **Strukturiertes Tool-Use** statt JSON-Parsing für `/offer`
-  (zuverlässiger gegen Halluzinationen)
+- ✅ Code generiert, GitHub-Repo, Railway+Postgres, Vercel-Deploy
+- ✅ End-to-End Production-Test bestanden
 
-### Block D — "Polish" (UX)
-- Toasts statt `alert()` (z. B. `react-hot-toast`)
-- Loading-Skeletons im Dashboard
-- Edit-Property-Modal
-- Mobile Optimierung (Dashboard derzeit nicht ideal)
-- E-Mail-Versand des Angebots direkt aus der App
-- PDF-Export von Property-Bericht (Stat-Übersicht + Anschreiben)
+## Bekannte Limitierungen / Tech-Debt
 
-### Block E — "Account & Sharing" (wenn Mehrnutzerbetrieb kommt)
-- Auth via Clerk (analog zum Leadsystem-Projekt)
-- Multi-Tenant: User ↔ Properties
+- `Offer` ist 1:1 zur Property — Historie geht beim Re-Generate verloren
+- Score-Heuristik ist grob (Netto-Rendite + CF n. Steuer), nicht risikoadjustiert
+- `auctionDate` als UTC (Anzeige +2 h CEST verschoben)
+- `frontend/PropertyActions.tsx` nutzt `alert()` statt Toast
+- Frontend-Footer sagt noch "End-to-End MVP (ohne Auth)" — veraltet seit Push A2
+- Keine Tests (weder Backend noch Frontend)
+- Bookmarklet-Receiver leitet nur Token weiter, keine Rate-Limiting
 
-## Bekannte Limitierungen
+## Deploy-Historie (auszugsweise, neueste zuerst)
 
-- Keine Auth → App muss privat bleiben oder nur über Vercel-Preview-Schutz
-  abgesichert werden.
-- `Analysis` und `Offer` sind 1:1 zur Property — Historie geht beim Re-Analyze
-  verloren.
-- Score-Heuristik ist sehr grob (Bruttorendite + Cashflow), nicht risikoadjustiert.
-- Cashflow-Formel: `Miete – 30 % Instandhaltung – (Preis × 2 % p. a.) / 12` —
-  ignoriert Tilgung, Eigenkapitalanteil, Steuerwirkung. Realitätsnah erst mit
-  Block B.
-- `claude.ts` parst freies JSON aus der Antwort → fragil. Tool-Use wäre
-  robuster (siehe Block C).
-- `frontend/PropertyActions.tsx` nutzt `alert()` statt Toast.
-- Keine Tests (weder Backend noch Frontend).
-
-## Deploy-Historie
-
-| Commit | Datum | Inhalt | Status |
-|---|---|---|---|
-| _(initial commit folgt nach 01_setup-local.bat)_ | 2026-04-26 | Initial MVP von Claude Code | ⏳ |
+| Datum       | Inhalt                                                       |
+|-------------|--------------------------------------------------------------|
+| 2026-05-06  | Push A2: User-Modell + ownerId + Auth-Middleware + Legacy-Claim |
+| 2026-05-05  | Push A1: Clerk-Integration                                   |
+| 2026-04-29  | Phase 3: Bookmarklet                                         |
+| 2026-04-28  | Phase 1+2: ZVG-Import, Listen-Import                         |
+| 2026-04-27  | Block B+C: Analyse-Snapshots, KI-Magie                       |
+| 2026-04-26  | Block A + Stage 0: Pipeline + Initial Deploy                 |
 
 ---
 
@@ -254,5 +292,7 @@ Priorisierte Liste, abhängig davon, was Marco zuerst will:
 - **`.env` niemals committen.**
 - **BAT-Dateien** nur in `deploy/`, exakte Sprache zur Kommunikation
   ("Klicke folgende BAT: …").
+- **Owner-Filter NIE vergessen** — neue Routes brauchen `where: { ownerId: req.userId }`,
+  CREATEs setzen `ownerId: req.userId`. Sonst Datenleck.
 - **Diese Datei aktualisieren**, wenn etwas Substanzielles passiert ist
   (URL geändert, Endpoint dazu, Bug gefixt, Phase abgeschlossen).

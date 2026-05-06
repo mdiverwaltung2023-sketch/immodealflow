@@ -103,18 +103,34 @@ ist, kann ich Railway-Variables auch direkt via Browser-Automation anpassen
 ## Datenmodell und Endpunkte
 
 Aktueller Stand siehe `project_state.md` (Single Source of Truth).
-Wichtig: 1:1-Relationen `Property` → `Analysis` und `Property` → `Offer`,
-keine Auth, keine User-Tabelle im MVP.
+Wichtig:
+- `Property` → `Analysis[]` (1:n, Snapshots), `Property` → `Offer?` (1:1),
+  `Property` → `MarketComparison?` (1:1), `Property` → `AuctionInfo?` (1:1).
+- **Multi-Tenant via `Property.ownerId` → `User.id`** (seit Push A2,
+  2026-05-06). Auth läuft über Clerk: Frontend holt JWT,
+  Backend verifiziert via `@clerk/backend` und provisioniert User
+  Just-in-Time (`backend/src/lib/auth.ts`).
+
+## Auth-Pfad (Pflichtlektüre vor jeder Backend-Änderung)
+
+- Alle API-Routen außer `/health` sind durch `requireAuth` geschützt.
+- Neue Routes IMMER mit Owner-Filter: `where: { id: req.params.id, ownerId: req.userId }`.
+- CREATEs setzen `ownerId: req.userId`. Sonst Datenleck.
+- Frontend-Server-Components lesen via `lib/api-server.ts` (top-level
+  `import { auth } from "@clerk/nextjs/server"`, `import "server-only"`).
+  **Kein dynamisches `await import()`** — bricht im Vercel-Build.
+- Frontend-Client-Components nutzen `lib/client-fetch.ts` (`useApiFetch()` Hook).
+- Bookmarklet-Receiver `/bookmarklet/receive` ist Server-Side-Proxy
+  (Form-POST → Token-Forwarding ans Backend), umgeht Inserats-Site-CSP.
 
 ## Was nicht zu tun ist
 
-- **Keine Auth einbauen**, solange Marco es nicht explizit will. Das MVP läuft
-  bewusst ohne.
 - **Keine API-Keys hardcoden** — immer aus `process.env` lesen.
 - **Keine `prisma migrate dev` in Production** — auf Railway nur `prisma migrate
   deploy` über den Build-/Start-Hook.
 - **Nicht an `frontend/.next`, `node_modules` oder `dist` editieren** — sind
   Build-Artefakte.
+- **Owner-Filter nicht vergessen** — siehe oben.
 
 ## Warte nicht auf Benutzerantworten
 
