@@ -728,11 +728,17 @@ app.post("/me/claim-legacy", async (req, res) => {
   return res.json({ claimed: result.count });
 });
 
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Verbose Logging für Railway-Logs — hilft beim Debuggen von 500ern.
+  const stack = err instanceof Error ? err.stack : String(err);
+  console.error(`[${req.method} ${req.path}] 500 error:`, stack);
   const message = err instanceof Error ? err.message : "Internal server error";
-  return res.status(500).json({ error: message });
+  return res.status(500).json({ error: message, path: req.path });
 });
+
+// Express 5: async-Handler-Errors auch fangen (sollte automatisch sein,
+// aber sicherheitshalber mit einer Wrapper-Variante getestet werden falls
+// ein unhandled async error in 500 ohne Stack mündet).
 
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {

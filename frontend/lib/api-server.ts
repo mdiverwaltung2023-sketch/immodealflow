@@ -18,7 +18,10 @@ async function authHeaders(): Promise<Record<string, string>> {
 export async function apiGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
   const headers = await authHeaders();
   const res = await fetch(`${baseUrl()}${path}`, { cache: "no-store", headers });
-  if (!res.ok) throw new Error(`GET ${path} fehlgeschlagen (${res.status})`);
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`GET ${path} fehlgeschlagen (${res.status}): ${txt.slice(0, 500)}`);
+  }
   const json = await res.json();
   return schema.parse(json);
 }
