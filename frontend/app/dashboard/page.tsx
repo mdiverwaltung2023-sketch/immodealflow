@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { z } from "zod";
-import { apiGet, PropertyListItemSchema, STATUS_ORDER, STATUS_LABELS, DealStatusEnum, type DealStatus } from "@/lib/api";
+import { PropertyListItemSchema, STATUS_ORDER, STATUS_LABELS, DealStatusEnum, type DealStatus } from "@/lib/api";
+import { apiGet } from "@/lib/api-server";
 import { Card, StatusBadge } from "@/components/ui";
 import { PropertyActions } from "./PropertyActions";
 import { ClaimLegacyBanner } from "./ClaimLegacyBanner";

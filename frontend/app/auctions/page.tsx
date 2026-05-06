@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { z } from "zod";
-import { apiGet, PropertyListItemSchema, AUCTION_TYPE_LABELS } from "@/lib/api";
+import { PropertyListItemSchema, AUCTION_TYPE_LABELS } from "@/lib/api";
+import { apiGet } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 
 const PropertiesSchema = z.array(PropertyListItemSchema);

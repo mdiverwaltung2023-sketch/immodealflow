@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { apiGet, PropertyDetailSchema } from "@/lib/api";
+import { PropertyDetailSchema } from "@/lib/api";
+import { apiGet } from "@/lib/api-server";
 import { Card, Stat, StatusBadge } from "@/components/ui";
 import { StatusEditor } from "./StatusEditor";
 import { NotesPanel } from "./NotesPanel";

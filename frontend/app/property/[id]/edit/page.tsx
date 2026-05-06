@@ -1,4 +1,5 @@
-import { apiGet, PropertyDetailSchema } from "@/lib/api";
+import { PropertyDetailSchema } from "@/lib/api";
+import { apiGet } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { EditForm } from "./EditForm";
 import Link from "next/link";

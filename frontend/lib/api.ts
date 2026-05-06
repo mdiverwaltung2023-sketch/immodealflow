@@ -190,48 +190,5 @@ export const PropertyDetailSchema = PropertySchema.extend({
   auction: AuctionInfoSchema.nullable().optional()
 });
 
-function baseUrl() {
-  const url = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!url) throw new Error("NEXT_PUBLIC_API_BASE_URL fehlt");
-  return url.replace(/\/+$/, "");
-}
-
-/**
- * Holt das aktuelle Clerk-JWT für API-Anfragen aus Server Components.
- * Importiert `auth` dynamisch, damit Client-Components, die diese Datei
- * mit-bundlen, nicht über server-only Code stolpern.
- */
-async function getServerAuthHeader(): Promise<Record<string, string>> {
-  // Lazy import vermeidet Bundle-Konflikte in Client-Components
-  const { auth } = await import("@clerk/nextjs/server");
-  const a = await auth();
-  const token = await a.getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-export async function apiGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-  const headers = await getServerAuthHeader();
-  const res = await fetch(`${baseUrl()}${path}`, { cache: "no-store", headers });
-  if (!res.ok) throw new Error(`GET ${path} fehlgeschlagen (${res.status})`);
-  const json = await res.json();
-  return schema.parse(json);
-}
-
-export async function apiPost<T>(
-  path: string,
-  body: unknown | undefined,
-  schema: z.ZodType<T>
-): Promise<T> {
-  const headers = await getServerAuthHeader();
-  const res = await fetch(`${baseUrl()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`POST ${path} fehlgeschlagen (${res.status}) ${txt}`);
-  }
-  const json = await res.json();
-  return schema.parse(json);
-}
+// fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
+// damit Client-Components diese Datei sicher mit-importieren können.
