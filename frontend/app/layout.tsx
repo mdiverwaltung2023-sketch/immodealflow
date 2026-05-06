@@ -74,7 +74,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
             <footer className="border-t">
               <div className="mx-auto max-w-6xl px-4 py-6 text-xs text-zinc-500">
-                DealFlow AI • End-to-End MVP (ohne Auth)
+                DealFlow AI • Investor- und Verkäufer-Tool für MFH/Gewerbe
               </div>
             </footer>
           </div>

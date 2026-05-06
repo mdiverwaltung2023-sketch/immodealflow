@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PropertyDetailSchema } from "@/lib/api";
-import { apiGet } from "@/lib/api-server";
+import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card, Stat, StatusBadge } from "@/components/ui";
 import { StatusEditor } from "./StatusEditor";
 import { NotesPanel } from "./NotesPanel";
@@ -14,6 +14,7 @@ function eur(n: number) {
 }
 
 export default async function PropertyPage({ params }: { params: { id: string } }) {
+  await requireOnboardedUser();
   const p = await apiGet(`/properties/${params.id}`, PropertyDetailSchema);
   const latestAnalysis = p.analyses && p.analyses.length > 0 ? p.analyses[0] : null;
 

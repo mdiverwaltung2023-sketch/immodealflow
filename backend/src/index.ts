@@ -714,7 +714,58 @@ app.get("/me", async (req, res) => {
     email: user.email,
     name: user.name,
     role: user.role,
+    onboardingCompletedAt: user.onboardingCompletedAt,
     legacyCount
+  });
+});
+
+const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH"]);
+
+// PATCH /me — Felder updaten (z. B. Name, Rolle)
+app.patch("/me", async (req, res) => {
+  const body = z
+    .object({
+      name: z.string().min(1).max(120).optional(),
+      role: UserRoleEnum.optional()
+    })
+    .parse(req.body);
+  const user = await prisma.user.update({
+    where: { id: req.userId! },
+    data: body
+  });
+  return res.json({
+    id: user.id,
+    clerkId: user.clerkId,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    onboardingCompletedAt: user.onboardingCompletedAt
+  });
+});
+
+// POST /me/complete-onboarding — schließt das Onboarding ab. Optional
+// werden gleich Rolle und Name gesetzt.
+app.post("/me/complete-onboarding", async (req, res) => {
+  const body = z
+    .object({
+      role: UserRoleEnum.optional(),
+      name: z.string().min(1).max(120).optional()
+    })
+    .parse(req.body ?? {});
+  const user = await prisma.user.update({
+    where: { id: req.userId! },
+    data: {
+      ...body,
+      onboardingCompletedAt: new Date()
+    }
+  });
+  return res.json({
+    id: user.id,
+    clerkId: user.clerkId,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    onboardingCompletedAt: user.onboardingCompletedAt
   });
 });
 

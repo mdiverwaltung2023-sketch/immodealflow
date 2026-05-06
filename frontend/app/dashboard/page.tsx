@@ -1,20 +1,12 @@
 import Link from "next/link";
 import { z } from "zod";
 import { PropertyListItemSchema, STATUS_ORDER, STATUS_LABELS, DealStatusEnum, type DealStatus } from "@/lib/api";
-import { apiGet } from "@/lib/api-server";
+import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card, StatusBadge } from "@/components/ui";
 import { PropertyActions } from "./PropertyActions";
 import { ClaimLegacyBanner } from "./ClaimLegacyBanner";
 
 const PropertiesSchema = z.array(PropertyListItemSchema);
-
-const MeSchema = z.object({
-  id: z.string(),
-  email: z.string(),
-  name: z.string().nullable().optional(),
-  role: z.string(),
-  legacyCount: z.number()
-});
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -23,6 +15,9 @@ function eur(n: number) {
 type Search = { status?: string };
 
 export default async function DashboardPage({ searchParams }: { searchParams?: Search }) {
+  // Guard zuerst — redirected ggf. auf /onboarding und liefert User mit
+  const me = await requireOnboardedUser();
+
   const statusFilter = (() => {
     const raw = searchParams?.status;
     const parsed = raw ? DealStatusEnum.safeParse(raw) : null;
@@ -30,10 +25,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: S
   })();
 
   const path = statusFilter ? `/properties?status=${statusFilter}` : "/properties";
-  const [properties, me] = await Promise.all([
-    apiGet(path, PropertiesSchema),
-    apiGet("/me", MeSchema).catch(() => ({ legacyCount: 0 }))
-  ]);
+  const properties = await apiGet(path, PropertiesSchema);
 
   // Counts (zweiter Call ohne Filter, damit die Tabs immer Anzahl zeigen — oder von properties wenn kein Filter)
   const all = statusFilter ? await apiGet("/properties", PropertiesSchema) : properties;

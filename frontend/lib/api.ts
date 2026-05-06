@@ -190,5 +190,26 @@ export const PropertyDetailSchema = PropertySchema.extend({
   auction: AuctionInfoSchema.nullable().optional()
 });
 
+export const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH"]);
+export type UserRoleT = z.infer<typeof UserRoleEnum>;
+
+export const USER_ROLE_LABELS: Record<UserRoleT, string> = {
+  INVESTOR: "Investor",
+  SELLER: "Verkäufer",
+  BOTH: "Beides"
+};
+
+export const MeSchema = z.object({
+  id: z.string(),
+  clerkId: z.string(),
+  email: z.string(),
+  name: z.string().nullable().optional(),
+  role: UserRoleEnum,
+  onboardingCompletedAt: z.string().nullable().optional(),
+  legacyCount: z.number().optional()
+});
+
+export type Me = z.infer<typeof MeSchema>;
+
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.

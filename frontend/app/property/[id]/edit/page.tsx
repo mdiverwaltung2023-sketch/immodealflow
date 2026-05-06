@@ -1,10 +1,11 @@
 import { PropertyDetailSchema } from "@/lib/api";
-import { apiGet } from "@/lib/api-server";
+import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { EditForm } from "./EditForm";
 import Link from "next/link";
 
 export default async function PropertyEditPage({ params }: { params: { id: string } }) {
+  await requireOnboardedUser();
   const p = await apiGet(`/properties/${params.id}`, PropertyDetailSchema);
 
   return (

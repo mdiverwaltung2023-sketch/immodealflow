@@ -52,6 +52,8 @@ model User {
   name      String?
   role      UserRole @default(INVESTOR)
 
+  onboardingCompletedAt DateTime?
+
   properties Property[]
 }
 

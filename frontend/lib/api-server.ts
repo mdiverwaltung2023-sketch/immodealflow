@@ -2,6 +2,8 @@ import "server-only";
 
 import type { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { MeSchema, type Me } from "@/lib/api";
 
 function baseUrl() {
   const url = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -43,4 +45,19 @@ export async function apiPost<T>(
   }
   const json = await res.json();
   return schema.parse(json);
+}
+
+/**
+ * Holt den eingeloggten User und redirectet auf /onboarding, wenn das
+ * Onboarding noch nicht abgeschlossen ist. Auf allen geschützten Pages
+ * (Dashboard, Property, Auctions, New) ganz oben aufrufen.
+ *
+ * NICHT auf /onboarding selbst aufrufen — sonst Redirect-Loop.
+ */
+export async function requireOnboardedUser(): Promise<Me> {
+  const me = await apiGet("/me", MeSchema);
+  if (!me.onboardingCompletedAt) {
+    redirect("/onboarding");
+  }
+  return me;
 }
