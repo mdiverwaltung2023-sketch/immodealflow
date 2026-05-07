@@ -18,7 +18,7 @@ export default function BookmarkletPage() {
       var bodyText=(document.body&&document.body.innerText||'').slice(0,80000);
       var pageUrl=window.location.href;
       var choice=prompt(
-        'DealFlow Import — was ist das?\\n\\n'+
+        'Infinity Oikos Import — was ist das?\\n\\n'+
         '1 = Einzelnes Inserat (Immoscout, Immowelt, Kleinanzeigen, ...)\\n'+
         '2 = Einzelne Versteigerung (ZVG-Bekanntmachung, einzelner Auktionstermin)\\n'+
         '3 = Liste / Katalog (DGA, SDL, Karhausen, mehrere Termine auf einer Seite)',
@@ -46,7 +46,7 @@ export default function BookmarkletPage() {
         f.submit();
         setTimeout(function(){try{f.parentNode&&f.parentNode.removeChild(f);}catch(e){}},2000);
       }catch(e){
-        alert('DealFlow konnte das Form nicht senden:\\n\\n'+(e&&e.message||e));
+        alert('Infinity Oikos konnte das Form nicht senden:\\n\\n'+(e&&e.message||e));
       }
     })();
   `.replace(/\s+/g, " ").trim();
@@ -78,7 +78,7 @@ function BookmarkletPageInner({
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-2xl font-semibold">DealFlow-Bookmarklet</div>
+        <div className="text-2xl font-semibold">Infinity Oikos-Bookmarklet</div>
         <div className="mt-1 text-sm text-zinc-400">
           Ein-Klick-Import von jeder beliebigen Immobilien- oder Auktions-Seite. Funktioniert auch dort, wo unser Server-Crawler an JavaScript-Seiten scheitert (DGA, SDL, Immoscout24, Immowelt, Kleinanzeigen.de …).
         </div>
@@ -107,11 +107,11 @@ function BookmarkletPageInner({
               draggable={true}
               onClick={(e) => {
                 e.preventDefault();
-                alert("Drag-and-drop diesen Knopf in die Lesezeichen-Leiste — nicht klicken (sonst läuft das Bookmarklet auf dieser DealFlow-Seite und findet kein Inserat).");
+                alert("Drag-and-drop diesen Knopf in die Lesezeichen-Leiste — nicht klicken (sonst läuft das Bookmarklet auf dieser Infinity Oikos-Seite und findet kein Inserat).");
               }}
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-600"
             >
-              ⤓ DealFlow Import
+              ⤓ Infinity Oikos Import
             </a>
 
             <button
@@ -132,7 +132,7 @@ function BookmarkletPageInner({
         <div className="space-y-3 text-sm text-zinc-300">
           <ol className="list-decimal space-y-1 pl-5">
             <li>Du öffnest eine Inserats-Seite (z. B. <code>www.immoscout24.de/expose/...</code>)</li>
-            <li>Du klickst in der Lesezeichen-Leiste auf <strong>DealFlow Import</strong></li>
+            <li>Du klickst in der Lesezeichen-Leiste auf <strong>Infinity Oikos Import</strong></li>
             <li>
               Eine kleine Abfrage erscheint — wähle:
               <ul className="mt-1 list-disc pl-5 text-zinc-400">
@@ -141,11 +141,11 @@ function BookmarkletPageInner({
                 <li><strong>3</strong> = Liste / Katalog (Übersichtsseite mit mehreren Auktionen)</li>
               </ul>
             </li>
-            <li>Bei <strong>1</strong> oder <strong>2</strong>: ein neuer DealFlow-Tab öffnet das frisch importierte Property mit Analyse + ggf. Bietlimit. Bei <strong>3</strong>: Sammelimport mit Anzeige der Anzahl.</li>
+            <li>Bei <strong>1</strong> oder <strong>2</strong>: ein neuer Infinity Oikos-Tab öffnet das frisch importierte Property mit Analyse + ggf. Bietlimit. Bei <strong>3</strong>: Sammelimport mit Anzeige der Anzahl.</li>
           </ol>
 
           <div className="mt-3 rounded-xl border border-amber-900 bg-amber-950/30 p-3 text-xs text-amber-200">
-            <strong>Wichtig:</strong> Der Bookmarklet greift nur den sichtbaren Text der Seite ab und schickt ihn an dein DealFlow-Backend. Es lädt keine externen Skripte und braucht keinerlei Einwilligung der Portale — du bist als User selbst auf der Seite.
+            <strong>Wichtig:</strong> Der Bookmarklet greift nur den sichtbaren Text der Seite ab und schickt ihn an dein Infinity Oikos-Backend. Es lädt keine externen Skripte und braucht keinerlei Einwilligung der Portale — du bist als User selbst auf der Seite.
           </div>
         </div>
       </Card>

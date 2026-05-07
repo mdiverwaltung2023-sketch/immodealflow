@@ -6,11 +6,11 @@ export const runtime = "nodejs";
 const ALLOWED_MODES = new Set(["expose", "auction", "auction-list"]);
 
 export async function POST(req: NextRequest) {
-  // Auth-Check: User muss in DealFlow eingeloggt sein, damit das Bookmarklet
+  // Auth-Check: User muss in Infinity Oikos eingeloggt sein, damit das Bookmarklet
   // die Properties seinem Account zuordnen kann.
   const a = await auth();
   if (!a.userId) {
-    return redirectError(req, "Nicht eingeloggt. Bitte erst auf DealFlow anmelden, dann das Bookmarklet erneut klicken.");
+    return redirectError(req, "Nicht eingeloggt. Bitte erst auf Infinity Oikos anmelden, dann das Bookmarklet erneut klicken.");
   }
   const token = await a.getToken();
   if (!token) {

@@ -212,7 +212,7 @@ export default function AuctionImportPage() {
         <Card title="Auktions-Liste / Katalog importieren">
           <div className="space-y-4">
             <div className="text-xs text-zinc-400">
-              URL einer Übersichts-/Katalogseite eingeben — DealFlow holt die Seite, Claude extrahiert die Liste der Auktionen, alle werden als Properties mit `dealType=AUCTION` angelegt. Funktioniert für DGA, SDL, Karhausen und ähnliche Anbieter ohne aktive Bot-Sperre.
+              URL einer Übersichts-/Katalogseite eingeben — Infinity Oikos holt die Seite, Claude extrahiert die Liste der Auktionen, alle werden als Properties mit `dealType=AUCTION` angelegt. Funktioniert für DGA, SDL, Karhausen und ähnliche Anbieter ohne aktive Bot-Sperre.
             </div>
 
             <div>

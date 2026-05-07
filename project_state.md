@@ -1,8 +1,13 @@
-# PROJECT STATE — DealFlow AI (ImmoDealFlow)
+# PROJECT STATE — Infinity Oikos
 
-> Stand: **2026-05-07** (Phase E). Diese Datei ist die Single Source of Truth
-> für den aktuellen Projektstand. Bei jeder substanziellen Änderung (neuer
-> Endpoint, neuer Deploy, neuer Bug, Status-Update) hier nachziehen.
+> Marken-Name: **Infinity Oikos** (UI + Marketing).
+> Repo-/Code-Pfad: `ImmoDealFlow` (intern; bleibt aus Pragmatismus erhalten).
+> Frühere Arbeitsnamen: DealFlow AI, ImmoDealFlow.
+>
+> Stand: **2026-05-07** (Phase E + Rebranding). Diese Datei ist die Single
+> Source of Truth für den aktuellen Projektstand. Bei jeder substanziellen
+> Änderung (neuer Endpoint, neuer Deploy, neuer Bug, Status-Update) hier
+> nachziehen.
 
 ---
 

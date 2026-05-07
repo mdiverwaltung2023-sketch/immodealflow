@@ -13,7 +13,7 @@ export default async function OnboardingPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <div className="text-2xl font-semibold">Willkommen bei DealFlow AI</div>
+        <div className="text-2xl font-semibold">Willkommen bei Infinity Oikos</div>
         <div className="mt-1 text-sm text-zinc-400">
           {me.name ? `Hallo ${me.name}, ` : "Hallo, "}
           bevor du loslegst, brauchen wir kurz deine Rolle. Das hilft uns,
@@ -22,7 +22,7 @@ export default async function OnboardingPage() {
         </div>
       </div>
 
-      <Card title="Wofür nutzt du DealFlow AI?">
+      <Card title="Wofür nutzt du Infinity Oikos?">
         <OnboardingForm initial={{ name: me.name ?? "", role: me.role }} />
       </Card>
 

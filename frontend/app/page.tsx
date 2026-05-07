@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import { AuthHero } from "@/components/AuthHero";
 
 export default async function Home() {
   const a = await auth();
@@ -9,52 +10,60 @@ export default async function Home() {
   }
 
   return (
-    <div className="space-y-12 py-8">
-      <div className="space-y-4 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight">DealFlow AI</h1>
-        <p className="mx-auto max-w-xl text-zinc-400">
-          Immobilien-Deals analysieren, Versteigerungen tracken, Bietlimits berechnen — und bald: ein Marketplace
-          für MFH und Gewerbe, in dem Verkäufer auf transparente Käufer-Profile zugreifen.
-        </p>
-        <div className="flex items-center justify-center gap-3">
-          <Link
-            href="/sign-up"
-            className="rounded-xl bg-indigo-500 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-600"
-          >
-            Kostenlos registrieren
-          </Link>
-          <Link
-            href="/sign-in"
-            className="rounded-xl border border-zinc-800 px-5 py-3 text-sm font-medium text-zinc-200 hover:border-zinc-700 hover:text-white"
-          >
-            Anmelden
-          </Link>
-        </div>
-      </div>
+    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
+      <AuthHero headlineLine1="Marketplace für MFH" headlineLine2="und Gewerbe." />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Feature
-          title="Pipeline + Analyse"
-          body="Status-Pipeline, mehrere Analyse-Szenarien mit Kaufnebenkosten, Tilgung, AfA, Steuer und Cashflow nach Steuer."
-        />
-        <Feature
-          title="Versteigerungs-Importer"
-          body="ZVG-Bekanntmachungen per PDF/URL importieren, automatisches Bietlimit auf Basis deiner Annahmen."
-        />
-        <Feature
-          title="KI-Magie"
-          body="Inserat-Text in Sekunden zu strukturierten Feldern, Marktvergleich pro Lage, Preisvorschlag + Anschreiben via Claude."
-        />
+      <div className="flex items-center justify-center bg-zinc-50 p-6 lg:p-10">
+        <div className="w-full max-w-md space-y-8">
+          <div className="space-y-2 text-center">
+            <div className="text-2xl font-semibold text-zinc-900">Loslegen</div>
+            <p className="text-sm text-zinc-500">
+              Kostenlos registrieren — Profil ausfüllen, Listing einstellen oder
+              die ersten Investoren-Inserate durchsuchen.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Link
+              href="/sign-up"
+              className="block w-full rounded-xl bg-indigo-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            >
+              Kostenlos registrieren
+            </Link>
+            <Link
+              href="/sign-in"
+              className="block w-full rounded-xl border border-zinc-300 bg-white px-5 py-3 text-center text-sm font-medium text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-50"
+            >
+              Anmelden
+            </Link>
+          </div>
+
+          <div className="grid gap-3 pt-4">
+            <Bullet title="Für Verkäufer">
+              Inserat anlegen, Anonymisierung wählen, nur qualifizierte Anfragen
+              durchlassen — Bonität auf einen Blick.
+            </Bullet>
+            <Bullet title="Für Investoren">
+              Profil mit Trackrecord & Bonität, Marketplace durchsuchen, Anfragen
+              stellen, Bewertungen sammeln.
+            </Bullet>
+            <Bullet title="Für beide">
+              Auch nutzbar als Investor-Tool: ZVG-Importer, Bietlimit, KI-Marktvergleich.
+            </Bullet>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function Feature({ title, body }: { title: string; body: string }) {
+function Bullet({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border bg-zinc-950/40 p-5">
-      <div className="text-sm font-semibold text-white">{title}</div>
-      <div className="mt-2 text-sm text-zinc-400">{body}</div>
+    <div className="rounded-xl border border-zinc-200 bg-white p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+        {title}
+      </div>
+      <div className="mt-1 text-sm text-zinc-600">{children}</div>
     </div>
   );
 }
