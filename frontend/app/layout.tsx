@@ -48,6 +48,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <NavLink href="/dashboard">Dashboard</NavLink>
                   <NavLink href="/marketplace">Marketplace</NavLink>
                   <NavLink href="/listings">Meine Listings</NavLink>
+                  <NavLink href="/inquiries">Anfragen</NavLink>
                   <NavLink href="/auctions">Versteigerungen</NavLink>
                   <NavLink href="/new">Neues Objekt</NavLink>
                   <NavLink href="/profile">Profil</NavLink>

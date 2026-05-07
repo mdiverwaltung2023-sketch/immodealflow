@@ -1,6 +1,6 @@
 # PROJECT STATE — DealFlow AI (ImmoDealFlow)
 
-> Stand: **2026-05-07** (Phase C). Diese Datei ist die Single Source of Truth
+> Stand: **2026-05-07** (Phase D). Diese Datei ist die Single Source of Truth
 > für den aktuellen Projektstand. Bei jeder substanziellen Änderung (neuer
 > Endpoint, neuer Deploy, neuer Bug, Status-Update) hier nachziehen.
 
@@ -112,7 +112,13 @@ Listing { ownerId, title, description, propertyType(AssetType),
           status(ListingStatus), askingPrice, totalArea, totalRent?,
           city, postalCode?, district?, fullAddress?,
           anonymizationLevel(AnonymizationLevel) }
-   └── ListingImage[]   (1:n, url, alt?, sortOrder)
+   ├── ListingImage[]   (1:n, url, alt?, sortOrder)
+   └── Inquiry[]        (1:n)
+
+Inquiry { listingId, investorId, status(InquiryStatus), message,
+          response?, respondedAt? }
+   ├── listing  (Listing)
+   └── investor (User, via @relation "InvestorInquiries")
 ```
 
 Enums: `UserRole {INVESTOR, SELLER, BOTH}`, `DealStatus {WATCHING, INQUIRED,
@@ -122,7 +128,8 @@ fair, above_market}`, `AssetType {MFH, COMMERCIAL, MIXED_USE, SINGLE_FAMILY,
 APARTMENT, LAND, OTHER}`, `ProfileVisibility {PRIVATE, ON_REQUEST, PUBLIC}`,
 `TrackrecordRole {BUYER, SELLER, PARTNER, BROKER, OTHER}`,
 `ListingStatus {DRAFT, ACTIVE, IN_NEGOTIATION, SOLD, ARCHIVED}`,
-`AnonymizationLevel {FULL_ADDRESS, DISTRICT_ONLY, CITY_ONLY}`.
+`AnonymizationLevel {FULL_ADDRESS, DISTRICT_ONLY, CITY_ONLY}`,
+`InquiryStatus {PENDING, ACCEPTED, REJECTED, WITHDRAWN}`.
 
 ## Backend-Endpunkte
 
@@ -152,7 +159,13 @@ Auth-geschützt (`requireAuth`):
 | POST    | `/me/listings/:id/images`         | Bild-URL anhängen (Frontend hat schon hochgeladen)     |
 | DELETE  | `/me/listings/:listingId/images/:imageId` | Bild entfernen                                 |
 | GET     | `/marketplace`                    | Aktive Listings, anonymisiert; Filter `?city=&type=&priceMin=&priceMax=&areaMin=` |
-| GET     | `/marketplace/:id`                | Listing-Detail, anonymisiert                           |
+| GET     | `/marketplace/:id`                | Listing-Detail, anonymisiert + `myInquiry` + `isOwner` |
+| POST    | `/me/inquiries`                   | Investor stellt Anfrage (body: listingId, message)     |
+| GET     | `/me/inquiries`                   | Eigene gesendete Anfragen (Investor-Sicht)             |
+| GET     | `/me/inquiries/:id`               | Eigene Anfrage-Detail (bei ACCEPTED: fullAddress + Verkäufer-Email freigegeben) |
+| DELETE  | `/me/inquiries/:id`               | Anfrage zurückziehen (nur PENDING → WITHDRAWN)         |
+| GET     | `/me/listings/:id/inquiries`      | Anfragen auf eigenem Listing inkl. Investor-Profil-Auszug (Verkäufer-Sicht) |
+| PATCH   | `/me/inquiries/:id/respond`       | Verkäufer accept/reject; bei ACCEPT: Listing → IN_NEGOTIATION |
 | GET     | `/properties`                     | Liste eigener Properties (mit `?status=` Filter)       |
 | POST    | `/properties`                     | Property anlegen (Zod-validiert), `ownerId=req.userId` |
 | GET     | `/properties/:id`                 | Detail (eigene), inkl. Auction/Analyse/Markt/Offer/Notes |
@@ -194,9 +207,12 @@ Geschützt (Login erforderlich, `requireOnboardedUser()`-Guard):
 | `/profile`                 | Investor-Profil + Trackrecord                          |
 | `/listings`                | Eigene Listings (Verkäufer-Sicht, Status-Übersicht)    |
 | `/listings/new`            | Neues Listing als Entwurf                              |
-| `/listings/[id]/edit`      | Listing bearbeiten + Bilder hochladen + Anonymisierung + Status |
+| `/listings/[id]/edit`      | Listing bearbeiten + Bilder + Anonymisierung + Status; Link auf Anfragen |
+| `/listings/[id]/inquiries` | Anfragen auf eigenem Listing mit Investor-Profil-Karten + Accept/Reject |
 | `/marketplace`             | Öffentliche Suchseite mit Filtern, anonymisierte Karten |
-| `/marketplace/[id]`        | Listing-Detail (anonymisierte Lage je nach Stufe)      |
+| `/marketplace/[id]`        | Listing-Detail (anonymisierte Lage) + "Anfrage stellen"-Card |
+| `/inquiries`               | Meine Anfragen (Investor-Sicht, Status + Listing-Vorschau) |
+| `/inquiries/[id]`          | Anfrage-Detail; bei ACCEPTED: fullAddress + Verkäufer-Email |
 | `/auctions`                | Versteigerungs-Liste sortiert nach Termin              |
 | `/auctions/import`         | 4 Tabs (Text/PDF/URL/Liste)                            |
 | `/api/upload-image` (POST) | Frontend-Route Handler — lädt File zu Vercel Blob hoch (Auth via Clerk, ENV `BLOB_READ_WRITE_TOKEN`); 503 wenn Blob nicht aktiviert |
@@ -211,7 +227,43 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase C erledigt — Verkäufer-Listings + Marketplace live**
+## Aktuelle Phase: **Phase D erledigt — Inquiry-Flow live (USP sichtbar)**
+
+### Phase D (2026-05-07) — Inquiry-Flow
+
+- ✅ Prisma: `Inquiry` (1:n Listing, 1:n User via @relation "InvestorInquiries"),
+  `InquiryStatus` enum {PENDING, ACCEPTED, REJECTED, WITHDRAWN}. Migration
+  `20260507_add_inquiry`. Doppelte PENDING-Inquiries werden im Backend
+  verhindert, nicht via DB-Constraint (User darf nach REJECTED nochmal anfragen).
+- ✅ Backend Inquiry-Endpoints:
+  - `POST /me/inquiries` (Investor) — Listing muss ACTIVE sein, kein
+    Self-Anfragen, keine doppelten PENDING.
+  - `GET /me/inquiries` (Investor-Sicht) + `GET /me/inquiries/:id` —
+    bei ACCEPTED: fullAddress + Verkäufer-Email werden über
+    `listingViewForInvestor()` freigegeben.
+  - `DELETE /me/inquiries/:id` — withdraw (nur PENDING).
+  - `GET /me/listings/:id/inquiries` (Verkäufer-Sicht) — liefert
+    `investorSnapshotFor()`: User-Daten + InvestorProfile + Trackrecord
+    (Visibility wird IMMER ignoriert, weil Inquiry-Aktion = Einwilligung).
+  - `PATCH /me/inquiries/:id/respond` — accept/reject + optional Antworttext;
+    bei erstem ACCEPT auf einem Listing: Listing-Status auto auf
+    `IN_NEGOTIATION`.
+- ✅ `/marketplace/:id` erweitert um `myInquiry` (PENDING/ACCEPTED) und
+  `isOwner` — damit das Frontend den richtigen Button rendern kann.
+- ✅ Frontend:
+  - `/marketplace/[id]` hat eine "Anfrage stellen"-Card (Client) mit
+    Message-Form (≥10 Zeichen). Status-abhängige Anzeige: PENDING-Hinweis,
+    ACCEPTED-Hinweis, „Eigenes Listing" mit Link auf Anfragen, oder
+    geschlossen wenn Listing nicht ACTIVE.
+  - `/inquiries` — Investor-Sicht aller Anfragen mit Cover-Bild, Status-Badge,
+    Auszug der Message.
+  - `/inquiries/[id]` — Detail; bei ACCEPTED grüne fullAddress-Box +
+    Verkäufer-Email; PENDING-Anfragen können zurückgezogen werden.
+  - `/listings/[id]/inquiries` — Verkäufer-Sicht mit Investor-Profil-Karten
+    (Bio, Bonität mit Live-Affordability-Calc, Trackrecord-Top-4) +
+    Accept/Reject-Buttons mit Antwort-Text.
+  - Nav-Link "Anfragen" zwischen "Meine Listings" und "Versteigerungen".
+  - "Anfragen ansehen"-Button im Listing-Edit-Header.
 
 ### Phase C (2026-05-07) — Verkäufer-Listings + Marketplace + Bilder
 
@@ -315,18 +367,20 @@ nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 - ✅ `@clerk/nextjs` integriert, `<ClerkProvider>` in Root-Layout
 - ✅ Sign-up/Sign-in funktioniert end-to-end
 
-### Roadmap nach Phase C
+### Roadmap nach Phase D
 
-**Phase D** — **Inquiry-Flow** (USP wird sichtbar): `Inquiry`-Modell
-(listingId, investorId, status, message), Verkäufer bekommt Investor-Profil-
-Auszug bei Anfrage (respektiert dann auch `InvestorProfile.visibility`),
-akzeptiert/lehnt ab, danach Kontakt-Channel + Freigabe der `fullAddress`.
-Status-Pipeline am Listing: aktiv → mehrere Inquiries → in Verhandlung mit X
-→ verkauft.
+**Phase E** — Bewertungssystem: `Rating { fromUserId, toUserId, dealId,
+stars 1–5, body }`, nur erlaubt nach Listing-Status SOLD. DSGVO/UWG-konform
+(nur Tatsachenbehauptungen, Recht auf Gegendarstellung). Aggregation auf
+Profil (durchschnittliche Bewertung + Anzahl).
 
-**Phase E** — Bewertungssystem (nur nach Listing-Status SOLD, DSGVO/UWG-konform).
+**Phase F** *(optional)* — In-App Messaging zwischen Käufer + Verkäufer in
+einer akzeptierten Inquiry. Realtime via WebSockets oder Polling. Anfänglich
+reicht E-Mail-Kontakt nach Accept.
 
-**Phase F** *(optional)* — In-App Messaging zwischen Käufer + Verkäufer.
+**Tech-Debt vor Phase E aufräumen:** Visibility-Enforcement auf
+`/marketplace`-Karten (zeigt aktuell `owner.name` ohne Sichtbarkeits-Check —
+für Phase E eigentlich erst relevant, wenn Profile öffentlich verlinkt werden).
 
 ### Phase 3 (2026-04-29) — Universal-Bookmarklet
 
@@ -407,6 +461,7 @@ Status-Pipeline am Listing: aktiv → mehrere Inquiries → in Verhandlung mit X
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-07  | Phase D: Inquiry-Flow (Profil-Auszug bei Anfrage, Accept/Reject, fullAddress-Freigabe) |
 | 2026-05-07  | Phase C: Verkäufer-Listings + Marketplace + Bilder-Upload    |
 | 2026-05-07  | Phase B: Investor-Profil + Trackrecord + Bonität-Calc        |
 | 2026-05-06  | Push A3: Onboarding + Rolle wählen + Footer-Fix              |

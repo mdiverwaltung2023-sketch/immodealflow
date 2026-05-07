@@ -15,9 +15,17 @@ export default async function ListingEditPage({ params }: { params: { id: string
           <div className="text-2xl font-semibold">Listing bearbeiten</div>
           <div className="mt-1 text-sm text-zinc-400">{listing.title}</div>
         </div>
-        <Link href="/listings" className="text-sm text-zinc-300 hover:underline">
-          ← Zur Liste
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={`/listings/${listing.id}/inquiries`}
+            className="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+          >
+            Anfragen ansehen
+          </Link>
+          <Link href="/listings" className="text-sm text-zinc-300 hover:underline">
+            ← Zur Liste
+          </Link>
+        </div>
       </div>
 
       <Card title="Felder & Status">

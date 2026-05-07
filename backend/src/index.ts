@@ -1130,6 +1130,272 @@ app.delete("/me/listings/:listingId/images/:imageId", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// --- Inquiries (Push D) ----------------------------------------
+
+const InquiryStatusEnum = z.enum(["PENDING", "ACCEPTED", "REJECTED", "WITHDRAWN"]);
+
+/**
+ * Reduziert ein Listing auf die Felder, die ein Investor nach
+ * Inquiry-Erstellung sehen darf.
+ *
+ * - Bei ACCEPTED: Voll-Adresse wird freigegeben (Verkäufer hat eingewilligt)
+ * - Sonst: Wie im Marketplace anonymisiert
+ */
+function listingViewForInvestor(
+  l: {
+    id: string;
+    title: string;
+    description: string;
+    propertyType: string;
+    askingPrice: number;
+    totalArea: number;
+    totalRent: number | null;
+    city: string;
+    postalCode: string | null;
+    district: string | null;
+    fullAddress: string | null;
+    anonymizationLevel: string;
+    status: string;
+    images: { id: string; url: string; alt: string | null; sortOrder: number; createdAt: Date; listingId: string }[];
+  },
+  inquiryStatus: string
+) {
+  const showFullAddress = inquiryStatus === "ACCEPTED";
+  if (showFullAddress) {
+    return l;
+  }
+  // Sonst Anonymisierung wie im Marketplace
+  if (l.anonymizationLevel === "FULL_ADDRESS") return l;
+  if (l.anonymizationLevel === "DISTRICT_ONLY") {
+    return { ...l, fullAddress: null, postalCode: null };
+  }
+  return { ...l, fullAddress: null, postalCode: null, district: null };
+}
+
+/**
+ * Investor-Profil-Auszug für den Verkäufer einer Inquiry.
+ * Zeigt das Profil unabhängig von visibility — die Inquiry-Aktion zählt
+ * als Einwilligung des Investors. Dafür wird im Frontend transparent
+ * gemacht, dass der Verkäufer das Profil nur durch die Anfrage sieht.
+ */
+async function investorSnapshotFor(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      investorProfile: true,
+      trackrecordItems: {
+        orderBy: [{ year: "desc" }, { createdAt: "desc" }],
+        take: 20
+      }
+    }
+  });
+  return user;
+}
+
+// POST /me/inquiries — Investor stellt Anfrage
+app.post("/me/inquiries", async (req, res) => {
+  const body = z
+    .object({
+      listingId: z.string().min(1),
+      message: z.string().min(10).max(4000)
+    })
+    .parse(req.body);
+
+  const listing = await prisma.listing.findUnique({
+    where: { id: body.listingId }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden" });
+  if (listing.status !== "ACTIVE") {
+    return res.status(400).json({ error: "Listing ist nicht aktiv" });
+  }
+  if (listing.ownerId === req.userId!) {
+    return res.status(400).json({ error: "Eigene Listings kann man nicht anfragen" });
+  }
+
+  const existingPending = await prisma.inquiry.findFirst({
+    where: {
+      listingId: body.listingId,
+      investorId: req.userId!,
+      status: "PENDING"
+    }
+  });
+  if (existingPending) {
+    return res.status(409).json({
+      error: "Es liegt bereits eine offene Anfrage zu diesem Listing vor",
+      inquiryId: existingPending.id
+    });
+  }
+
+  const created = await prisma.inquiry.create({
+    data: {
+      listingId: body.listingId,
+      investorId: req.userId!,
+      message: body.message
+    }
+  });
+  return res.json(created);
+});
+
+// GET /me/inquiries — eigene gesendete Anfragen (Investor-Sicht)
+app.get("/me/inquiries", async (req, res) => {
+  const inquiries = await prisma.inquiry.findMany({
+    where: { investorId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: {
+      listing: {
+        include: {
+          images: { orderBy: { sortOrder: "asc" }, take: 5 },
+          owner: { select: { id: true, name: true, email: true, role: true } }
+        }
+      }
+    }
+  });
+
+  // Listing-View je nach Inquiry-Status anonymisieren
+  const view = inquiries.map((i) => ({
+    id: i.id,
+    createdAt: i.createdAt,
+    updatedAt: i.updatedAt,
+    status: i.status,
+    message: i.message,
+    response: i.response,
+    respondedAt: i.respondedAt,
+    listing: listingViewForInvestor(i.listing, i.status),
+    // Verkäufer-Email nur freigeben, wenn ACCEPTED
+    seller: i.status === "ACCEPTED"
+      ? i.listing.owner
+      : { id: i.listing.owner.id, name: i.listing.owner.name, role: i.listing.owner.role }
+  }));
+
+  return res.json(view);
+});
+
+// GET /me/inquiries/:id — eigene Anfrage im Detail
+app.get("/me/inquiries/:id", async (req, res) => {
+  const inquiry = await prisma.inquiry.findFirst({
+    where: { id: req.params.id, investorId: req.userId! },
+    include: {
+      listing: {
+        include: {
+          images: { orderBy: { sortOrder: "asc" } },
+          owner: { select: { id: true, name: true, email: true, role: true } }
+        }
+      }
+    }
+  });
+  if (!inquiry) return res.status(404).json({ error: "Not found" });
+
+  return res.json({
+    id: inquiry.id,
+    createdAt: inquiry.createdAt,
+    updatedAt: inquiry.updatedAt,
+    status: inquiry.status,
+    message: inquiry.message,
+    response: inquiry.response,
+    respondedAt: inquiry.respondedAt,
+    listing: listingViewForInvestor(inquiry.listing, inquiry.status),
+    seller: inquiry.status === "ACCEPTED"
+      ? inquiry.listing.owner
+      : { id: inquiry.listing.owner.id, name: inquiry.listing.owner.name, role: inquiry.listing.owner.role }
+  });
+});
+
+// DELETE /me/inquiries/:id — Investor zieht Anfrage zurück (status=WITHDRAWN)
+app.delete("/me/inquiries/:id", async (req, res) => {
+  const inquiry = await prisma.inquiry.findFirst({
+    where: { id: req.params.id, investorId: req.userId! }
+  });
+  if (!inquiry) return res.status(404).json({ error: "Not found" });
+  if (inquiry.status !== "PENDING") {
+    return res.status(400).json({ error: "Nur PENDING-Anfragen können zurückgezogen werden" });
+  }
+  const updated = await prisma.inquiry.update({
+    where: { id: inquiry.id },
+    data: { status: "WITHDRAWN" }
+  });
+  return res.json(updated);
+});
+
+// GET /me/listings/:id/inquiries — Anfragen auf eigenem Listing (Verkäufer-Sicht)
+app.get("/me/listings/:id/inquiries", async (req, res) => {
+  const owned = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!owned) return res.status(404).json({ error: "Listing not found" });
+
+  const inquiries = await prisma.inquiry.findMany({
+    where: { listingId: owned.id },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }]
+  });
+
+  // Investor-Profil-Auszug pro Inquiry laden
+  const enriched = await Promise.all(
+    inquiries.map(async (inq) => {
+      const investor = await investorSnapshotFor(inq.investorId);
+      return {
+        id: inq.id,
+        createdAt: inq.createdAt,
+        updatedAt: inq.updatedAt,
+        status: inq.status,
+        message: inq.message,
+        response: inq.response,
+        respondedAt: inq.respondedAt,
+        investor
+      };
+    })
+  );
+
+  return res.json(enriched);
+});
+
+// PATCH /me/inquiries/:id/respond — Verkäufer akzeptiert oder lehnt ab
+app.patch("/me/inquiries/:id/respond", async (req, res) => {
+  const body = z
+    .object({
+      status: z.enum(["ACCEPTED", "REJECTED"]),
+      response: z.string().max(2000).nullable().optional()
+    })
+    .parse(req.body);
+
+  const inquiry = await prisma.inquiry.findUnique({
+    where: { id: req.params.id },
+    include: { listing: true }
+  });
+  if (!inquiry) return res.status(404).json({ error: "Not found" });
+  if (inquiry.listing.ownerId !== req.userId!) {
+    return res.status(403).json({ error: "Nicht der Eigentümer dieses Listings" });
+  }
+  if (inquiry.status !== "PENDING") {
+    return res.status(400).json({ error: "Nur PENDING-Anfragen können beantwortet werden" });
+  }
+
+  const updated = await prisma.inquiry.update({
+    where: { id: inquiry.id },
+    data: {
+      status: body.status,
+      response: body.response ?? null,
+      respondedAt: new Date()
+    }
+  });
+
+  // Komfort-Funktion: Bei erstem ACCEPT auf einem Listing wechselt der
+  // Listing-Status automatisch zu IN_NEGOTIATION (Verkäufer kann das später
+  // im Edit-Modus zurückstellen, wenn er trotzdem mehrere Investoren parallel
+  // ansprechen möchte).
+  if (body.status === "ACCEPTED" && inquiry.listing.status === "ACTIVE") {
+    await prisma.listing.update({
+      where: { id: inquiry.listing.id },
+      data: { status: "IN_NEGOTIATION" }
+    });
+  }
+
+  return res.json(updated);
+});
+
 // --- Marketplace (öffentlich für eingeloggte User) --------------
 
 // GET /marketplace — aktive Listings mit Filter, anonymisiert
@@ -1170,16 +1436,38 @@ app.get("/marketplace", async (req, res) => {
 });
 
 // GET /marketplace/:id — Listing-Detail (anonymisiert)
+// Auch IN_NEGOTIATION-Listings werden hier angezeigt, damit Investoren mit
+// PENDING-Inquiry den Stand ihrer Anfrage weiter sehen.
 app.get("/marketplace/:id", async (req, res) => {
   const listing = await prisma.listing.findFirst({
-    where: { id: req.params.id, status: "ACTIVE" },
+    where: {
+      id: req.params.id,
+      status: { in: ["ACTIVE", "IN_NEGOTIATION"] }
+    },
     include: {
       images: { orderBy: { sortOrder: "asc" } },
       owner: { select: { id: true, name: true, role: true } }
     }
   });
   if (!listing) return res.status(404).json({ error: "Not found" });
-  return res.json(anonymizeListing(listing));
+
+  // Status der eigenen Inquiry beilegen, damit das Frontend den Button
+  // korrekt rendern kann (kein Double-Submit, ggf. Hinweis auf bestehende Anfrage).
+  const myInquiry = await prisma.inquiry.findFirst({
+    where: {
+      listingId: listing.id,
+      investorId: req.userId!,
+      status: { in: ["PENDING", "ACCEPTED"] }
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, status: true, createdAt: true }
+  });
+
+  return res.json({
+    ...anonymizeListing(listing),
+    myInquiry,
+    isOwner: listing.ownerId === req.userId!
+  });
 });
 
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {

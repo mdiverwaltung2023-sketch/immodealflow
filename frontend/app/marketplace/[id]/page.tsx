@@ -2,10 +2,11 @@ import Link from "next/link";
 import {
   ASSET_TYPE_LABELS,
   ANONYMIZATION_LABELS,
-  MarketplaceListingSchema
+  MarketplaceListingDetailSchema
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card, Stat } from "@/components/ui";
+import { InquiryActions } from "./InquiryActions";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", {
@@ -17,7 +18,7 @@ function eur(n: number) {
 
 export default async function MarketplaceDetailPage({ params }: { params: { id: string } }) {
   await requireOnboardedUser();
-  const l = await apiGet(`/marketplace/${params.id}`, MarketplaceListingSchema);
+  const l = await apiGet(`/marketplace/${params.id}`, MarketplaceListingDetailSchema);
 
   const yieldGross = l.totalRent ? ((l.totalRent * 12) / l.askingPrice) * 100 : null;
   const pricePerSqm = l.totalArea > 0 ? l.askingPrice / l.totalArea : null;
@@ -100,6 +101,15 @@ export default async function MarketplaceDetailPage({ params }: { params: { id: 
           <div className="whitespace-pre-wrap text-sm text-zinc-200">{l.description}</div>
         </Card>
       ) : null}
+
+      <Card title="Anfrage an den Verkäufer">
+        <InquiryActions
+          listingId={l.id}
+          isOwner={l.isOwner}
+          listingStatus={l.status}
+          myInquiry={l.myInquiry ?? null}
+        />
+      </Card>
     </div>
   );
 }

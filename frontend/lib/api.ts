@@ -379,5 +379,88 @@ export const MarketplaceListingSchema = ListingSchema.extend({
 });
 export type MarketplaceListingT = z.infer<typeof MarketplaceListingSchema>;
 
+// Detail-Endpoint /marketplace/:id liefert zusätzlich myInquiry + isOwner
+export const InquiryStatusEnum = z.enum(["PENDING", "ACCEPTED", "REJECTED", "WITHDRAWN"]);
+export type InquiryStatusT = z.infer<typeof InquiryStatusEnum>;
+
+export const INQUIRY_STATUS_LABELS: Record<InquiryStatusT, string> = {
+  PENDING: "Offen",
+  ACCEPTED: "Angenommen",
+  REJECTED: "Abgelehnt",
+  WITHDRAWN: "Zurückgezogen"
+};
+
+export const MarketplaceListingDetailSchema = MarketplaceListingSchema.extend({
+  myInquiry: z
+    .object({
+      id: z.string(),
+      status: InquiryStatusEnum,
+      createdAt: z.string()
+    })
+    .nullable()
+    .optional(),
+  isOwner: z.boolean()
+});
+export type MarketplaceListingDetailT = z.infer<typeof MarketplaceListingDetailSchema>;
+
+// Investor-Sicht: meine eigenen Anfragen
+export const MyInquirySellerSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  email: z.string().optional(), // nur bei ACCEPTED
+  role: UserRoleEnum
+});
+
+export const MyInquirySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  status: InquiryStatusEnum,
+  message: z.string(),
+  response: z.string().nullable().optional(),
+  respondedAt: z.string().nullable().optional(),
+  listing: ListingSchema,
+  seller: MyInquirySellerSchema
+});
+export type MyInquiryT = z.infer<typeof MyInquirySchema>;
+
+// Verkäufer-Sicht: Anfragen auf eigenem Listing inkl. Investor-Profil-Snapshot
+export const InvestorSnapshotSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  email: z.string(),
+  role: UserRoleEnum,
+  investorProfile: z
+    .object({
+      bio: z.string().nullable().optional(),
+      investmentExperienceYears: z.number().int(),
+      equity: z.number().nullable().optional(),
+      monthlyIncome: z.number().nullable().optional(),
+      monthlyDebt: z.number().nullable().optional(),
+      financingPreApproved: z.boolean(),
+      financingNote: z.string().nullable().optional(),
+      preferredAssetTypes: z.array(AssetTypeEnum),
+      preferredRegions: z.array(z.string()),
+      minTicketSize: z.number().nullable().optional(),
+      maxTicketSize: z.number().nullable().optional(),
+      visibility: ProfileVisibilityEnum
+    })
+    .nullable()
+    .optional(),
+  trackrecordItems: z.array(TrackrecordItemSchema)
+});
+
+export const SellerInquirySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  status: InquiryStatusEnum,
+  message: z.string(),
+  response: z.string().nullable().optional(),
+  respondedAt: z.string().nullable().optional(),
+  investor: InvestorSnapshotSchema.nullable()
+});
+export type SellerInquiryT = z.infer<typeof SellerInquirySchema>;
+
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.

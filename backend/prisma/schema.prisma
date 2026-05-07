@@ -80,6 +80,13 @@ enum AnonymizationLevel {
   CITY_ONLY
 }
 
+enum InquiryStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -96,6 +103,7 @@ model User {
   investorProfile   InvestorProfile?
   trackrecordItems  TrackrecordItem[]
   listings          Listing[]
+  inquiriesSent     Inquiry[] @relation("InvestorInquiries")
 }
 
 model InvestorProfile {
@@ -173,7 +181,8 @@ model Listing {
   fullAddress        String?             // Straße + Hausnummer, nur intern
   anonymizationLevel AnonymizationLevel  @default(DISTRICT_ONLY)
 
-  images ListingImage[]
+  images    ListingImage[]
+  inquiries Inquiry[]
 
   @@index([ownerId])
   @@index([status])
@@ -194,6 +203,33 @@ model ListingImage {
   sortOrder Int      @default(0)
 
   @@index([listingId, sortOrder])
+}
+
+// Anfrage eines Investors auf ein Verkäufer-Listing.
+// Bei ACCEPTED bekommt der Investor die fullAddress des Listings freigegeben,
+// und der Verkäufer sieht das Investor-Profil (auch wenn es PRIVATE ist —
+// die Inquiry-Aktion gilt als Einwilligung des Investors).
+model Inquiry {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId  String
+  listing    Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  investorId String
+  investor   User    @relation("InvestorInquiries", fields: [investorId], references: [id], onDelete: Cascade)
+
+  status     InquiryStatus @default(PENDING)
+  message    String        // freier Text vom Investor
+
+  response    String?      // optionale Antwort vom Verkäufer beim accept/reject
+  respondedAt DateTime?    // Zeitpunkt des accept/reject
+
+  // Doppelte PENDING-Inquiries vom selben Investor werden im Backend verhindert,
+  // nicht via DB-Constraint — sonst könnte er nach REJECTED nicht erneut anfragen.
+  @@index([listingId, status])
+  @@index([investorId])
 }
 
 model Property {
