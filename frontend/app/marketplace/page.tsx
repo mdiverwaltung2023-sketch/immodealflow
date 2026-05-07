@@ -4,13 +4,19 @@ import {
   ASSET_TYPE_LABELS,
   AssetTypeEnum,
   MarketplaceListingSchema,
+  RatingSummarySchema,
   type AssetTypeT
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
+import { StarSummary } from "@/components/StarRating";
 import { MarketplaceFilters } from "./MarketplaceFilters";
 
-const ListingsSchema = z.array(MarketplaceListingSchema);
+const MarketplaceListingWithRatingSchema = MarketplaceListingSchema.extend({
+  sellerRating: RatingSummarySchema.optional()
+});
+
+const ListingsSchema = z.array(MarketplaceListingWithRatingSchema);
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", {
@@ -114,8 +120,9 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
                       {eur(l.askingPrice)} • {l.totalArea} m²
                       {l.totalRent ? ` • ${eur(l.totalRent)}/Mon.` : ""}
                     </div>
-                    <div className="text-[10px] text-zinc-500">
-                      Verkäufer: {l.owner.name ?? "Anonym"}
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-500">
+                      <span>Verkäufer: {l.owner.name ?? "Anonym"}</span>
+                      <StarSummary summary={l.sellerRating ?? null} size="sm" withCount />
                     </div>
                   </div>
                 </Link>

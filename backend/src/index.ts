@@ -1284,10 +1284,23 @@ app.get("/me/inquiries/:id", async (req, res) => {
           images: { orderBy: { sortOrder: "asc" } },
           owner: { select: { id: true, name: true, email: true, role: true } }
         }
+      },
+      ratings: {
+        include: {
+          fromUser: { select: { id: true, name: true, role: true } }
+        }
       }
     }
   });
   if (!inquiry) return res.status(404).json({ error: "Not found" });
+
+  const myRating = inquiry.ratings.find((r) => r.fromUserId === req.userId!) ?? null;
+  const sellerRating = inquiry.ratings.find((r) => r.fromUserId === inquiry.listing.ownerId) ?? null;
+  const sellerSummary = await ratingSummaryFor(inquiry.listing.ownerId);
+
+  const canRate = inquiry.status === "ACCEPTED"
+    && inquiry.listing.status === "SOLD"
+    && !myRating;
 
   return res.json({
     id: inquiry.id,
@@ -1300,7 +1313,11 @@ app.get("/me/inquiries/:id", async (req, res) => {
     listing: listingViewForInvestor(inquiry.listing, inquiry.status),
     seller: inquiry.status === "ACCEPTED"
       ? inquiry.listing.owner
-      : { id: inquiry.listing.owner.id, name: inquiry.listing.owner.name, role: inquiry.listing.owner.role }
+      : { id: inquiry.listing.owner.id, name: inquiry.listing.owner.name, role: inquiry.listing.owner.role },
+    sellerSummary,
+    myRating,
+    sellerRating,
+    canRate
   });
 });
 
@@ -1332,10 +1349,20 @@ app.get("/me/listings/:id/inquiries", async (req, res) => {
     orderBy: [{ status: "asc" }, { createdAt: "desc" }]
   });
 
-  // Investor-Profil-Auszug pro Inquiry laden
+  // Investor-Profil-Auszug + Rating-Status pro Inquiry laden
   const enriched = await Promise.all(
     inquiries.map(async (inq) => {
       const investor = await investorSnapshotFor(inq.investorId);
+      const investorRating = await ratingSummaryFor(inq.investorId);
+      const ratings = await prisma.rating.findMany({
+        where: { inquiryId: inq.id }
+      });
+      const myRating = ratings.find((r) => r.fromUserId === req.userId!) ?? null;
+      const investorRatingOnMe = ratings.find((r) => r.fromUserId === inq.investorId) ?? null;
+      const canRate = inq.status === "ACCEPTED"
+        && owned.status === "SOLD"
+        && !myRating;
+
       return {
         id: inq.id,
         createdAt: inq.createdAt,
@@ -1344,12 +1371,19 @@ app.get("/me/listings/:id/inquiries", async (req, res) => {
         message: inq.message,
         response: inq.response,
         respondedAt: inq.respondedAt,
-        investor
+        investor,
+        investorSummary: investorRating,
+        myRating,
+        investorRatingOnMe,
+        canRate
       };
     })
   );
 
-  return res.json(enriched);
+  return res.json({
+    listingStatus: owned.status,
+    inquiries: enriched
+  });
 });
 
 // PATCH /me/inquiries/:id/respond — Verkäufer akzeptiert oder lehnt ab
@@ -1396,6 +1430,173 @@ app.patch("/me/inquiries/:id/respond", async (req, res) => {
   return res.json(updated);
 });
 
+// --- Ratings (Push E) ------------------------------------------
+
+const RatingDirectionEnum = z.enum(["INVESTOR_TO_SELLER", "SELLER_TO_INVESTOR"]);
+
+/**
+ * Aggregiert Bewertungen für einen User: Durchschnittliche Sterne + Anzahl.
+ * Liefert null wenn keine Ratings vorhanden, damit das Frontend zwischen
+ * "noch keine Bewertungen" und "schlecht bewertet" unterscheiden kann.
+ */
+async function ratingSummaryFor(userId: string) {
+  const ratings = await prisma.rating.findMany({
+    where: { toUserId: userId },
+    select: { stars: true }
+  });
+  if (ratings.length === 0) return { avg: null, count: 0 };
+  const sum = ratings.reduce((s, r) => s + r.stars, 0);
+  return {
+    avg: Math.round((sum / ratings.length) * 10) / 10, // 1 Nachkommastelle
+    count: ratings.length
+  };
+}
+
+// POST /me/ratings — neue Bewertung (Investor→Verkäufer ODER Verkäufer→Investor)
+app.post("/me/ratings", async (req, res) => {
+  const body = z
+    .object({
+      inquiryId: z.string().min(1),
+      stars: z.number().int().min(1).max(5),
+      body: z.string().min(20).max(4000)
+    })
+    .parse(req.body);
+
+  const inquiry = await prisma.inquiry.findUnique({
+    where: { id: body.inquiryId },
+    include: { listing: true }
+  });
+  if (!inquiry) return res.status(404).json({ error: "Inquiry nicht gefunden" });
+  if (inquiry.status !== "ACCEPTED") {
+    return res.status(400).json({ error: "Bewertung nur für angenommene Anfragen möglich" });
+  }
+  if (inquiry.listing.status !== "SOLD") {
+    return res.status(400).json({
+      error: "Bewertung erst nach Listing-Status SOLD möglich"
+    });
+  }
+
+  // Richtung bestimmen je nach User
+  let direction: "INVESTOR_TO_SELLER" | "SELLER_TO_INVESTOR";
+  let toUserId: string;
+  if (req.userId! === inquiry.investorId) {
+    direction = "INVESTOR_TO_SELLER";
+    toUserId = inquiry.listing.ownerId;
+  } else if (req.userId! === inquiry.listing.ownerId) {
+    direction = "SELLER_TO_INVESTOR";
+    toUserId = inquiry.investorId;
+  } else {
+    return res.status(403).json({ error: "Nicht Teil dieser Inquiry" });
+  }
+
+  const existing = await prisma.rating.findFirst({
+    where: { inquiryId: inquiry.id, direction }
+  });
+  if (existing) {
+    return res.status(409).json({
+      error: "Bewertung in dieser Richtung existiert bereits",
+      ratingId: existing.id
+    });
+  }
+
+  const created = await prisma.rating.create({
+    data: {
+      inquiryId: inquiry.id,
+      fromUserId: req.userId!,
+      toUserId,
+      direction,
+      stars: body.stars,
+      body: body.body
+    }
+  });
+  return res.json(created);
+});
+
+// GET /me/ratings/given — abgegebene Bewertungen (mit Inquiry+Listing+Empfänger)
+app.get("/me/ratings/given", async (req, res) => {
+  const ratings = await prisma.rating.findMany({
+    where: { fromUserId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: {
+      toUser: { select: { id: true, name: true, role: true } },
+      inquiry: {
+        select: {
+          id: true,
+          listing: { select: { id: true, title: true, city: true, propertyType: true } }
+        }
+      }
+    }
+  });
+  return res.json(ratings);
+});
+
+// GET /me/ratings/received — erhaltene Bewertungen
+app.get("/me/ratings/received", async (req, res) => {
+  const ratings = await prisma.rating.findMany({
+    where: { toUserId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: {
+      fromUser: { select: { id: true, name: true, role: true } },
+      inquiry: {
+        select: {
+          id: true,
+          listing: { select: { id: true, title: true, city: true, propertyType: true } }
+        }
+      }
+    }
+  });
+  const summary = await ratingSummaryFor(req.userId!);
+  return res.json({ summary, ratings });
+});
+
+// POST /me/ratings/:id/rebuttal — Gegendarstellung (nur der Bewertete)
+app.post("/me/ratings/:id/rebuttal", async (req, res) => {
+  const body = z
+    .object({
+      rebuttal: z.string().min(20).max(4000)
+    })
+    .parse(req.body);
+
+  const rating = await prisma.rating.findUnique({ where: { id: req.params.id } });
+  if (!rating) return res.status(404).json({ error: "Rating nicht gefunden" });
+  if (rating.toUserId !== req.userId!) {
+    return res.status(403).json({ error: "Nur der Bewertete kann eine Gegendarstellung abgeben" });
+  }
+  if (rating.rebuttal) {
+    return res.status(409).json({ error: "Gegendarstellung existiert bereits" });
+  }
+
+  const updated = await prisma.rating.update({
+    where: { id: rating.id },
+    data: {
+      rebuttal: body.rebuttal,
+      rebuttalAt: new Date()
+    }
+  });
+  return res.json(updated);
+});
+
+// GET /users/:id/ratings — public Ratings + Summary für einen User
+// (geschützt: User muss eingeloggt sein, weil /me/* Middleware nicht greift —
+// wir hängen es manuell an /users an)
+app.get("/users/:id/ratings", requireAuth, async (req, res) => {
+  const ratings = await prisma.rating.findMany({
+    where: { toUserId: req.params.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      fromUser: { select: { id: true, name: true, role: true } },
+      inquiry: {
+        select: {
+          listing: { select: { title: true, city: true, propertyType: true } }
+        }
+      }
+    }
+  });
+  const summary = await ratingSummaryFor(req.params.id);
+  return res.json({ summary, ratings });
+});
+
 // --- Marketplace (öffentlich für eingeloggte User) --------------
 
 // GET /marketplace — aktive Listings mit Filter, anonymisiert
@@ -1430,9 +1631,14 @@ app.get("/marketplace", async (req, res) => {
     take: 100
   });
 
-  // Anonymisieren — Rohdaten bleiben in der DB, nur die Antwort filtert.
-  const anon = listings.map((l) => anonymizeListing(l));
-  return res.json(anon);
+  // Bewertungs-Summary pro Verkäufer dazuladen
+  const enriched = await Promise.all(
+    listings.map(async (l) => ({
+      ...anonymizeListing(l),
+      sellerRating: await ratingSummaryFor(l.ownerId)
+    }))
+  );
+  return res.json(enriched);
 });
 
 // GET /marketplace/:id — Listing-Detail (anonymisiert)
@@ -1466,7 +1672,8 @@ app.get("/marketplace/:id", async (req, res) => {
   return res.json({
     ...anonymizeListing(listing),
     myInquiry,
-    isOwner: listing.ownerId === req.userId!
+    isOwner: listing.ownerId === req.userId!,
+    sellerRating: await ratingSummaryFor(listing.ownerId)
   });
 });
 

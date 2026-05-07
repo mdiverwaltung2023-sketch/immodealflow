@@ -6,6 +6,7 @@ import {
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card, Stat } from "@/components/ui";
+import { StarSummary } from "@/components/StarRating";
 import { InquiryActions } from "./InquiryActions";
 
 function eur(n: number) {
@@ -89,8 +90,9 @@ export default async function MarketplaceDetailPage({ params }: { params: { id: 
           <div className="grid gap-3">
             <Stat label="Name" value={l.owner.name ?? "Anonym"} />
             <Stat label="Rolle" value={l.owner.role === "INVESTOR" ? "Investor" : l.owner.role === "SELLER" ? "Verkäufer" : "Beides"} />
-            <div className="text-xs text-zinc-500">
-              Direkter Anfrage-Flow folgt mit Phase D.
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400">Bewertung:</span>
+              <StarSummary summary={l.sellerRating ?? null} size="md" />
             </div>
           </div>
         </Card>

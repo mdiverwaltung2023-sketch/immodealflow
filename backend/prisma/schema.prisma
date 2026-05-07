@@ -87,6 +87,11 @@ enum InquiryStatus {
   WITHDRAWN
 }
 
+enum RatingDirection {
+  INVESTOR_TO_SELLER
+  SELLER_TO_INVESTOR
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -104,6 +109,8 @@ model User {
   trackrecordItems  TrackrecordItem[]
   listings          Listing[]
   inquiriesSent     Inquiry[] @relation("InvestorInquiries")
+  ratingsGiven      Rating[]  @relation("RatingsGiven")
+  ratingsReceived   Rating[]  @relation("RatingsReceived")
 }
 
 model InvestorProfile {
@@ -226,10 +233,42 @@ model Inquiry {
   response    String?      // optionale Antwort vom Verkäufer beim accept/reject
   respondedAt DateTime?    // Zeitpunkt des accept/reject
 
+  ratings     Rating[]
+
   // Doppelte PENDING-Inquiries vom selben Investor werden im Backend verhindert,
   // nicht via DB-Constraint — sonst könnte er nach REJECTED nicht erneut anfragen.
   @@index([listingId, status])
   @@index([investorId])
+}
+
+// Bewertung nach abgeschlossenem Deal — Phase E.
+// Rechtlich: nur Tatsachenbehauptungen, Recht auf Gegendarstellung (rebuttal),
+// erlaubt nur wenn Listing.status == SOLD und Inquiry.status == ACCEPTED.
+// Pro Inquiry und pro Richtung (Investor→Verkäufer oder umgekehrt) max. eine Bewertung.
+model Rating {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inquiryId  String
+  inquiry    Inquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  fromUserId String
+  fromUser   User    @relation("RatingsGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  toUserId   String
+  toUser     User    @relation("RatingsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  direction  RatingDirection
+  stars      Int      // 1..5 (im Backend per Zod erzwungen)
+  body       String   // freier Text — Tatsachenbehauptungen erwartet
+
+  rebuttal     String?    // Gegendarstellung der bewerteten Person
+  rebuttalAt   DateTime?  // Zeitpunkt der Gegendarstellung
+
+  @@unique([inquiryId, direction], name: "uniq_rating_per_direction")
+  @@index([toUserId])
+  @@index([fromUserId])
 }
 
 model Property {

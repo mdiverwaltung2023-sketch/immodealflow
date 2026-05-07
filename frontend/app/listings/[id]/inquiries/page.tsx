@@ -1,22 +1,21 @@
 import Link from "next/link";
-import { z } from "zod";
 import {
   ListingSchema,
-  SellerInquirySchema
+  ListingInquiriesResponseSchema,
+  LISTING_STATUS_LABELS
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { InquiryRow } from "./InquiryRow";
 
-const InquiriesSchema = z.array(SellerInquirySchema);
-
 export default async function ListingInquiriesPage({ params }: { params: { id: string } }) {
   await requireOnboardedUser();
-  const [listing, inquiries] = await Promise.all([
+  const [listing, response] = await Promise.all([
     apiGet(`/me/listings/${params.id}`, ListingSchema),
-    apiGet(`/me/listings/${params.id}/inquiries`, InquiriesSchema)
+    apiGet(`/me/listings/${params.id}/inquiries`, ListingInquiriesResponseSchema)
   ]);
 
+  const inquiries = response.inquiries;
   const pending = inquiries.filter((i) => i.status === "PENDING");
   const others = inquiries.filter((i) => i.status !== "PENDING");
 
@@ -25,7 +24,18 @@ export default async function ListingInquiriesPage({ params }: { params: { id: s
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="text-2xl font-semibold">Anfragen</div>
-          <div className="mt-1 text-sm text-zinc-400">{listing.title}</div>
+          <div className="mt-1 text-sm text-zinc-400">
+            {listing.title} • Status:{" "}
+            <span className="font-semibold text-white">
+              {LISTING_STATUS_LABELS[response.listingStatus]}
+            </span>
+          </div>
+          {response.listingStatus === "IN_NEGOTIATION" ? (
+            <div className="mt-2 text-xs text-zinc-500">
+              Setze den Status auf <span className="font-semibold">Verkauft</span> im Listing-Edit,
+              sobald der Notartermin durch ist — danach könnt ihr euch gegenseitig bewerten.
+            </div>
+          ) : null}
         </div>
         <Link
           href={`/listings/${params.id}/edit`}

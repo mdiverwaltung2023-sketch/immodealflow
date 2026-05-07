@@ -379,6 +379,56 @@ export const MarketplaceListingSchema = ListingSchema.extend({
 });
 export type MarketplaceListingT = z.infer<typeof MarketplaceListingSchema>;
 
+// --- Ratings (Push E) -------------------------------------------
+// Hier oben definiert, weil MarketplaceListingDetailSchema und
+// InquiryDetailWithRatingsSchema das RatingSummarySchema referenzieren.
+
+export const RatingDirectionEnum = z.enum(["INVESTOR_TO_SELLER", "SELLER_TO_INVESTOR"]);
+export type RatingDirectionT = z.infer<typeof RatingDirectionEnum>;
+
+export const RatingSummarySchema = z.object({
+  avg: z.number().nullable(),
+  count: z.number()
+});
+export type RatingSummaryT = z.infer<typeof RatingSummarySchema>;
+
+export const RatingSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  inquiryId: z.string(),
+  fromUserId: z.string(),
+  toUserId: z.string(),
+  direction: RatingDirectionEnum,
+  stars: z.number().int(),
+  body: z.string(),
+  rebuttal: z.string().nullable().optional(),
+  rebuttalAt: z.string().nullable().optional()
+});
+export type RatingT = z.infer<typeof RatingSchema>;
+
+export const RatingsReceivedResponseSchema = z.object({
+  summary: RatingSummarySchema,
+  ratings: z.array(
+    RatingSchema.extend({
+      fromUser: z.object({
+        id: z.string(),
+        name: z.string().nullable().optional(),
+        role: UserRoleEnum
+      }),
+      inquiry: z.object({
+        id: z.string(),
+        listing: z.object({
+          id: z.string(),
+          title: z.string(),
+          city: z.string(),
+          propertyType: AssetTypeEnum
+        })
+      })
+    })
+  )
+});
+
 // Detail-Endpoint /marketplace/:id liefert zusätzlich myInquiry + isOwner
 export const InquiryStatusEnum = z.enum(["PENDING", "ACCEPTED", "REJECTED", "WITHDRAWN"]);
 export type InquiryStatusT = z.infer<typeof InquiryStatusEnum>;
@@ -399,7 +449,8 @@ export const MarketplaceListingDetailSchema = MarketplaceListingSchema.extend({
     })
     .nullable()
     .optional(),
-  isOwner: z.boolean()
+  isOwner: z.boolean(),
+  sellerRating: RatingSummarySchema.optional()
 });
 export type MarketplaceListingDetailT = z.infer<typeof MarketplaceListingDetailSchema>;
 
@@ -450,6 +501,31 @@ export const InvestorSnapshotSchema = z.object({
   trackrecordItems: z.array(TrackrecordItemSchema)
 });
 
+
+// Sicht im Inquiry-Detail (Investor-Seite)
+export const InquiryDetailWithRatingsSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  status: InquiryStatusEnum,
+  message: z.string(),
+  response: z.string().nullable().optional(),
+  respondedAt: z.string().nullable().optional(),
+  listing: ListingSchema,
+  seller: z.object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    email: z.string().optional(),
+    role: UserRoleEnum
+  }),
+  sellerSummary: RatingSummarySchema,
+  myRating: RatingSchema.nullable(),
+  sellerRating: RatingSchema.nullable(),
+  canRate: z.boolean()
+});
+export type InquiryDetailWithRatingsT = z.infer<typeof InquiryDetailWithRatingsSchema>;
+
+// SellerInquirySchema (existierend) — erweitert um Rating-Info
 export const SellerInquirySchema = z.object({
   id: z.string(),
   createdAt: z.string(),
@@ -458,9 +534,19 @@ export const SellerInquirySchema = z.object({
   message: z.string(),
   response: z.string().nullable().optional(),
   respondedAt: z.string().nullable().optional(),
-  investor: InvestorSnapshotSchema.nullable()
+  investor: InvestorSnapshotSchema.nullable(),
+  investorSummary: RatingSummarySchema.optional(),
+  myRating: RatingSchema.nullable().optional(),
+  investorRatingOnMe: RatingSchema.nullable().optional(),
+  canRate: z.boolean().optional()
 });
 export type SellerInquiryT = z.infer<typeof SellerInquirySchema>;
+
+// /me/listings/:id/inquiries-Response (mit Listing-Status)
+export const ListingInquiriesResponseSchema = z.object({
+  listingStatus: ListingStatusEnum,
+  inquiries: z.array(SellerInquirySchema)
+});
 
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.

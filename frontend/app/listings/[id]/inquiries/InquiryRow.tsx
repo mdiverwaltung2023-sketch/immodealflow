@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApiFetch } from "@/lib/client-fetch";
+import { StarSummary } from "@/components/StarRating";
+import { RatingForm } from "@/components/RatingForm";
 import {
   ASSET_TYPE_LABELS,
   INQUIRY_STATUS_LABELS,
@@ -92,6 +94,11 @@ export function InquiryRow({
                 Profil: {PROFILE_VISIBILITY_LABELS[profile.visibility]}
               </span>
             ) : null}
+            {inquiry.investorSummary ? (
+              <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-300">
+                Ratings: <StarSummary summary={inquiry.investorSummary} size="sm" />
+              </span>
+            ) : null}
           </div>
           <div className="mt-1 text-xs text-zinc-400">
             Anfrage am {new Date(inquiry.createdAt).toLocaleString("de-DE")}
@@ -159,6 +166,41 @@ export function InquiryRow({
         <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-sm">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Deine Antwort</div>
           <div className="mt-1 whitespace-pre-wrap text-zinc-200">{inquiry.response}</div>
+        </div>
+      ) : null}
+
+      {/* Bewertung — nach SOLD + ACCEPTED */}
+      {inquiry.canRate ? (
+        <div className="mt-4">
+          <RatingForm inquiryId={inquiry.id} audience="investor" />
+        </div>
+      ) : null}
+
+      {inquiry.myRating ? (
+        <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+          <div className="text-xs uppercase tracking-wide text-zinc-400">
+            Deine Bewertung über den Investor
+          </div>
+          <div className="mt-1 text-amber-400">
+            {"★".repeat(inquiry.myRating.stars)}
+            <span className="text-zinc-700">{"★".repeat(5 - inquiry.myRating.stars)}</span>
+            <span className="ml-2 text-xs text-zinc-300">{inquiry.myRating.stars}/5</span>
+          </div>
+          <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{inquiry.myRating.body}</div>
+        </div>
+      ) : null}
+
+      {inquiry.investorRatingOnMe ? (
+        <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+          <div className="text-xs uppercase tracking-wide text-zinc-400">
+            Bewertung des Investors über dich
+          </div>
+          <div className="mt-1 text-amber-400">
+            {"★".repeat(inquiry.investorRatingOnMe.stars)}
+            <span className="text-zinc-700">{"★".repeat(5 - inquiry.investorRatingOnMe.stars)}</span>
+            <span className="ml-2 text-xs text-zinc-300">{inquiry.investorRatingOnMe.stars}/5</span>
+          </div>
+          <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{inquiry.investorRatingOnMe.body}</div>
         </div>
       ) : null}
 

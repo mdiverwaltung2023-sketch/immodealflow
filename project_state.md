@@ -1,6 +1,6 @@
 # PROJECT STATE — DealFlow AI (ImmoDealFlow)
 
-> Stand: **2026-05-07** (Phase D). Diese Datei ist die Single Source of Truth
+> Stand: **2026-05-07** (Phase E). Diese Datei ist die Single Source of Truth
 > für den aktuellen Projektstand. Bei jeder substanziellen Änderung (neuer
 > Endpoint, neuer Deploy, neuer Bug, Status-Update) hier nachziehen.
 
@@ -118,7 +118,12 @@ Listing { ownerId, title, description, propertyType(AssetType),
 Inquiry { listingId, investorId, status(InquiryStatus), message,
           response?, respondedAt? }
    ├── listing  (Listing)
-   └── investor (User, via @relation "InvestorInquiries")
+   ├── investor (User, via @relation "InvestorInquiries")
+   └── ratings  (Rating[], 0–2 pro Inquiry — eine pro Richtung)
+
+Rating { inquiryId, fromUserId, toUserId, direction(RatingDirection),
+         stars(1..5), body, rebuttal?, rebuttalAt? }
+   └── @@unique [inquiryId, direction]  (max 1 Rating pro Richtung)
 ```
 
 Enums: `UserRole {INVESTOR, SELLER, BOTH}`, `DealStatus {WATCHING, INQUIRED,
@@ -129,7 +134,8 @@ APARTMENT, LAND, OTHER}`, `ProfileVisibility {PRIVATE, ON_REQUEST, PUBLIC}`,
 `TrackrecordRole {BUYER, SELLER, PARTNER, BROKER, OTHER}`,
 `ListingStatus {DRAFT, ACTIVE, IN_NEGOTIATION, SOLD, ARCHIVED}`,
 `AnonymizationLevel {FULL_ADDRESS, DISTRICT_ONLY, CITY_ONLY}`,
-`InquiryStatus {PENDING, ACCEPTED, REJECTED, WITHDRAWN}`.
+`InquiryStatus {PENDING, ACCEPTED, REJECTED, WITHDRAWN}`,
+`RatingDirection {INVESTOR_TO_SELLER, SELLER_TO_INVESTOR}`.
 
 ## Backend-Endpunkte
 
@@ -164,8 +170,13 @@ Auth-geschützt (`requireAuth`):
 | GET     | `/me/inquiries`                   | Eigene gesendete Anfragen (Investor-Sicht)             |
 | GET     | `/me/inquiries/:id`               | Eigene Anfrage-Detail (bei ACCEPTED: fullAddress + Verkäufer-Email freigegeben) |
 | DELETE  | `/me/inquiries/:id`               | Anfrage zurückziehen (nur PENDING → WITHDRAWN)         |
-| GET     | `/me/listings/:id/inquiries`      | Anfragen auf eigenem Listing inkl. Investor-Profil-Auszug (Verkäufer-Sicht) |
+| GET     | `/me/listings/:id/inquiries`      | Anfragen auf eigenem Listing inkl. Investor-Profil-Auszug + Rating-Summary (Verkäufer-Sicht) |
 | PATCH   | `/me/inquiries/:id/respond`       | Verkäufer accept/reject; bei ACCEPT: Listing → IN_NEGOTIATION |
+| POST    | `/me/ratings`                     | Bewertung abgeben (nur wenn Listing SOLD + Inquiry ACCEPTED, eigene Seite) |
+| GET     | `/me/ratings/given`               | Eigene abgegebene Bewertungen                          |
+| GET     | `/me/ratings/received`            | Erhaltene Bewertungen + Aggregations-Summary           |
+| POST    | `/me/ratings/:id/rebuttal`        | Gegendarstellung (nur Bewerteter, einmalig)            |
+| GET     | `/users/:id/ratings`              | Public Ratings + Summary (geschützt, eingeloggte User) |
 | GET     | `/properties`                     | Liste eigener Properties (mit `?status=` Filter)       |
 | POST    | `/properties`                     | Property anlegen (Zod-validiert), `ownerId=req.userId` |
 | GET     | `/properties/:id`                 | Detail (eigene), inkl. Auction/Analyse/Markt/Offer/Notes |
@@ -227,7 +238,33 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase D erledigt — Inquiry-Flow live (USP sichtbar)**
+## Aktuelle Phase: **Phase E erledigt — Bewertungssystem live**
+
+### Phase E (2026-05-07) — Bewertungssystem
+
+- ✅ Prisma: `Rating` (1:n Inquiry, 2× 1:n User via @relation "RatingsGiven"/"RatingsReceived"),
+  `RatingDirection` enum {INVESTOR_TO_SELLER, SELLER_TO_INVESTOR}, `@@unique([inquiryId, direction])`.
+  Migration `20260507_add_rating`.
+- ✅ Backend Endpoints:
+  - `POST /me/ratings` — nur wenn Listing.status==SOLD und Inquiry.status==ACCEPTED.
+    Direction wird automatisch aus `req.userId` vs. `inquiry.investorId`/`listing.ownerId`
+    bestimmt. Doppel-Ratings pro Richtung verhindert.
+  - `GET /me/ratings/given` / `GET /me/ratings/received` (mit Summary)
+  - `POST /me/ratings/:id/rebuttal` — Gegendarstellung, nur einmal pro Rating
+  - `GET /users/:id/ratings` — public (für Profil-Anzeigen)
+  - `ratingSummaryFor()` als Helper liefert `{ avg | null, count }`
+- ✅ Marketplace und Inquiry-Endpoints liefern Rating-Summaries mit:
+  - `/marketplace` und `/marketplace/:id` → `sellerRating`
+  - `/me/inquiries/:id` → `sellerSummary`, `myRating`, `sellerRating`, `canRate`
+  - `/me/listings/:id/inquiries` → liefert `{ listingStatus, inquiries: [{… investorSummary, myRating, investorRatingOnMe, canRate}] }`
+- ✅ Frontend:
+  - `components/StarRating.tsx` — `<StarSummary>` (Read-only) + `<StarPicker>` (interaktiv)
+  - `components/RatingForm.tsx` — wiederverwendbare Bewertungs-Form mit rechtlichem Hinweis (DSGVO/§4 UWG/BGH)
+  - `/inquiries/[id]` — Bewertung-Section sobald SOLD+ACCEPTED, zeigt eigene + Verkäufer-Rating, fordert ggf. zur Bewertung auf
+  - `/listings/[id]/inquiries` — Bewertung-Form pro Inquiry, zeigt Investor-Rating-Summary in der Header-Zeile
+  - `/profile` — neue Karte „Bewertungen über mich" mit Aggregat + Liste, Gegendarstellungs-Anzeige
+  - `/marketplace` und `/marketplace/[id]` — Verkäufer-Sterne
+- ⚠️ Rebuttal-UI noch nicht eingebaut (Bewertete kann aktuell die Gegendarstellung nur via API absetzen — Frontend-Form für `/me/ratings/:id/rebuttal` fehlt). Tech-Debt für Phase E.1.
 
 ### Phase D (2026-05-07) — Inquiry-Flow
 
@@ -367,20 +404,20 @@ nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 - ✅ `@clerk/nextjs` integriert, `<ClerkProvider>` in Root-Layout
 - ✅ Sign-up/Sign-in funktioniert end-to-end
 
-### Roadmap nach Phase D
-
-**Phase E** — Bewertungssystem: `Rating { fromUserId, toUserId, dealId,
-stars 1–5, body }`, nur erlaubt nach Listing-Status SOLD. DSGVO/UWG-konform
-(nur Tatsachenbehauptungen, Recht auf Gegendarstellung). Aggregation auf
-Profil (durchschnittliche Bewertung + Anzahl).
+### Roadmap nach Phase E
 
 **Phase F** *(optional)* — In-App Messaging zwischen Käufer + Verkäufer in
 einer akzeptierten Inquiry. Realtime via WebSockets oder Polling. Anfänglich
 reicht E-Mail-Kontakt nach Accept.
 
-**Tech-Debt vor Phase E aufräumen:** Visibility-Enforcement auf
-`/marketplace`-Karten (zeigt aktuell `owner.name` ohne Sichtbarkeits-Check —
-für Phase E eigentlich erst relevant, wenn Profile öffentlich verlinkt werden).
+**Tech-Debt für Phase E.1:** Frontend-Form für Gegendarstellung
+(`POST /me/ratings/:id/rebuttal`). Backend-Endpoint existiert, UI fehlt.
+Bewertete sehen aktuell die negative Bewertung auf `/profile`, können aber
+nur per direkten API-Call antworten.
+
+**Tech-Debt allgemein:** Visibility-Enforcement auf `/marketplace`-Karten
+(zeigt aktuell `owner.name` ohne Sichtbarkeits-Check). Profil-Visibility
+PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 ### Phase 3 (2026-04-29) — Universal-Bookmarklet
 
@@ -461,6 +498,7 @@ für Phase E eigentlich erst relevant, wenn Profile öffentlich verlinkt werden)
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-07  | Phase E: Bewertungssystem (beidseitig, Gegendarstellung, rechtliche Hinweise) |
 | 2026-05-07  | Phase D: Inquiry-Flow (Profil-Auszug bei Anfrage, Accept/Reject, fullAddress-Freigabe) |
 | 2026-05-07  | Phase C: Verkäufer-Listings + Marketplace + Bilder-Upload    |
 | 2026-05-07  | Phase B: Investor-Profil + Trackrecord + Bonität-Calc        |

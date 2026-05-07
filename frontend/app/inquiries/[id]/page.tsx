@@ -2,10 +2,13 @@ import Link from "next/link";
 import {
   ASSET_TYPE_LABELS,
   INQUIRY_STATUS_LABELS,
-  MyInquirySchema
+  InquiryDetailWithRatingsSchema,
+  LISTING_STATUS_LABELS
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card, Stat } from "@/components/ui";
+import { StarSummary } from "@/components/StarRating";
+import { RatingForm } from "@/components/RatingForm";
 import { WithdrawButton } from "./WithdrawButton";
 
 function eur(n: number) {
@@ -18,9 +21,10 @@ function eur(n: number) {
 
 export default async function InquiryDetailPage({ params }: { params: { id: string } }) {
   await requireOnboardedUser();
-  const inq = await apiGet(`/me/inquiries/${params.id}`, MyInquirySchema);
+  const inq = await apiGet(`/me/inquiries/${params.id}`, InquiryDetailWithRatingsSchema);
 
   const accepted = inq.status === "ACCEPTED";
+  const sold = inq.listing.status === "SOLD";
 
   return (
     <div className="space-y-6">
@@ -89,24 +93,83 @@ export default async function InquiryDetailPage({ params }: { params: { id: stri
       ) : null}
 
       <Card title="Verkäufer-Kontakt">
-        {accepted ? (
-          <div className="grid gap-3">
-            <Stat label="Name" value={inq.seller.name ?? "—"} />
-            <Stat label="E-Mail" value={inq.seller.email ?? "—"} />
-            <div className="text-xs text-zinc-500">
-              Kontaktdaten freigegeben nach Annahme der Anfrage.
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs text-zinc-400">Bewertung des Verkäufers:</span>
+            <StarSummary summary={inq.sellerSummary} size="md" />
+          </div>
+          {accepted ? (
+            <div className="grid gap-3">
+              <Stat label="Name" value={inq.seller.name ?? "—"} />
+              <Stat label="E-Mail" value={inq.seller.email ?? "—"} />
+              <div className="text-xs text-zinc-500">
+                Kontaktdaten freigegeben nach Annahme der Anfrage.
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="text-sm text-zinc-400">
-            Verkäufer-Kontaktdaten werden erst nach Annahme der Anfrage freigegeben.
-          </div>
-        )}
+          ) : (
+            <div className="text-sm text-zinc-400">
+              Verkäufer-Kontaktdaten werden erst nach Annahme der Anfrage freigegeben.
+            </div>
+          )}
+        </div>
       </Card>
 
       {inq.status === "PENDING" ? (
         <Card title="Aktion">
           <WithdrawButton inquiryId={inq.id} />
+        </Card>
+      ) : null}
+
+      {/* Bewertung — nur nach SOLD + ACCEPTED möglich */}
+      {accepted && sold ? (
+        inq.canRate ? (
+          <RatingForm inquiryId={inq.id} audience="seller" />
+        ) : inq.myRating ? (
+          <Card title="Deine Bewertung">
+            <div className="space-y-2">
+              <div className="text-amber-400 text-lg">
+                {"★".repeat(inq.myRating.stars)}
+                <span className="text-zinc-700">{"★".repeat(5 - inq.myRating.stars)}</span>
+                <span className="ml-2 text-sm text-zinc-300">{inq.myRating.stars}/5</span>
+              </div>
+              <div className="whitespace-pre-wrap text-sm text-zinc-200">{inq.myRating.body}</div>
+              <div className="text-[10px] text-zinc-500">
+                Abgegeben am {new Date(inq.myRating.createdAt).toLocaleString("de-DE")}
+              </div>
+            </div>
+          </Card>
+        ) : null
+      ) : accepted ? (
+        <Card title="Bewertung">
+          <div className="text-sm text-zinc-400">
+            Eine Bewertung kannst du abgeben, sobald der Verkäufer das Listing auf{" "}
+            <span className="font-semibold text-white">{LISTING_STATUS_LABELS["SOLD"]}</span>{" "}
+            gesetzt hat.
+          </div>
+        </Card>
+      ) : null}
+
+      {/* Bewertung des Verkäufers über mich (Investor) */}
+      {inq.sellerRating ? (
+        <Card title="Bewertung des Verkäufers über dich">
+          <div className="space-y-2">
+            <div className="text-amber-400 text-lg">
+              {"★".repeat(inq.sellerRating.stars)}
+              <span className="text-zinc-700">{"★".repeat(5 - inq.sellerRating.stars)}</span>
+              <span className="ml-2 text-sm text-zinc-300">{inq.sellerRating.stars}/5</span>
+            </div>
+            <div className="whitespace-pre-wrap text-sm text-zinc-200">{inq.sellerRating.body}</div>
+            {inq.sellerRating.rebuttal ? (
+              <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+                <div className="text-xs uppercase tracking-wide text-zinc-400">
+                  Deine Gegendarstellung
+                </div>
+                <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">
+                  {inq.sellerRating.rebuttal}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </Card>
       ) : null}
     </div>
