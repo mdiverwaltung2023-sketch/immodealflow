@@ -64,8 +64,8 @@ export function RatingForm({ inquiryId, audience }: { inquiryId: string; audienc
             onChange={(e) => setBody(e.target.value)}
             placeholder={
               audience === "seller"
-                ? "z. B. „Verkäufer hat alle Unterlagen rechtzeitig übergeben, Termine pünktlich eingehalten, Notartermin ohne Verzögerung." (mind. 20 Zeichen)"
-                : "z. B. „Investor hat zugesagten Kaufpreis fristgerecht überwiesen, Notartermin pünktlich wahrgenommen, professionelle Kommunikation." (mind. 20 Zeichen)"
+                ? `z. B. Verkäufer hat alle Unterlagen rechtzeitig übergeben, Termine pünktlich eingehalten, Notartermin ohne Verzögerung. (mind. 20 Zeichen)`
+                : `z. B. Investor hat zugesagten Kaufpreis fristgerecht überwiesen, Notartermin pünktlich wahrgenommen, professionelle Kommunikation. (mind. 20 Zeichen)`
             }
             rows={5}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
