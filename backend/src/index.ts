@@ -779,6 +779,178 @@ app.post("/me/claim-legacy", async (req, res) => {
   return res.json({ claimed: result.count });
 });
 
+// --- Investor-Profil + Trackrecord (Push B) ---------------------
+
+const AssetTypeEnum = z.enum([
+  "MFH",
+  "COMMERCIAL",
+  "MIXED_USE",
+  "SINGLE_FAMILY",
+  "APARTMENT",
+  "LAND",
+  "OTHER"
+]);
+
+const ProfileVisibilityEnum = z.enum(["PRIVATE", "ON_REQUEST", "PUBLIC"]);
+
+const TrackrecordRoleEnum = z.enum([
+  "BUYER",
+  "SELLER",
+  "PARTNER",
+  "BROKER",
+  "OTHER"
+]);
+
+/**
+ * Berechnet einen groben Bonitäts-Indikator:
+ *  - maxMonthlyDebtService: 40 % des Netto-Einkommens minus laufende Verbindlichkeiten
+ *  - maxLoan:               daraus per Annuität (Zins + Tilgung 5,8 %) das maximale Darlehen
+ *  - maxInvestment:         maxLoan + Eigenkapital
+ * Werte sind nur null, wenn die Inputs fehlen — Frontend zeigt sie dann nicht an.
+ */
+function computeAffordability(p: {
+  equity?: number | null;
+  monthlyIncome?: number | null;
+  monthlyDebt?: number | null;
+}): {
+  maxMonthlyDebtService: number | null;
+  maxLoan: number | null;
+  maxInvestment: number | null;
+} {
+  if (p.monthlyIncome == null) {
+    return { maxMonthlyDebtService: null, maxLoan: null, maxInvestment: null };
+  }
+  const debtCap = p.monthlyIncome * 0.4;
+  const debt = p.monthlyDebt ?? 0;
+  const maxMonthlyDebtService = Math.max(0, Math.round(debtCap - debt));
+  // Annuitäts-Faktor (Zins 3,8 % + Tilgung 2,0 % = 5,8 % p. a.) ≈ 0,058 / 12 ≈ 0,00483 monatlich
+  // maxLoan ≈ maxMonthlyDebtService / 0,00483
+  const annuityFactorMonthly = 0.058 / 12;
+  const maxLoan = annuityFactorMonthly > 0
+    ? Math.round(maxMonthlyDebtService / annuityFactorMonthly)
+    : null;
+  const maxInvestment = maxLoan != null ? maxLoan + (p.equity ?? 0) : null;
+  return { maxMonthlyDebtService, maxLoan, maxInvestment };
+}
+
+function serializeProfile(p: {
+  bio: string | null;
+  investmentExperienceYears: number;
+  equity: number | null;
+  monthlyIncome: number | null;
+  monthlyDebt: number | null;
+  financingPreApproved: boolean;
+  financingNote: string | null;
+  preferredAssetTypes: string[];
+  preferredRegions: string[];
+  minTicketSize: number | null;
+  maxTicketSize: number | null;
+  visibility: string;
+}) {
+  return {
+    bio: p.bio,
+    investmentExperienceYears: p.investmentExperienceYears,
+    equity: p.equity,
+    monthlyIncome: p.monthlyIncome,
+    monthlyDebt: p.monthlyDebt,
+    financingPreApproved: p.financingPreApproved,
+    financingNote: p.financingNote,
+    preferredAssetTypes: p.preferredAssetTypes,
+    preferredRegions: p.preferredRegions,
+    minTicketSize: p.minTicketSize,
+    maxTicketSize: p.maxTicketSize,
+    visibility: p.visibility,
+    affordability: computeAffordability({
+      equity: p.equity,
+      monthlyIncome: p.monthlyIncome,
+      monthlyDebt: p.monthlyDebt
+    })
+  };
+}
+
+// GET /me/profile — eigenes Profil (legt es bei Bedarf leer an)
+app.get("/me/profile", async (req, res) => {
+  const userId = req.userId!;
+  let profile = await prisma.investorProfile.findUnique({ where: { userId } });
+  if (!profile) {
+    profile = await prisma.investorProfile.create({ data: { userId } });
+  }
+  const trackrecord = await prisma.trackrecordItem.findMany({
+    where: { userId },
+    orderBy: [{ year: "desc" }, { createdAt: "desc" }]
+  });
+  return res.json({
+    ...serializeProfile(profile),
+    trackrecord
+  });
+});
+
+// PATCH /me/profile — Felder updaten (alle optional)
+app.patch("/me/profile", async (req, res) => {
+  const body = z
+    .object({
+      bio: z.string().max(2000).nullable().optional(),
+      investmentExperienceYears: z.number().int().min(0).max(80).optional(),
+      equity: z.number().int().min(0).nullable().optional(),
+      monthlyIncome: z.number().int().min(0).nullable().optional(),
+      monthlyDebt: z.number().int().min(0).nullable().optional(),
+      financingPreApproved: z.boolean().optional(),
+      financingNote: z.string().max(500).nullable().optional(),
+      preferredAssetTypes: z.array(AssetTypeEnum).optional(),
+      preferredRegions: z.array(z.string().min(1).max(80)).max(40).optional(),
+      minTicketSize: z.number().int().min(0).nullable().optional(),
+      maxTicketSize: z.number().int().min(0).nullable().optional(),
+      visibility: ProfileVisibilityEnum.optional()
+    })
+    .parse(req.body);
+
+  const userId = req.userId!;
+  // upsert, falls Profil noch nicht existiert
+  const profile = await prisma.investorProfile.upsert({
+    where: { userId },
+    update: body,
+    create: { userId, ...body }
+  });
+  const trackrecord = await prisma.trackrecordItem.findMany({
+    where: { userId },
+    orderBy: [{ year: "desc" }, { createdAt: "desc" }]
+  });
+  return res.json({
+    ...serializeProfile(profile),
+    trackrecord
+  });
+});
+
+// POST /me/trackrecord — neuen Trackrecord-Eintrag anlegen
+app.post("/me/trackrecord", async (req, res) => {
+  const body = z
+    .object({
+      type: AssetTypeEnum,
+      year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
+      value: z.number().int().min(0).nullable().optional(),
+      location: z.string().min(1).max(120),
+      role: TrackrecordRoleEnum,
+      description: z.string().max(1000).nullable().optional(),
+      verifiedBy: z.string().max(200).nullable().optional()
+    })
+    .parse(req.body);
+
+  const item = await prisma.trackrecordItem.create({
+    data: { ...body, userId: req.userId! }
+  });
+  return res.json(item);
+});
+
+// DELETE /me/trackrecord/:id — eigenen Eintrag löschen
+app.delete("/me/trackrecord/:id", async (req, res) => {
+  const item = await prisma.trackrecordItem.findFirst({
+    where: { id: req.params.id, userId: req.userId! }
+  });
+  if (!item) return res.status(404).json({ error: "Not found" });
+  await prisma.trackrecordItem.delete({ where: { id: item.id } });
+  return res.json({ ok: true });
+});
+
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   // Verbose Logging für Railway-Logs — hilft beim Debuggen von 500ern.
   const stack = err instanceof Error ? err.stack : String(err);

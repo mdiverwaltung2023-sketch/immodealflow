@@ -42,6 +42,30 @@ enum UserRole {
   BOTH
 }
 
+enum AssetType {
+  MFH
+  COMMERCIAL
+  MIXED_USE
+  SINGLE_FAMILY
+  APARTMENT
+  LAND
+  OTHER
+}
+
+enum ProfileVisibility {
+  PRIVATE
+  ON_REQUEST
+  PUBLIC
+}
+
+enum TrackrecordRole {
+  BUYER
+  SELLER
+  PARTNER
+  BROKER
+  OTHER
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -54,7 +78,58 @@ model User {
 
   onboardingCompletedAt DateTime?
 
-  properties Property[]
+  properties        Property[]
+  investorProfile   InvestorProfile?
+  trackrecordItems  TrackrecordItem[]
+}
+
+model InvestorProfile {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Selbstdarstellung
+  bio                       String?
+  investmentExperienceYears Int      @default(0)
+
+  // Bonität (alle in EUR; nullable, weil User es schrittweise füllt)
+  equity        Int?
+  monthlyIncome Int?
+  monthlyDebt   Int?
+
+  // Finanzierungs-Status
+  financingPreApproved Boolean @default(false)
+  financingNote        String? // z. B. "Bankzusage Sparkasse Berlin, gültig bis Q4/2026"
+
+  // Präferenzen — als String[] gespeichert für Flexibilität
+  preferredAssetTypes AssetType[] @default([])
+  preferredRegions    String[]    @default([]) // z. B. ["Berlin", "10115", "NRW"]
+  minTicketSize       Int?        // EUR — Untergrenze interessanter Deals
+  maxTicketSize       Int?        // EUR — Obergrenze (max Investment)
+
+  visibility ProfileVisibility @default(PRIVATE)
+}
+
+model TrackrecordItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type        AssetType
+  year        Int             // Jahr des Deals
+  value       Int?            // Kaufpreis bzw. Volumen in EUR (optional, kann anonym bleiben)
+  location    String          // z. B. "Berlin, Charlottenburg" oder "NRW"
+  role        TrackrecordRole
+  description String?         // 1–3 Sätze Kontext
+  verifiedBy  String?         // optionale Verifikation, z. B. Notar-Aktenzeichen
+
+  @@index([userId, year])
 }
 
 model Property {

@@ -48,6 +48,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <NavLink href="/dashboard">Dashboard</NavLink>
                   <NavLink href="/auctions">Versteigerungen</NavLink>
                   <NavLink href="/new">Neues Objekt</NavLink>
+                  <NavLink href="/profile">Profil</NavLink>
                   <NavLink href="/bookmarklet">Bookmarklet</NavLink>
                   <div className="ml-2 flex items-center gap-2">
                     <SignedOut>
