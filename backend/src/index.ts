@@ -50,6 +50,9 @@ app.use("/offer", requireAuth);
 app.use("/notes", requireAuth);
 app.use("/analyses", requireAuth);
 app.use("/me", requireAuth);
+// Marketplace-Routes brauchen einen eingeloggten User, weil wir je nach
+// Sichtbarkeit das Investor-Profil zeigen. /marketplace ist nicht öffentlich.
+app.use("/marketplace", requireAuth);
 // /import/* wird gleich pro-Endpoint gehandhabt (siehe weiter unten).
 
 const DealStatusEnum = z.enum([
@@ -949,6 +952,238 @@ app.delete("/me/trackrecord/:id", async (req, res) => {
   if (!item) return res.status(404).json({ error: "Not found" });
   await prisma.trackrecordItem.delete({ where: { id: item.id } });
   return res.json({ ok: true });
+});
+
+// --- Verkäufer-Listings (Push C) --------------------------------
+
+const ListingStatusEnum = z.enum([
+  "DRAFT",
+  "ACTIVE",
+  "IN_NEGOTIATION",
+  "SOLD",
+  "ARCHIVED"
+]);
+
+const AnonymizationLevelEnum = z.enum([
+  "FULL_ADDRESS",
+  "DISTRICT_ONLY",
+  "CITY_ONLY"
+]);
+
+const ListingCreateSchema = z.object({
+  title: z.string().min(3).max(200),
+  description: z.string().max(20000).optional().default(""),
+  propertyType: AssetTypeEnum,
+  askingPrice: z.number().int().min(0),
+  totalArea: z.number().min(0),
+  totalRent: z.number().int().min(0).nullable().optional(),
+  city: z.string().min(1).max(100),
+  postalCode: z.string().max(10).nullable().optional(),
+  district: z.string().max(120).nullable().optional(),
+  fullAddress: z.string().max(200).nullable().optional(),
+  anonymizationLevel: AnonymizationLevelEnum.optional()
+});
+
+const ListingPatchSchema = ListingCreateSchema.partial().extend({
+  status: ListingStatusEnum.optional()
+});
+
+/**
+ * Anonymisiert ein Listing fürs Marketplace-Listing — entfernt die Felder,
+ * die laut anonymizationLevel nicht gezeigt werden dürfen.
+ */
+function anonymizeListing<
+  T extends {
+    fullAddress: string | null;
+    postalCode: string | null;
+    district: string | null;
+    city: string;
+    anonymizationLevel: string;
+  }
+>(l: T): T {
+  if (l.anonymizationLevel === "FULL_ADDRESS") {
+    return l;
+  }
+  if (l.anonymizationLevel === "DISTRICT_ONLY") {
+    return { ...l, fullAddress: null, postalCode: null };
+  }
+  // CITY_ONLY
+  return { ...l, fullAddress: null, postalCode: null, district: null };
+}
+
+// GET /me/listings — eigene Listings (alle Status, optional Filter)
+app.get("/me/listings", async (req, res) => {
+  const status = req.query.status;
+  const where: { ownerId: string; status?: string } = { ownerId: req.userId! };
+  if (typeof status === "string") {
+    const parsed = ListingStatusEnum.safeParse(status);
+    if (parsed.success) where.status = parsed.data;
+  }
+  const listings = await prisma.listing.findMany({
+    where,
+    orderBy: { updatedAt: "desc" },
+    include: { images: { orderBy: { sortOrder: "asc" } } }
+  });
+  return res.json(listings);
+});
+
+// POST /me/listings — neues Listing (immer als DRAFT angelegt)
+app.post("/me/listings", async (req, res) => {
+  const body = ListingCreateSchema.parse(req.body);
+  const listing = await prisma.listing.create({
+    data: {
+      ownerId: req.userId!,
+      title: body.title,
+      description: body.description ?? "",
+      propertyType: body.propertyType,
+      askingPrice: body.askingPrice,
+      totalArea: body.totalArea,
+      totalRent: body.totalRent ?? null,
+      city: body.city,
+      postalCode: body.postalCode ?? null,
+      district: body.district ?? null,
+      fullAddress: body.fullAddress ?? null,
+      anonymizationLevel: body.anonymizationLevel ?? "DISTRICT_ONLY"
+    },
+    include: { images: { orderBy: { sortOrder: "asc" } } }
+  });
+  return res.json(listing);
+});
+
+// GET /me/listings/:id — eigenes Listing-Detail (alle Felder, keine Anonymisierung)
+app.get("/me/listings/:id", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    include: { images: { orderBy: { sortOrder: "asc" } } }
+  });
+  if (!listing) return res.status(404).json({ error: "Not found" });
+  return res.json(listing);
+});
+
+// PATCH /me/listings/:id — Felder updaten
+app.patch("/me/listings/:id", async (req, res) => {
+  const body = ListingPatchSchema.parse(req.body);
+  const owned = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  const updated = await prisma.listing.update({
+    where: { id: owned.id },
+    data: body,
+    include: { images: { orderBy: { sortOrder: "asc" } } }
+  });
+  return res.json(updated);
+});
+
+// DELETE /me/listings/:id — Listing samt Bildern löschen (Cascade über Prisma)
+app.delete("/me/listings/:id", async (req, res) => {
+  const owned = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  await prisma.listing.delete({ where: { id: owned.id } });
+  return res.json({ ok: true });
+});
+
+// POST /me/listings/:id/images — Bild-URL anhängen (Frontend hat sie schon
+// hochgeladen, hier wird sie nur registriert).
+app.post("/me/listings/:id/images", async (req, res) => {
+  const body = z
+    .object({
+      url: z.string().url().max(2000),
+      alt: z.string().max(300).nullable().optional(),
+      sortOrder: z.number().int().min(0).max(9999).optional()
+    })
+    .parse(req.body);
+  const owned = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  const lastSort = await prisma.listingImage.findFirst({
+    where: { listingId: owned.id },
+    orderBy: { sortOrder: "desc" }
+  });
+  const sortOrder = body.sortOrder ?? (lastSort ? lastSort.sortOrder + 1 : 0);
+  const image = await prisma.listingImage.create({
+    data: {
+      listingId: owned.id,
+      url: body.url,
+      alt: body.alt ?? null,
+      sortOrder
+    }
+  });
+  return res.json(image);
+});
+
+// DELETE /me/listings/:listingId/images/:imageId
+app.delete("/me/listings/:listingId/images/:imageId", async (req, res) => {
+  const owned = await prisma.listing.findFirst({
+    where: { id: req.params.listingId, ownerId: req.userId! }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  const img = await prisma.listingImage.findFirst({
+    where: { id: req.params.imageId, listingId: owned.id }
+  });
+  if (!img) return res.status(404).json({ error: "Image not found" });
+  await prisma.listingImage.delete({ where: { id: img.id } });
+  return res.json({ ok: true });
+});
+
+// --- Marketplace (öffentlich für eingeloggte User) --------------
+
+// GET /marketplace — aktive Listings mit Filter, anonymisiert
+app.get("/marketplace", async (req, res) => {
+  const q = z
+    .object({
+      city: z.string().optional(),
+      type: AssetTypeEnum.optional(),
+      priceMin: z.coerce.number().int().min(0).optional(),
+      priceMax: z.coerce.number().int().min(0).optional(),
+      areaMin: z.coerce.number().min(0).optional()
+    })
+    .parse(req.query);
+
+  const where: Record<string, unknown> = {
+    status: "ACTIVE"
+  };
+  if (q.city) where.city = { contains: q.city, mode: "insensitive" };
+  if (q.type) where.propertyType = q.type;
+  if (q.priceMin != null || q.priceMax != null) {
+    const price: Record<string, number> = {};
+    if (q.priceMin != null) price.gte = q.priceMin;
+    if (q.priceMax != null) price.lte = q.priceMax;
+    where.askingPrice = price;
+  }
+  if (q.areaMin != null) {
+    where.totalArea = { gte: q.areaMin };
+  }
+
+  const listings = await prisma.listing.findMany({
+    where,
+    orderBy: { updatedAt: "desc" },
+    include: {
+      images: { orderBy: { sortOrder: "asc" }, take: 5 },
+      owner: { select: { id: true, name: true, role: true } }
+    },
+    take: 100
+  });
+
+  // Anonymisieren — Rohdaten bleiben in der DB, nur die Antwort filtert.
+  const anon = listings.map((l) => anonymizeListing(l));
+  return res.json(anon);
+});
+
+// GET /marketplace/:id — Listing-Detail (anonymisiert)
+app.get("/marketplace/:id", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, status: "ACTIVE" },
+    include: {
+      images: { orderBy: { sortOrder: "asc" } },
+      owner: { select: { id: true, name: true, role: true } }
+    }
+  });
+  if (!listing) return res.status(404).json({ error: "Not found" });
+  return res.json(anonymizeListing(listing));
 });
 
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {

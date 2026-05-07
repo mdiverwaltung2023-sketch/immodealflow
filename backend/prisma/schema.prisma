@@ -66,6 +66,20 @@ enum TrackrecordRole {
   OTHER
 }
 
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  IN_NEGOTIATION
+  SOLD
+  ARCHIVED
+}
+
+enum AnonymizationLevel {
+  FULL_ADDRESS
+  DISTRICT_ONLY
+  CITY_ONLY
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -81,6 +95,7 @@ model User {
   properties        Property[]
   investorProfile   InvestorProfile?
   trackrecordItems  TrackrecordItem[]
+  listings          Listing[]
 }
 
 model InvestorProfile {
@@ -130,6 +145,55 @@ model TrackrecordItem {
   verifiedBy  String?         // optionale Verifikation, z. B. Notar-Aktenzeichen
 
   @@index([userId, year])
+}
+
+// Verkäufer-Listing — Marketplace-Inserat (separat von Property = Investor-Watchlist).
+model Listing {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String        // Markdown / einfacher Fließtext
+  propertyType AssetType
+  status      ListingStatus @default(DRAFT)
+
+  // Finanzdaten
+  askingPrice Int           // EUR
+  totalArea   Float         // m²
+  totalRent   Int?          // monatliche Gesamt-Soll-Miete (EUR), optional bei DRAFT/Gewerbe-Leerstand
+
+  // Lage + Anonymisierung
+  city               String              // immer gefüllt, z. B. "Berlin"
+  postalCode         String?             // optional, z. B. "10115"
+  district           String?             // z. B. "Mitte"
+  fullAddress        String?             // Straße + Hausnummer, nur intern
+  anonymizationLevel AnonymizationLevel  @default(DISTRICT_ONLY)
+
+  images ListingImage[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([propertyType])
+  @@index([city])
+}
+
+// Bilder zu Listings — URLs zeigen auf Vercel Blob (oder externes Storage).
+model ListingImage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  url       String   // direkte HTTPS-URL aus dem Storage
+  alt       String?  // Beschreibung für Screenreader / Lightbox
+  sortOrder Int      @default(0)
+
+  @@index([listingId, sortOrder])
 }
 
 model Property {

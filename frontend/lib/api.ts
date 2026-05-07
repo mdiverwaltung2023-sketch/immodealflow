@@ -299,5 +299,85 @@ export const InvestorProfileSchema = z.object({
 });
 export type InvestorProfileT = z.infer<typeof InvestorProfileSchema>;
 
+// --- Listings + Marketplace (Push C) ----------------------------
+
+export const ListingStatusEnum = z.enum([
+  "DRAFT",
+  "ACTIVE",
+  "IN_NEGOTIATION",
+  "SOLD",
+  "ARCHIVED"
+]);
+export type ListingStatusT = z.infer<typeof ListingStatusEnum>;
+
+export const LISTING_STATUS_LABELS: Record<ListingStatusT, string> = {
+  DRAFT: "Entwurf",
+  ACTIVE: "Aktiv",
+  IN_NEGOTIATION: "In Verhandlung",
+  SOLD: "Verkauft",
+  ARCHIVED: "Archiviert"
+};
+
+export const LISTING_STATUS_ORDER: ListingStatusT[] = [
+  "DRAFT",
+  "ACTIVE",
+  "IN_NEGOTIATION",
+  "SOLD",
+  "ARCHIVED"
+];
+
+export const AnonymizationLevelEnum = z.enum([
+  "FULL_ADDRESS",
+  "DISTRICT_ONLY",
+  "CITY_ONLY"
+]);
+export type AnonymizationLevelT = z.infer<typeof AnonymizationLevelEnum>;
+
+export const ANONYMIZATION_LABELS: Record<AnonymizationLevelT, string> = {
+  FULL_ADDRESS: "Vollständige Adresse",
+  DISTRICT_ONLY: "Stadt + Stadtteil",
+  CITY_ONLY: "Nur Stadt"
+};
+
+export const ListingImageSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  listingId: z.string(),
+  url: z.string(),
+  alt: z.string().nullable().optional(),
+  sortOrder: z.number()
+});
+export type ListingImageT = z.infer<typeof ListingImageSchema>;
+
+export const ListingSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  ownerId: z.string(),
+  title: z.string(),
+  description: z.string(),
+  propertyType: AssetTypeEnum,
+  status: ListingStatusEnum,
+  askingPrice: z.number(),
+  totalArea: z.number(),
+  totalRent: z.number().nullable().optional(),
+  city: z.string(),
+  postalCode: z.string().nullable().optional(),
+  district: z.string().nullable().optional(),
+  fullAddress: z.string().nullable().optional(),
+  anonymizationLevel: AnonymizationLevelEnum,
+  images: z.array(ListingImageSchema).default([])
+});
+export type ListingT = z.infer<typeof ListingSchema>;
+
+export const MarketplaceListingSchema = ListingSchema.extend({
+  owner: z.object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    role: UserRoleEnum
+  })
+});
+export type MarketplaceListingT = z.infer<typeof MarketplaceListingSchema>;
+
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.

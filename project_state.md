@@ -1,8 +1,8 @@
 # PROJECT STATE — DealFlow AI (ImmoDealFlow)
 
-> Stand: **2026-05-07**. Diese Datei ist die Single Source of Truth für den
-> aktuellen Projektstand. Bei jeder substanziellen Änderung (neuer Endpoint,
-> neuer Deploy, neuer Bug, Status-Update) hier nachziehen.
+> Stand: **2026-05-07** (Phase C). Diese Datei ist die Single Source of Truth
+> für den aktuellen Projektstand. Bei jeder substanziellen Änderung (neuer
+> Endpoint, neuer Deploy, neuer Bug, Status-Update) hier nachziehen.
 
 ---
 
@@ -107,6 +107,12 @@ InvestorProfile { userId(unique), bio, investmentExperienceYears,
 
 TrackrecordItem { userId, type(AssetType), year, value?, location,
                   role(TrackrecordRole), description?, verifiedBy? }
+
+Listing { ownerId, title, description, propertyType(AssetType),
+          status(ListingStatus), askingPrice, totalArea, totalRent?,
+          city, postalCode?, district?, fullAddress?,
+          anonymizationLevel(AnonymizationLevel) }
+   └── ListingImage[]   (1:n, url, alt?, sortOrder)
 ```
 
 Enums: `UserRole {INVESTOR, SELLER, BOTH}`, `DealStatus {WATCHING, INQUIRED,
@@ -114,7 +120,9 @@ NEGOTIATING, LOI, NOTAR, CLOSED, REJECTED}`, `DealType {FREE_SALE, AUCTION}`,
 `AuctionType {ZVG, DGA, SDL, KARHAUSEN, OTHER}`, `MarketRating {below_market,
 fair, above_market}`, `AssetType {MFH, COMMERCIAL, MIXED_USE, SINGLE_FAMILY,
 APARTMENT, LAND, OTHER}`, `ProfileVisibility {PRIVATE, ON_REQUEST, PUBLIC}`,
-`TrackrecordRole {BUYER, SELLER, PARTNER, BROKER, OTHER}`.
+`TrackrecordRole {BUYER, SELLER, PARTNER, BROKER, OTHER}`,
+`ListingStatus {DRAFT, ACTIVE, IN_NEGOTIATION, SOLD, ARCHIVED}`,
+`AnonymizationLevel {FULL_ADDRESS, DISTRICT_ONLY, CITY_ONLY}`.
 
 ## Backend-Endpunkte
 
@@ -136,6 +144,15 @@ Auth-geschützt (`requireAuth`):
 | PATCH   | `/me/profile`                     | Profil-Felder upserten (alle optional)                 |
 | POST    | `/me/trackrecord`                 | Trackrecord-Eintrag anlegen                            |
 | DELETE  | `/me/trackrecord/:id`             | Eigenen Trackrecord-Eintrag löschen                    |
+| GET     | `/me/listings`                    | Eigene Listings (alle Status, optional `?status=` Filter) |
+| POST    | `/me/listings`                    | Neues Listing (DRAFT)                                  |
+| GET     | `/me/listings/:id`                | Eigenes Listing-Detail (alle Felder)                   |
+| PATCH   | `/me/listings/:id`                | Listing-Felder updaten (inkl. Status, Anonymisierung)  |
+| DELETE  | `/me/listings/:id`                | Listing samt Bildern löschen                           |
+| POST    | `/me/listings/:id/images`         | Bild-URL anhängen (Frontend hat schon hochgeladen)     |
+| DELETE  | `/me/listings/:listingId/images/:imageId` | Bild entfernen                                 |
+| GET     | `/marketplace`                    | Aktive Listings, anonymisiert; Filter `?city=&type=&priceMin=&priceMax=&areaMin=` |
+| GET     | `/marketplace/:id`                | Listing-Detail, anonymisiert                           |
 | GET     | `/properties`                     | Liste eigener Properties (mit `?status=` Filter)       |
 | POST    | `/properties`                     | Property anlegen (Zod-validiert), `ownerId=req.userId` |
 | GET     | `/properties/:id`                 | Detail (eigene), inkl. Auction/Analyse/Markt/Offer/Notes |
@@ -167,16 +184,22 @@ Public (Clerk-Middleware lässt durch):
 
 Geschützt (Login erforderlich, `requireOnboardedUser()`-Guard):
 
-| Pfad                  | Zweck                                                  |
-|-----------------------|--------------------------------------------------------|
-| `/onboarding`         | Rollen-Auswahl beim ersten Login (INVESTOR/SELLER/BOTH); kein Guard, sonst Loop |
-| `/dashboard`          | Eigene Properties, Status-Filter, Score, Claim-Banner  |
-| `/new`                | Neue Property + Schnell-Import-Card                    |
-| `/property/[id]`      | Detail (Auction/Analyse/Markt/Offer/Notes)             |
-| `/property/[id]/edit` | Edit-Form                                              |
-| `/profile`            | Investor-Profil (Identität/Bonität/Präferenzen/Sichtbarkeit) + Trackrecord |
-| `/auctions`           | Versteigerungs-Liste sortiert nach Termin              |
-| `/auctions/import`    | 4 Tabs (Text/PDF/URL/Liste)                            |
+| Pfad                       | Zweck                                                  |
+|----------------------------|--------------------------------------------------------|
+| `/onboarding`              | Rollen-Auswahl beim ersten Login (INVESTOR/SELLER/BOTH); kein Guard, sonst Loop |
+| `/dashboard`               | Eigene Properties, Status-Filter, Score, Claim-Banner  |
+| `/new`                     | Neue Property + Schnell-Import-Card                    |
+| `/property/[id]`           | Detail (Auction/Analyse/Markt/Offer/Notes)             |
+| `/property/[id]/edit`      | Edit-Form                                              |
+| `/profile`                 | Investor-Profil + Trackrecord                          |
+| `/listings`                | Eigene Listings (Verkäufer-Sicht, Status-Übersicht)    |
+| `/listings/new`            | Neues Listing als Entwurf                              |
+| `/listings/[id]/edit`      | Listing bearbeiten + Bilder hochladen + Anonymisierung + Status |
+| `/marketplace`             | Öffentliche Suchseite mit Filtern, anonymisierte Karten |
+| `/marketplace/[id]`        | Listing-Detail (anonymisierte Lage je nach Stufe)      |
+| `/auctions`                | Versteigerungs-Liste sortiert nach Termin              |
+| `/auctions/import`         | 4 Tabs (Text/PDF/URL/Liste)                            |
+| `/api/upload-image` (POST) | Frontend-Route Handler — lädt File zu Vercel Blob hoch (Auth via Clerk, ENV `BLOB_READ_WRITE_TOKEN`); 503 wenn Blob nicht aktiviert |
 
 Guard-Mechanik: `requireOnboardedUser()` in `lib/api-server.ts` ruft `/me` ab,
 redirected auf `/onboarding`, wenn `onboardingCompletedAt == null`. Eingebaut
@@ -188,7 +211,39 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase B erledigt — Investor-Profil + Trackrecord live**
+## Aktuelle Phase: **Phase C erledigt — Verkäufer-Listings + Marketplace live**
+
+### Phase C (2026-05-07) — Verkäufer-Listings + Marketplace + Bilder
+
+- ✅ Prisma: `Listing` (1:n User via ownerId, Cascade-Delete), `ListingImage`
+  (1:n Listing); Enums `ListingStatus`, `AnonymizationLevel`. Migration
+  `20260507_add_listing` auf Railway.
+- ✅ Backend Verkäufer-Endpoints: `GET/POST /me/listings`, `GET/PATCH/DELETE
+  /me/listings/:id`, `POST /me/listings/:id/images`, `DELETE
+  /me/listings/:listingId/images/:imageId`. Owner-Filter überall.
+- ✅ Backend Marketplace: `GET /marketplace` (mit Filter city/type/priceMin/
+  priceMax/areaMin, max 100 Items), `GET /marketplace/:id`. Beide nur für
+  eingeloggte User, beide laufen `anonymizeListing()` durch — leakt nur die
+  Felder, die laut `anonymizationLevel` erlaubt sind. Rohdaten bleiben in DB.
+- ✅ Vercel Blob Setup: `@vercel/blob` als Frontend-Dependency, Frontend-Route
+  `app/api/upload-image/route.ts` (POST, multipart/form-data, max 4 MB,
+  nur images/*, Pathname `listings/<userId>/<timestamp>-<filename>`,
+  graceful 503 wenn `BLOB_READ_WRITE_TOKEN` nicht gesetzt).
+  **Marco-Schritt:** Vercel Dashboard → Project → Storage → Blob → Create
+  Store. Token wird automatisch in Project-Envs gesetzt.
+- ✅ Frontend Verkäufer-Seite:
+  - `/listings` — Liste mit Status-Badge, Bildanzahl, Status-Übersichts-Karten
+  - `/listings/new` — Eckdaten-Form, legt DRAFT an, leitet auf Edit weiter
+  - `/listings/[id]/edit` — Vollständige Edit-Form mit Anonymisierungs-Auswahl
+    (3 Karten), Status-Dropdown, Bilder-Upload-Section (Drag-and-Drop einfaches
+    File-Input, Thumbnail-Grid, Delete pro Bild), Löschen-Button
+- ✅ Frontend Marketplace:
+  - `/marketplace` — Filter-Card (Stadt, Typ, Preisrange, Min-Fläche),
+    Karten-Grid mit Cover-Bild, Verkäufer-Namen
+  - `/marketplace/[id]` — Bilder-Galerie, Eckdaten + Lage + Verkäufer-Info,
+    respektiert Anonymisierungsstufe (zeigt Hinweis "Vollständige Adresse
+    erst nach Anfrage-Annahme — Phase D")
+- ✅ Nav-Links "Marketplace" und "Meine Listings" im Layout.
 
 ### Phase B (2026-05-07) — Investor-Profil + Trackrecord
 
@@ -260,17 +315,16 @@ nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 - ✅ `@clerk/nextjs` integriert, `<ClerkProvider>` in Root-Layout
 - ✅ Sign-up/Sign-in funktioniert end-to-end
 
-### Roadmap nach Phase B
+### Roadmap nach Phase C
 
-**Phase C** (Marketplace, Memory `project_marketplace_pivot.md`) —
-**Verkäufer-Listings**: separates `Listing`-Modell (statt `Property`-Erweiterung),
-Bilder-Upload (S3 / Vercel Blob), öffentliche `/marketplace`-Page mit Filtern,
-Anonymisierungsstufen pro Listing, `/listings/new` und `/listings/[id]/edit`.
+**Phase D** — **Inquiry-Flow** (USP wird sichtbar): `Inquiry`-Modell
+(listingId, investorId, status, message), Verkäufer bekommt Investor-Profil-
+Auszug bei Anfrage (respektiert dann auch `InvestorProfile.visibility`),
+akzeptiert/lehnt ab, danach Kontakt-Channel + Freigabe der `fullAddress`.
+Status-Pipeline am Listing: aktiv → mehrere Inquiries → in Verhandlung mit X
+→ verkauft.
 
-**Phase D** — **Inquiry-Flow** (USP wird sichtbar): Verkäufer bekommt
-Investor-Profil-Auszug bei Anfrage, akzeptiert/lehnt ab, danach Kontakt-Channel.
-
-**Phase E** — Bewertungssystem (nur nach abgeschlossenem Deal, DSGVO/UWG-konform).
+**Phase E** — Bewertungssystem (nur nach Listing-Status SOLD, DSGVO/UWG-konform).
 
 **Phase F** *(optional)* — In-App Messaging zwischen Käufer + Verkäufer.
 
@@ -341,6 +395,11 @@ Investor-Profil-Auszug bei Anfrage, akzeptiert/lehnt ab, danach Kontakt-Channel.
   `/me`-Call — pragmatisch, könnte später per Layout/Cache optimiert werden
 - Profil-Sichtbarkeit ist nur gespeichert, noch nicht durchgesetzt — Enforcement
   kommt erst in Phase D mit dem Inquiry-Flow
+- Bilder-Upload nutzt Server-Side-Upload (4 MB Limit pro Datei wegen Vercel
+  Serverless Body-Limit). Für größere Dateien später Client-Upload-Pattern
+  mit `handleUpload` von `@vercel/blob/client` umstellen.
+- Marketplace-Karten zeigen aktuell `owner.name` ohne Sichtbarkeits-Check —
+  fixen wir mit Phase D (Profil-Visibility wird dann durchgesetzt).
 - Keine Tests (weder Backend noch Frontend)
 - Bookmarklet-Receiver leitet nur Token weiter, keine Rate-Limiting
 
@@ -348,6 +407,7 @@ Investor-Profil-Auszug bei Anfrage, akzeptiert/lehnt ab, danach Kontakt-Channel.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-07  | Phase C: Verkäufer-Listings + Marketplace + Bilder-Upload    |
 | 2026-05-07  | Phase B: Investor-Profil + Trackrecord + Bonität-Calc        |
 | 2026-05-06  | Push A3: Onboarding + Rolle wählen + Footer-Fix              |
 | 2026-05-06  | Push A2: User-Modell + ownerId + Auth-Middleware + Legacy-Claim |
