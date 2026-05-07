@@ -1,6 +1,6 @@
 # PROJECT STATE — DealFlow AI (ImmoDealFlow)
 
-> Stand: **2026-05-06**. Diese Datei ist die Single Source of Truth für den
+> Stand: **2026-05-07**. Diese Datei ist die Single Source of Truth für den
 > aktuellen Projektstand. Bei jeder substanziellen Änderung (neuer Endpoint,
 > neuer Deploy, neuer Bug, Status-Update) hier nachziehen.
 
@@ -84,8 +84,12 @@ Quelle: `backend/prisma/schema.prisma`. Aktuelle Migrationen siehe
 `backend/prisma/migrations/`.
 
 ```
-User { id, clerkId(unique), email, name?, role(UserRole) }
-   ↓ 1:n
+User { id, clerkId(unique), email, name?, role(UserRole),
+       onboardingCompletedAt? }
+   ├── Property[]         (1:n via ownerId, onDelete SetNull)
+   ├── InvestorProfile?   (1:1, Bonität + Präferenzen + Sichtbarkeit)
+   └── TrackrecordItem[]  (1:n, abgeschlossene Deals)
+
 Property { id, title, price, rent, location, size, status(DealStatus),
            dealType(DealType), ownerId? }
    ├── Analysis[]         (1:n, Snapshots mit 9 Annahmen + 11 Outputs)
@@ -93,12 +97,24 @@ Property { id, title, price, rent, location, size, status(DealStatus),
    ├── Note[]             (1:n)
    ├── MarketComparison?  (1:1, Claude-Marktdaten + Rating)
    └── AuctionInfo?       (1:1, ZVG/DGA-Daten + Bietlimit)
+
+InvestorProfile { userId(unique), bio, investmentExperienceYears,
+                  equity?, monthlyIncome?, monthlyDebt?,
+                  financingPreApproved, financingNote?,
+                  preferredAssetTypes[], preferredRegions[],
+                  minTicketSize?, maxTicketSize?,
+                  visibility(ProfileVisibility) }
+
+TrackrecordItem { userId, type(AssetType), year, value?, location,
+                  role(TrackrecordRole), description?, verifiedBy? }
 ```
 
 Enums: `UserRole {INVESTOR, SELLER, BOTH}`, `DealStatus {WATCHING, INQUIRED,
 NEGOTIATING, LOI, NOTAR, CLOSED, REJECTED}`, `DealType {FREE_SALE, AUCTION}`,
 `AuctionType {ZVG, DGA, SDL, KARHAUSEN, OTHER}`, `MarketRating {below_market,
-fair, above_market}`.
+fair, above_market}`, `AssetType {MFH, COMMERCIAL, MIXED_USE, SINGLE_FAMILY,
+APARTMENT, LAND, OTHER}`, `ProfileVisibility {PRIVATE, ON_REQUEST, PUBLIC}`,
+`TrackrecordRole {BUYER, SELLER, PARTNER, BROKER, OTHER}`.
 
 ## Backend-Endpunkte
 
@@ -112,8 +128,14 @@ Auth-geschützt (`requireAuth`):
 
 | Methode | Pfad                              | Zweck                                                  |
 |---------|-----------------------------------|--------------------------------------------------------|
-| GET     | `/me`                             | Aktueller User + `legacyCount` (Properties ohne Owner) |
+| GET     | `/me`                             | Aktueller User + `onboardingCompletedAt` + `legacyCount` |
+| PATCH   | `/me`                             | Felder updaten (Name, Rolle)                           |
+| POST    | `/me/complete-onboarding`         | Onboarding-Timestamp setzen (optional Rolle/Name mit)  |
 | POST    | `/me/claim-legacy`                | Übernimmt alle ownerId=null Properties auf den User    |
+| GET     | `/me/profile`                     | Investor-Profil (legt leeres bei Bedarf an, mit Bonität-Calc + Trackrecord) |
+| PATCH   | `/me/profile`                     | Profil-Felder upserten (alle optional)                 |
+| POST    | `/me/trackrecord`                 | Trackrecord-Eintrag anlegen                            |
+| DELETE  | `/me/trackrecord/:id`             | Eigenen Trackrecord-Eintrag löschen                    |
 | GET     | `/properties`                     | Liste eigener Properties (mit `?status=` Filter)       |
 | POST    | `/properties`                     | Property anlegen (Zod-validiert), `ownerId=req.userId` |
 | GET     | `/properties/:id`                 | Detail (eigene), inkl. Auction/Analyse/Markt/Offer/Notes |
@@ -143,22 +165,70 @@ Public (Clerk-Middleware lässt durch):
 | `/bookmarklet`        | Anleitung + Drag-to-Bookmarks                          |
 | `/bookmarklet/receive`| POST-Empfänger (server-to-server an Backend)           |
 
-Geschützt (Login erforderlich):
+Geschützt (Login erforderlich, `requireOnboardedUser()`-Guard):
 
 | Pfad                  | Zweck                                                  |
 |-----------------------|--------------------------------------------------------|
+| `/onboarding`         | Rollen-Auswahl beim ersten Login (INVESTOR/SELLER/BOTH); kein Guard, sonst Loop |
 | `/dashboard`          | Eigene Properties, Status-Filter, Score, Claim-Banner  |
 | `/new`                | Neue Property + Schnell-Import-Card                    |
 | `/property/[id]`      | Detail (Auction/Analyse/Markt/Offer/Notes)             |
 | `/property/[id]/edit` | Edit-Form                                              |
+| `/profile`            | Investor-Profil (Identität/Bonität/Präferenzen/Sichtbarkeit) + Trackrecord |
 | `/auctions`           | Versteigerungs-Liste sortiert nach Termin              |
 | `/auctions/import`    | 4 Tabs (Text/PDF/URL/Liste)                            |
+
+Guard-Mechanik: `requireOnboardedUser()` in `lib/api-server.ts` ruft `/me` ab,
+redirected auf `/onboarding`, wenn `onboardingCompletedAt == null`. Eingebaut
+in: `dashboard/page.tsx`, `new/page.tsx` (via Wrapper), `property/[id]/page.tsx`,
+`property/[id]/edit/page.tsx`, `profile/page.tsx`, `auctions/layout.tsx` (deckt
+beide Auctions-Pages ab). NICHT in `/onboarding` selbst (Loop).
 
 Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Push A2 erledigt — Auth + Multi-Tenant live**
+## Aktuelle Phase: **Phase B erledigt — Investor-Profil + Trackrecord live**
+
+### Phase B (2026-05-07) — Investor-Profil + Trackrecord
+
+- ✅ Prisma: Models `InvestorProfile` (1:1 User), `TrackrecordItem` (1:n User);
+  Enums `AssetType`, `ProfileVisibility`, `TrackrecordRole`. Migration
+  `20260507_add_investor_profile` auf Railway.
+- ✅ Backend: `GET/PATCH /me/profile` (legt bei Bedarf leer an, upsert mit
+  Bonität-Calc), `POST /me/trackrecord`, `DELETE /me/trackrecord/:id`.
+- ✅ Bonität-Calc (`computeAffordability`): 40 % Netto-Einkommen − Verbindlichkeiten
+  als max Kapitaldienst, daraus per Annuität (3,8 % Zins + 2,0 % Tilgung) das
+  max Darlehen, plus EK = max Investitionssumme. Selbstauskunft, keine Bankprüfung.
+- ✅ Frontend `/profile` mit 4 Sections + Trackrecord:
+  - **Identität:** Bio + Erfahrungsjahre
+  - **Bonität:** EK / Einkommen / Schulden / Vorab-Genehmigung / Note, mit
+    Live-Calc max Darlehen + max Investment beim Tippen
+  - **Präferenzen:** Asset-Klassen-Chips, Regionen-Tags, Min/Max Ticket-Size
+  - **Sichtbarkeit:** 3 Karten (Privat / Nur bei Anfrage / Öffentlich)
+  - **Trackrecord:** Liste + Add-Form (Asset-Typ / Jahr / Rolle / Lage / Volumen /
+    Beschreibung) + Delete
+- ✅ Nav-Link "Profil" im Layout zwischen "Neues Objekt" und "Bookmarklet".
+- ✅ Production-Smoke-Test 2026-05-07: leeres Profil GET liefert defaults,
+  alle Sections rendern, PATCH speichert (siehe Live-Test).
+
+### Push A3 (2026-05-06) — Onboarding + Rollen-Auswahl
+
+- ✅ Schema: `User.onboardingCompletedAt: DateTime?`. Migration
+  `20260506_add_user_onboarding`.
+- ✅ Backend: `PATCH /me` (Rolle/Name updaten), `POST /me/complete-onboarding`
+  (setzt Timestamp + optional Rolle/Name). `GET /me` liefert `onboardingCompletedAt`.
+- ✅ Frontend `/onboarding` mit 3-Karten-UI (Investor/Verkäufer/Beides) +
+  Anzeigename. Server-Component prüft auf `onboardingCompletedAt` und
+  redirected auf `/dashboard`, wenn schon abgeschlossen.
+- ✅ Redirect-Guard `requireOnboardedUser()` in `lib/api-server.ts`, eingebaut
+  in allen geschützten Pages (siehe Frontend-Routen-Tabelle).
+- ✅ Footer-Fix: "End-to-End MVP (ohne Auth)" → "Investor- und Verkäufer-Tool
+  für MFH/Gewerbe" (war seit Push A2 falsch).
+- ✅ Production-Smoke-Test 2026-05-06: Marco wurde von /dashboard auf /onboarding
+  geleitet, wählt "Beides", POST /me/complete-onboarding gibt 200, redirect
+  auf /dashboard funktioniert. `/me` liefert `role: "BOTH"`,
+  `onboardingCompletedAt: "2026-05-06T20:53:25.394Z"`.
 
 ### Push A2 (2026-05-06) — User-Modell + Owner-Filter
 
@@ -190,14 +260,19 @@ nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 - ✅ `@clerk/nextjs` integriert, `<ClerkProvider>` in Root-Layout
 - ✅ Sign-up/Sign-in funktioniert end-to-end
 
-### Roadmap nach Push A2
+### Roadmap nach Phase B
 
-**Push A3** — Onboarding + Rolle wählen (`UserRole`-Auswahl beim ersten Login):
-INVESTOR / SELLER / BOTH. Voraussetzung für Marketplace-Phase B.
+**Phase C** (Marketplace, Memory `project_marketplace_pivot.md`) —
+**Verkäufer-Listings**: separates `Listing`-Modell (statt `Property`-Erweiterung),
+Bilder-Upload (S3 / Vercel Blob), öffentliche `/marketplace`-Page mit Filtern,
+Anonymisierungsstufen pro Listing, `/listings/new` und `/listings/[id]/edit`.
 
-**Phase B** (Marketplace-Pivot, Memory `project_marketplace_pivot.md`) —
-Investor-Profil + Trackrecord + Finanzierungsrahmen + Region-Tags.
-Verkäufer-Sicht erst in Phase C.
+**Phase D** — **Inquiry-Flow** (USP wird sichtbar): Verkäufer bekommt
+Investor-Profil-Auszug bei Anfrage, akzeptiert/lehnt ab, danach Kontakt-Channel.
+
+**Phase E** — Bewertungssystem (nur nach abgeschlossenem Deal, DSGVO/UWG-konform).
+
+**Phase F** *(optional)* — In-App Messaging zwischen Käufer + Verkäufer.
 
 ### Phase 3 (2026-04-29) — Universal-Bookmarklet
 
@@ -260,7 +335,12 @@ Verkäufer-Sicht erst in Phase C.
 - Score-Heuristik ist grob (Netto-Rendite + CF n. Steuer), nicht risikoadjustiert
 - `auctionDate` als UTC (Anzeige +2 h CEST verschoben)
 - `frontend/PropertyActions.tsx` nutzt `alert()` statt Toast
-- Frontend-Footer sagt noch "End-to-End MVP (ohne Auth)" — veraltet seit Push A2
+- Bonität-Calc ist Faustformel (40 % Einkommen-Cap, 5,8 % Annuität) — Selbstauskunft,
+  keine Bankprüfung; für Phase D evtl. Verifikations-Stufe ergänzen
+- `requireOnboardedUser()` macht in jeder geschützten Server-Page einen extra
+  `/me`-Call — pragmatisch, könnte später per Layout/Cache optimiert werden
+- Profil-Sichtbarkeit ist nur gespeichert, noch nicht durchgesetzt — Enforcement
+  kommt erst in Phase D mit dem Inquiry-Flow
 - Keine Tests (weder Backend noch Frontend)
 - Bookmarklet-Receiver leitet nur Token weiter, keine Rate-Limiting
 
@@ -268,6 +348,8 @@ Verkäufer-Sicht erst in Phase C.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-07  | Phase B: Investor-Profil + Trackrecord + Bonität-Calc        |
+| 2026-05-06  | Push A3: Onboarding + Rolle wählen + Footer-Fix              |
 | 2026-05-06  | Push A2: User-Modell + ownerId + Auth-Middleware + Legacy-Claim |
 | 2026-05-05  | Push A1: Clerk-Integration                                   |
 | 2026-04-29  | Phase 3: Bookmarklet                                         |
