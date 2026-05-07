@@ -1013,14 +1013,15 @@ function anonymizeListing<
 
 // GET /me/listings — eigene Listings (alle Status, optional Filter)
 app.get("/me/listings", async (req, res) => {
-  const status = req.query.status;
-  const where: { ownerId: string; status?: string } = { ownerId: req.userId! };
-  if (typeof status === "string") {
-    const parsed = ListingStatusEnum.safeParse(status);
-    if (parsed.success) where.status = parsed.data;
-  }
+  const rawStatus = req.query.status;
+  const parsedStatus = typeof rawStatus === "string"
+    ? ListingStatusEnum.safeParse(rawStatus)
+    : null;
   const listings = await prisma.listing.findMany({
-    where,
+    where: {
+      ownerId: req.userId!,
+      ...(parsedStatus?.success ? { status: parsedStatus.data } : {})
+    },
     orderBy: { updatedAt: "desc" },
     include: { images: { orderBy: { sortOrder: "asc" } } }
   });
@@ -1143,23 +1144,18 @@ app.get("/marketplace", async (req, res) => {
     })
     .parse(req.query);
 
-  const where: Record<string, unknown> = {
-    status: "ACTIVE"
-  };
-  if (q.city) where.city = { contains: q.city, mode: "insensitive" };
-  if (q.type) where.propertyType = q.type;
-  if (q.priceMin != null || q.priceMax != null) {
-    const price: Record<string, number> = {};
-    if (q.priceMin != null) price.gte = q.priceMin;
-    if (q.priceMax != null) price.lte = q.priceMax;
-    where.askingPrice = price;
-  }
-  if (q.areaMin != null) {
-    where.totalArea = { gte: q.areaMin };
-  }
+  const priceFilter: { gte?: number; lte?: number } = {};
+  if (q.priceMin != null) priceFilter.gte = q.priceMin;
+  if (q.priceMax != null) priceFilter.lte = q.priceMax;
 
   const listings = await prisma.listing.findMany({
-    where,
+    where: {
+      status: "ACTIVE",
+      ...(q.city ? { city: { contains: q.city, mode: "insensitive" as const } } : {}),
+      ...(q.type ? { propertyType: q.type } : {}),
+      ...(Object.keys(priceFilter).length > 0 ? { askingPrice: priceFilter } : {}),
+      ...(q.areaMin != null ? { totalArea: { gte: q.areaMin } } : {})
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       images: { orderBy: { sortOrder: "asc" }, take: 5 },
