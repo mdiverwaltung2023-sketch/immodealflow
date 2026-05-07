@@ -113,7 +113,7 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
             <select
               value={propertyType}
               onChange={(e) => setPropertyType(e.target.value as AssetTypeT)}
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             >
               {ASSET_TYPES.map((t) => (
                 <option key={t} value={t}>{ASSET_TYPE_LABELS[t]}</option>
@@ -168,7 +168,7 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
                 <label
                   key={l}
                   className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
-                    anon === l ? "border-indigo-500 bg-indigo-500/10" : "border-zinc-800 bg-zinc-950"
+                    anon === l ? "border-indigo-500 bg-indigo-50" : "border-zinc-200 bg-white hover:border-zinc-300"
                   }`}
                 >
                   <input
@@ -179,8 +179,8 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
                     className="mt-0.5"
                   />
                   <div>
-                    <div className="font-semibold text-white">{ANONYMIZATION_LABELS[l]}</div>
-                    <div className="text-xs text-zinc-400">
+                    <div className="font-semibold text-zinc-900">{ANONYMIZATION_LABELS[l]}</div>
+                    <div className="text-xs text-zinc-500">
                       {l === "FULL_ADDRESS" && "Investor sieht Straße + Hausnummer ab Aktivierung."}
                       {l === "DISTRICT_ONLY" && "Investor sieht nur Stadt + Stadtteil. Vollständige Adresse erst nach Anfrage-Annahme (Phase D)."}
                       {l === "CITY_ONLY" && "Investor sieht nur die Stadt — maximale Anonymität, gut für sensible Bestände."}
@@ -196,14 +196,14 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as ListingStatusT)}
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             >
               {LISTING_STATUS_ORDER.map((s) => (
                 <option key={s} value={s}>{LISTING_STATUS_LABELS[s]}</option>
               ))}
             </select>
             <div className="mt-2 text-xs text-zinc-500">
-              Nur <span className="text-zinc-300">Aktiv</span> erscheint im öffentlichen Marketplace.
+              Nur <span className="font-semibold text-zinc-700">Aktiv</span> erscheint im öffentlichen Marketplace.
             </div>
           </div>
         </div>
@@ -215,8 +215,8 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
           <Button type="button" variant="ghost" onClick={deleteListing} disabled={busy}>
             Löschen
           </Button>
-          {saved ? <span className="text-xs text-emerald-300">{saved}</span> : null}
-          {error ? <span className="text-xs text-rose-300">{error}</span> : null}
+          {saved ? <span className="text-xs text-emerald-700">{saved}</span> : null}
+          {error ? <span className="text-xs text-rose-600">{error}</span> : null}
         </div>
       </form>
 
@@ -290,10 +290,10 @@ function ImageUploadSection({
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+    <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-semibold text-white">Bilder ({images.length})</div>
+          <div className="text-sm font-semibold text-zinc-900">Bilder ({images.length})</div>
           <div className="mt-1 text-xs text-zinc-500">
             Bilder bis 4 MB. Werden auf Vercel Blob gespeichert.
             Falls Vercel Blob noch nicht aktiviert ist, kommt eine Hinweis-Meldung beim Upload.
@@ -308,19 +308,19 @@ function ImageUploadSection({
             if (f) uploadFile(f);
           }}
           disabled={busy}
-          className="text-xs text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-indigo-600"
+          className="text-xs text-zinc-700 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-indigo-700"
         />
       </div>
 
-      {error ? <div className="text-xs text-rose-300">{error}</div> : null}
-      {info ? <div className="text-xs text-emerald-300">{info}</div> : null}
+      {error ? <div className="text-xs text-rose-600">{error}</div> : null}
+      {info ? <div className="text-xs text-emerald-700">{info}</div> : null}
 
       {images.length === 0 ? (
-        <div className="text-sm text-zinc-400">Noch keine Bilder.</div>
+        <div className="text-sm text-zinc-500">Noch keine Bilder.</div>
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {images.map((img) => (
-            <div key={img.id} className="group relative overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
+            <div key={img.id} className="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={img.url}
@@ -330,7 +330,7 @@ function ImageUploadSection({
               <button
                 type="button"
                 onClick={() => deleteImage(img.id)}
-                className="absolute right-1 top-1 rounded-md bg-zinc-900/80 px-2 py-1 text-[10px] text-rose-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-950"
+                className="absolute right-1 top-1 rounded-md bg-white/90 border border-zinc-200 px-2 py-1 text-[10px] text-rose-600 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50"
               >
                 Löschen
               </button>

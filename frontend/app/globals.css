@@ -7,11 +7,12 @@ body {
   height: 100%;
 }
 
+/* Light theme als Default für die App-Shell (Sidebar + Content). */
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
+  @apply bg-zinc-50 text-zinc-900 antialiased;
 }
 
+/* Default-Borderfarbe (sonst nutzt Tailwind currentColor) */
 * {
-  @apply border-zinc-800;
+  @apply border-zinc-200;
 }
-

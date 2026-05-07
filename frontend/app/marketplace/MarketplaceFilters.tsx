@@ -61,7 +61,7 @@ export function MarketplaceFilters({
         <select
           value={type}
           onChange={(e) => setType(e.target.value as AssetTypeT | "")}
-          className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
         >
           <option value="">Alle</option>
           {ASSET_TYPES.map((t) => (

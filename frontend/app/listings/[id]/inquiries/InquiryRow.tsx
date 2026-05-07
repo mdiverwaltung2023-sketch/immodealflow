@@ -74,33 +74,33 @@ export function InquiryRow({
   }
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-semibold text-white">
+            <div className="text-sm font-semibold text-zinc-900">
               {investor?.name ?? "Anonymer Investor"}
             </div>
-            <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-300">
+            <span className="rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-600">
               {INQUIRY_STATUS_LABELS[inquiry.status]}
             </span>
             {profile?.financingPreApproved ? (
-              <span className="rounded-full border border-emerald-900 bg-emerald-950/40 px-2 py-0.5 text-[10px] text-emerald-200">
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
                 Finanzierung vorab bestätigt
               </span>
             ) : null}
             {profile?.visibility ? (
-              <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-400">
+              <span className="rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-500">
                 Profil: {PROFILE_VISIBILITY_LABELS[profile.visibility]}
               </span>
             ) : null}
             {inquiry.investorSummary ? (
-              <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-300">
+              <span className="rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-600 inline-flex items-center gap-1">
                 Ratings: <StarSummary summary={inquiry.investorSummary} size="sm" />
               </span>
             ) : null}
           </div>
-          <div className="mt-1 text-xs text-zinc-400">
+          <div className="mt-1 text-xs text-zinc-500">
             Anfrage am {new Date(inquiry.createdAt).toLocaleString("de-DE")}
             {inquiry.respondedAt
               ? ` • Beantwortet am ${new Date(inquiry.respondedAt).toLocaleString("de-DE")}`
@@ -109,44 +109,44 @@ export function InquiryRow({
         </div>
       </div>
 
-      <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-sm text-zinc-100">
-        <div className="text-xs uppercase tracking-wide text-zinc-400">Nachricht</div>
+      <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-800">
+        <div className="text-xs uppercase tracking-wide text-zinc-500">Nachricht</div>
         <div className="mt-1 whitespace-pre-wrap">{inquiry.message}</div>
       </div>
 
       {/* Profil-Auszug */}
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Profil</div>
-          <div className="mt-1 text-xs text-zinc-200">
-            {profile?.bio ? profile.bio : <span className="text-zinc-500">Kein Bio.</span>}
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">Profil</div>
+          <div className="mt-1 text-xs text-zinc-700">
+            {profile?.bio ? profile.bio : <span className="text-zinc-400">Kein Bio.</span>}
           </div>
           <div className="mt-2 text-[10px] text-zinc-500">
             Erfahrung: {profile?.investmentExperienceYears ?? 0} Jahre
           </div>
         </div>
 
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Bonität</div>
-          <div className="mt-1 text-xs text-zinc-200">EK: {eur(profile?.equity)}</div>
-          <div className="text-xs text-zinc-200">Einkommen/Mon.: {eur(profile?.monthlyIncome)}</div>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">Bonität</div>
+          <div className="mt-1 text-xs text-zinc-700">EK: {eur(profile?.equity)}</div>
+          <div className="text-xs text-zinc-700">Einkommen/Mon.: {eur(profile?.monthlyIncome)}</div>
           {aff ? (
-            <div className="mt-2 text-[10px] text-zinc-400">
+            <div className="mt-2 text-[10px] text-zinc-500">
               Max. Darlehen ≈ {eur(aff.maxLoan)}
               <br />
               Max. Investition ≈ {eur(aff.maxInv)}
             </div>
           ) : (
-            <div className="mt-2 text-[10px] text-zinc-500">Keine Bonität angegeben.</div>
+            <div className="mt-2 text-[10px] text-zinc-400">Keine Bonität angegeben.</div>
           )}
         </div>
 
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Trackrecord ({tr.length})</div>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">Trackrecord ({tr.length})</div>
           {tr.length === 0 ? (
-            <div className="mt-1 text-xs text-zinc-500">Keine Einträge.</div>
+            <div className="mt-1 text-xs text-zinc-400">Keine Einträge.</div>
           ) : (
-            <ul className="mt-1 space-y-1 text-[11px] text-zinc-300">
+            <ul className="mt-1 space-y-1 text-[11px] text-zinc-600">
               {tr.slice(0, 4).map((t) => (
                 <li key={t.id}>
                   {t.year} • {ASSET_TYPE_LABELS[t.type]} • {TRACKRECORD_ROLE_LABELS[t.role]} • {t.location}
@@ -154,7 +154,7 @@ export function InquiryRow({
                 </li>
               ))}
               {tr.length > 4 ? (
-                <li className="text-zinc-500">... +{tr.length - 4} weitere</li>
+                <li className="text-zinc-400">... +{tr.length - 4} weitere</li>
               ) : null}
             </ul>
           )}
@@ -163,9 +163,9 @@ export function InquiryRow({
 
       {/* Antwort vom Verkäufer (wenn schon beantwortet) */}
       {inquiry.response ? (
-        <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-sm">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Deine Antwort</div>
-          <div className="mt-1 whitespace-pre-wrap text-zinc-200">{inquiry.response}</div>
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">Deine Antwort</div>
+          <div className="mt-1 whitespace-pre-wrap text-zinc-700">{inquiry.response}</div>
         </div>
       ) : null}
 
@@ -177,30 +177,30 @@ export function InquiryRow({
       ) : null}
 
       {inquiry.myRating ? (
-        <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">
             Deine Bewertung über den Investor
           </div>
-          <div className="mt-1 text-amber-400">
+          <div className="mt-1 text-amber-500">
             {"★".repeat(inquiry.myRating.stars)}
-            <span className="text-zinc-700">{"★".repeat(5 - inquiry.myRating.stars)}</span>
-            <span className="ml-2 text-xs text-zinc-300">{inquiry.myRating.stars}/5</span>
+            <span className="text-zinc-300">{"★".repeat(5 - inquiry.myRating.stars)}</span>
+            <span className="ml-2 text-xs text-zinc-600">{inquiry.myRating.stars}/5</span>
           </div>
-          <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{inquiry.myRating.body}</div>
+          <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">{inquiry.myRating.body}</div>
         </div>
       ) : null}
 
       {inquiry.investorRatingOnMe ? (
-        <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">
             Bewertung des Investors über dich
           </div>
-          <div className="mt-1 text-amber-400">
+          <div className="mt-1 text-amber-500">
             {"★".repeat(inquiry.investorRatingOnMe.stars)}
-            <span className="text-zinc-700">{"★".repeat(5 - inquiry.investorRatingOnMe.stars)}</span>
-            <span className="ml-2 text-xs text-zinc-300">{inquiry.investorRatingOnMe.stars}/5</span>
+            <span className="text-zinc-300">{"★".repeat(5 - inquiry.investorRatingOnMe.stars)}</span>
+            <span className="ml-2 text-xs text-zinc-600">{inquiry.investorRatingOnMe.stars}/5</span>
           </div>
-          <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{inquiry.investorRatingOnMe.body}</div>
+          <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">{inquiry.investorRatingOnMe.body}</div>
         </div>
       ) : null}
 
@@ -218,17 +218,17 @@ export function InquiryRow({
                     : "Optional: kurze Begründung der Absage"
                 }
                 rows={3}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              {error ? <div className="text-xs text-rose-300">{error}</div> : null}
+              {error ? <div className="text-xs text-rose-600">{error}</div> : null}
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => respond(open === "accept" ? "ACCEPTED" : "REJECTED")}
                   disabled={busy}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 ${
                     open === "accept"
-                      ? "bg-emerald-500 hover:bg-emerald-600"
-                      : "bg-rose-500 hover:bg-rose-600"
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-rose-600 hover:bg-rose-700"
                   }`}
                 >
                   {busy ? "Sende…" : open === "accept" ? "Annehmen bestätigen" : "Ablehnen bestätigen"}
@@ -240,7 +240,7 @@ export function InquiryRow({
                     setError(null);
                   }}
                   disabled={busy}
-                  className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-700"
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50"
                 >
                   Abbrechen
                 </button>
@@ -250,13 +250,13 @@ export function InquiryRow({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setOpen("accept")}
-                className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600"
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
               >
                 Annehmen
               </button>
               <button
                 onClick={() => setOpen("reject")}
-                className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:border-rose-500 hover:text-rose-300"
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:border-rose-500 hover:text-rose-700"
               >
                 Ablehnen
               </button>

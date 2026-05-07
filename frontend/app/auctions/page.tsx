@@ -61,7 +61,7 @@ export default async function AuctionsPage({
   return (
     <div className="space-y-6">
       {showBanner ? (
-        <div className="rounded-xl border border-emerald-900 bg-emerald-950/40 p-4 text-sm text-emerald-200">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           <strong>{importedNum}</strong> Versteigerung{importedNum === 1 ? "" : "en"} importiert
           {detected ? ` (Quelle: ${detected})` : ""}
           {skippedNum > 0 ? ` · ${skippedNum} übersprungen` : ""}.
@@ -70,14 +70,14 @@ export default async function AuctionsPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-2xl font-semibold">Versteigerungen</div>
-          <div className="mt-1 text-sm text-zinc-400">
+          <div className="text-2xl font-semibold text-zinc-900">Versteigerungen</div>
+          <div className="mt-1 text-sm text-zinc-500">
             Zwangsversteigerungen, DGA-, SDL- und andere Auktionstermine. Bietlimit auf Basis deiner Standard-Annahmen.
           </div>
         </div>
         <Link
           href="/auctions/import"
-          className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
+          className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         >
           Versteigerung importieren
         </Link>
@@ -85,8 +85,8 @@ export default async function AuctionsPage({
 
       <Card title={`Anstehend (${upcoming.length})`}>
         {upcoming.length === 0 ? (
-          <div className="text-sm text-zinc-400">
-            Keine anstehenden Termine. <Link className="underline" href="/auctions/import">Termin importieren</Link>.
+          <div className="text-sm text-zinc-500">
+            Keine anstehenden Termine. <Link className="text-indigo-600 hover:text-indigo-700 underline" href="/auctions/import">Termin importieren</Link>.
           </div>
         ) : (
           <AuctionTable rows={upcoming} />
@@ -109,9 +109,9 @@ export default async function AuctionsPage({
 
   function AuctionTable({ rows, muted = false }: { rows: typeof auctions; muted?: boolean }) {
     return (
-      <div className="overflow-x-auto rounded-xl border border-zinc-900">
+      <div className="overflow-x-auto rounded-xl border border-zinc-200">
         <table className="w-full min-w-[900px] text-left text-xs">
-          <thead className="bg-zinc-950 text-zinc-400">
+          <thead className="bg-zinc-50 text-zinc-500">
             <tr>
               <th className="px-3 py-2 font-medium">Termin</th>
               <th className="px-3 py-2 font-medium">Objekt</th>
@@ -122,15 +122,15 @@ export default async function AuctionsPage({
               <th className="px-3 py-2 font-medium">Typ</th>
             </tr>
           </thead>
-          <tbody className={`divide-y divide-zinc-900 ${muted ? "text-zinc-500" : "text-zinc-200"}`}>
+          <tbody className={`divide-y divide-zinc-200 ${muted ? "text-zinc-400" : "text-zinc-700"}`}>
             {rows.map((p) => (
-              <tr key={p.id} className="hover:bg-zinc-950/60">
+              <tr key={p.id} className="hover:bg-zinc-50">
                 <td className="px-3 py-2 whitespace-nowrap">
                   {p.auction?.auctionDate ? (
                     <div>
                       <div>{formatDate(p.auction.auctionDate)}</div>
                       {!muted ? (
-                        <div className="text-[10px] text-indigo-400">in {daysUntil(p.auction.auctionDate)} Tagen</div>
+                        <div className="text-[10px] text-indigo-600">in {daysUntil(p.auction.auctionDate)} Tagen</div>
                       ) : null}
                     </div>
                   ) : (
@@ -138,7 +138,7 @@ export default async function AuctionsPage({
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <Link href={`/property/${p.id}`} className="font-medium text-white hover:underline">
+                  <Link href={`/property/${p.id}`} className="font-medium text-zinc-900 hover:text-indigo-700 hover:underline">
                     {p.title}
                   </Link>
                 </td>
@@ -148,7 +148,7 @@ export default async function AuctionsPage({
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {p.auction?.bidLimit ? (
-                    <span className="font-semibold text-emerald-400">{eur(p.auction.bidLimit)}</span>
+                    <span className="font-semibold text-emerald-700">{eur(p.auction.bidLimit)}</span>
                   ) : (
                     <span className="text-zinc-500">—</span>
                   )}

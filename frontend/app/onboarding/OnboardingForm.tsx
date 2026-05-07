@@ -51,13 +51,13 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div>
-        <label className="text-xs text-zinc-400">Anzeigename (optional)</label>
+        <label className="text-xs text-zinc-500">Anzeigename (optional)</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="z. B. Marco Dahm"
-          className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+          className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
         />
       </div>
 
@@ -71,13 +71,13 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
               onClick={() => setRole(r)}
               className={`rounded-xl border p-4 text-left transition ${
                 active
-                  ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"
+                  ? "border-indigo-500 bg-indigo-50"
+                  : "border-zinc-200 bg-white hover:border-zinc-300"
               }`}
             >
-              <div className="text-sm font-semibold text-white">{USER_ROLE_LABELS[r]}</div>
-              <div className="mt-2 text-xs text-zinc-400">{ROLE_DESCRIPTIONS[r]}</div>
-              <div className={`mt-3 text-[10px] uppercase tracking-wide ${active ? "text-indigo-300" : "text-zinc-600"}`}>
+              <div className="text-sm font-semibold text-zinc-900">{USER_ROLE_LABELS[r]}</div>
+              <div className="mt-2 text-xs text-zinc-500">{ROLE_DESCRIPTIONS[r]}</div>
+              <div className={`mt-3 text-[10px] uppercase tracking-wide ${active ? "text-indigo-700" : "text-zinc-400"}`}>
                 {active ? "Ausgewählt" : "Auswählen"}
               </div>
             </button>
@@ -89,11 +89,11 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
         <button
           type="submit"
           disabled={busy}
-          className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50"
+          className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {busy ? "Speichern…" : "Weiter zum Dashboard"}
         </button>
-        {error ? <span className="text-xs text-rose-300">{error}</span> : null}
+        {error ? <span className="text-xs text-rose-600">{error}</span> : null}
       </div>
     </form>
   );

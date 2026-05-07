@@ -103,7 +103,7 @@ export function NewListingForm() {
           <select
             value={propertyType}
             onChange={(e) => setPropertyType(e.target.value as AssetTypeT)}
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           >
             {ASSET_TYPES.map((t) => (
               <option key={t} value={t}>{ASSET_TYPE_LABELS[t]}</option>
@@ -165,7 +165,7 @@ export function NewListingForm() {
         />
       </div>
 
-      {error ? <div className="text-sm text-rose-400">{error}</div> : null}
+      {error ? <div className="text-sm text-rose-600">{error}</div> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={busy}>

@@ -14,8 +14,8 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-2xl font-semibold">Mein Profil</div>
-        <div className="mt-1 text-sm text-zinc-400">
+        <div className="text-2xl font-semibold text-zinc-900">Mein Profil</div>
+        <div className="mt-1 text-sm text-zinc-500">
           Investor-Profil und Trackrecord. Verkäufer sehen diese Daten nur, wenn deine
           Sichtbarkeit das erlaubt — und je nach Stufe erst nach einer Anfrage.
         </div>
@@ -26,38 +26,38 @@ export default async function ProfilePage() {
           <StarSummary summary={ratings.summary} size="lg" />
         </div>
         {ratings.ratings.length > 0 ? (
-          <div className="mt-4 divide-y divide-zinc-900">
+          <div className="mt-4 divide-y divide-zinc-200">
             {ratings.ratings.map((r) => (
               <div key={r.id} className="space-y-2 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-amber-400 text-sm">
+                  <div className="text-amber-500 text-sm">
                     {"★".repeat(r.stars)}
-                    <span className="text-zinc-700">{"★".repeat(5 - r.stars)}</span>
+                    <span className="text-zinc-300">{"★".repeat(5 - r.stars)}</span>
                   </div>
-                  <span className="text-xs text-zinc-300">
+                  <span className="text-xs text-zinc-600">
                     von {r.fromUser.name ?? "Anonym"}
                   </span>
-                  <span className="text-[10px] text-zinc-500">
+                  <span className="text-[10px] text-zinc-400">
                     {new Date(r.createdAt).toLocaleDateString("de-DE")}
                   </span>
                 </div>
                 <div className="text-xs text-zinc-500">
                   Deal: {r.inquiry.listing.title} ({r.inquiry.listing.city})
                 </div>
-                <div className="whitespace-pre-wrap text-sm text-zinc-200">{r.body}</div>
+                <div className="whitespace-pre-wrap text-sm text-zinc-700">{r.body}</div>
                 {r.rebuttal ? (
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-                    <div className="text-xs uppercase tracking-wide text-zinc-400">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                    <div className="text-xs uppercase tracking-wide text-zinc-500">
                       Deine Gegendarstellung
                     </div>
-                    <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{r.rebuttal}</div>
+                    <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">{r.rebuttal}</div>
                   </div>
                 ) : null}
               </div>
             ))}
           </div>
         ) : (
-          <div className="mt-3 text-sm text-zinc-400">
+          <div className="mt-3 text-sm text-zinc-500">
             Bewertungen sind nach abgeschlossenen Deals (Listing-Status: Verkauft) möglich.
           </div>
         )}

@@ -34,11 +34,11 @@ export function InquiryActions({
   // Verkäufer sieht keine Anfrage-Aktion auf eigenes Listing
   if (isOwner) {
     return (
-      <div className="space-y-3 text-sm text-zinc-300">
+      <div className="space-y-3 text-sm text-zinc-600">
         <div>Du bist der Verkäufer dieses Listings.</div>
         <Link
           href={`/listings/${listingId}/inquiries`}
-          className="inline-block rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+          className="inline-block rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
         >
           Anfragen ansehen
         </Link>
@@ -50,13 +50,13 @@ export function InquiryActions({
     if (myInquiry.status === "PENDING") {
       return (
         <div className="space-y-3">
-          <div className="rounded-xl border border-amber-900 bg-amber-950/30 p-3 text-sm text-amber-100">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             Deine Anfrage ist <span className="font-semibold">offen</span> und wartet auf Antwort
             des Verkäufers.
           </div>
           <Link
             href={`/inquiries/${myInquiry.id}`}
-            className="inline-block rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:border-zinc-700"
+            className="inline-block rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50"
           >
             Anfrage ansehen
           </Link>
@@ -66,13 +66,13 @@ export function InquiryActions({
     if (myInquiry.status === "ACCEPTED") {
       return (
         <div className="space-y-3">
-          <div className="rounded-xl border border-emerald-900 bg-emerald-950/30 p-3 text-sm text-emerald-100">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
             Deine Anfrage wurde <span className="font-semibold">angenommen</span>. Vollständige
             Adresse und Verkäufer-Kontakt sind freigegeben.
           </div>
           <Link
             href={`/inquiries/${myInquiry.id}`}
-            className="inline-block rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-600"
+            className="inline-block rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
           >
             Details ansehen
           </Link>
@@ -84,7 +84,7 @@ export function InquiryActions({
   // Listings, die nicht ACTIVE sind, können nicht angefragt werden
   if (listingStatus !== "ACTIVE") {
     return (
-      <div className="text-sm text-zinc-400">
+      <div className="text-sm text-zinc-500">
         Dieses Listing ist {listingStatus === "IN_NEGOTIATION" ? "bereits in Verhandlung" : "nicht aktiv"}.
         Anfragen sind aktuell nicht möglich.
       </div>
@@ -121,7 +121,7 @@ export function InquiryActions({
   if (!open) {
     return (
       <div className="space-y-2">
-        <div className="text-sm text-zinc-300">
+        <div className="text-sm text-zinc-600">
           Wenn du anfragst, sieht der Verkäufer dein Investor-Profil (Bonität, Trackrecord, Präferenzen).
           Bei einer Annahme wird die vollständige Adresse für dich freigegeben.
         </div>
@@ -141,7 +141,7 @@ export function InquiryActions({
       <div className="text-xs text-zinc-500">
         {message.length} Zeichen — mindestens 10, höchstens 4000.
       </div>
-      {error ? <div className="text-xs text-rose-300">{error}</div> : null}
+      {error ? <div className="text-xs text-rose-600">{error}</div> : null}
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={busy}>
           {busy ? "Sende…" : "Anfrage absenden"}

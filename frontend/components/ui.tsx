@@ -4,10 +4,15 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTML
 import type { DealStatus } from "@/lib/api";
 import { STATUS_LABELS } from "@/lib/api";
 
-export function Card({ title, children }: { title?: string; children: ReactNode }) {
+export function Card({ title, children, action }: { title?: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="rounded-2xl border bg-zinc-950/40 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
-      {title ? <div className="mb-4 text-sm font-semibold text-white">{title}</div> : null}
+    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      {title || action ? (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {title ? <div className="text-sm font-semibold text-zinc-900">{title}</div> : <span />}
+          {action ? <div>{action}</div> : null}
+        </div>
+      ) : null}
       {children}
     </div>
   );
@@ -21,12 +26,12 @@ export function Button({
     "inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed";
   const styles =
     variant === "primary"
-      ? "bg-white text-zinc-950 hover:bg-zinc-200"
+      ? "bg-zinc-900 text-white hover:bg-zinc-800"
       : variant === "danger"
-        ? "bg-rose-500 text-white hover:bg-rose-600"
+        ? "bg-rose-600 text-white hover:bg-rose-700"
         : variant === "ghost"
-          ? "bg-transparent text-zinc-300 hover:bg-zinc-900 hover:text-white"
-          : "bg-zinc-900 text-white hover:bg-zinc-800";
+          ? "bg-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+          : "border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50";
   return <button {...props} className={`${base} ${styles} ${props.className ?? ""}`} />;
 }
 
@@ -34,7 +39,7 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-10 w-full rounded-xl border bg-zinc-950 px-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${props.className ?? ""}`}
+      className={`h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${props.className ?? ""}`}
     />
   );
 }
@@ -43,7 +48,7 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`min-h-[80px] w-full rounded-xl border bg-zinc-950 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${props.className ?? ""}`}
+      className={`min-h-[80px] w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${props.className ?? ""}`}
     />
   );
 }
@@ -52,32 +57,32 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`h-10 w-full rounded-xl border bg-zinc-950 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${props.className ?? ""}`}
+      className={`h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${props.className ?? ""}`}
     />
   );
 }
 
 export function Label({ children }: { children: ReactNode }) {
-  return <div className="mb-1 text-xs font-medium text-zinc-400">{children}</div>;
+  return <div className="mb-1 text-xs font-medium text-zinc-600">{children}</div>;
 }
 
 export function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-xl border bg-zinc-950 p-3">
-      <div className="text-xs text-zinc-400">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+    <div className="rounded-xl border border-zinc-200 bg-white p-3">
+      <div className="text-xs text-zinc-500">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-zinc-900">{value}</div>
     </div>
   );
 }
 
 const STATUS_BADGE_STYLES: Record<DealStatus, string> = {
-  WATCHING: "bg-zinc-800 text-zinc-200 border-zinc-700",
-  INQUIRED: "bg-blue-950 text-blue-300 border-blue-900",
-  NEGOTIATING: "bg-amber-950 text-amber-300 border-amber-900",
-  LOI: "bg-purple-950 text-purple-300 border-purple-900",
-  NOTAR: "bg-indigo-950 text-indigo-300 border-indigo-900",
-  CLOSED: "bg-emerald-950 text-emerald-300 border-emerald-900",
-  REJECTED: "bg-rose-950 text-rose-300 border-rose-900"
+  WATCHING: "bg-zinc-100 text-zinc-700 border-zinc-200",
+  INQUIRED: "bg-blue-50 text-blue-700 border-blue-200",
+  NEGOTIATING: "bg-amber-50 text-amber-800 border-amber-200",
+  LOI: "bg-purple-50 text-purple-700 border-purple-200",
+  NOTAR: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  CLOSED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  REJECTED: "bg-rose-50 text-rose-700 border-rose-200"
 };
 
 export function StatusBadge({ status, size = "md" }: { status: DealStatus; size?: "sm" | "md" }) {

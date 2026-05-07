@@ -29,12 +29,12 @@ export default async function MarketplaceDetailPage({ params }: { params: { id: 
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-2xl font-semibold">{l.title}</div>
-          <div className="mt-1 text-sm text-zinc-400">
+          <div className="text-2xl font-semibold text-zinc-900">{l.title}</div>
+          <div className="mt-1 text-sm text-zinc-500">
             {ASSET_TYPE_LABELS[l.propertyType]} • {locationParts.join(", ")}
           </div>
         </div>
-        <Link href="/marketplace" className="text-sm text-zinc-300 hover:underline">
+        <Link href="/marketplace" className="text-sm text-zinc-600 hover:text-indigo-700 hover:underline">
           ← Zurück
         </Link>
       </div>
@@ -48,7 +48,7 @@ export default async function MarketplaceDetailPage({ params }: { params: { id: 
                 key={img.id}
                 src={img.url}
                 alt={img.alt ?? ""}
-                className="aspect-video w-full rounded-lg border border-zinc-800 object-cover"
+                className="aspect-video w-full rounded-lg border border-zinc-200 object-cover"
               />
             ))}
           </div>
@@ -91,7 +91,7 @@ export default async function MarketplaceDetailPage({ params }: { params: { id: 
             <Stat label="Name" value={l.owner.name ?? "Anonym"} />
             <Stat label="Rolle" value={l.owner.role === "INVESTOR" ? "Investor" : l.owner.role === "SELLER" ? "Verkäufer" : "Beides"} />
             <div className="flex items-center gap-2">
-              <span className="text-xs text-zinc-400">Bewertung:</span>
+              <span className="text-xs text-zinc-500">Bewertung:</span>
               <StarSummary summary={l.sellerRating ?? null} size="md" />
             </div>
           </div>
@@ -100,7 +100,7 @@ export default async function MarketplaceDetailPage({ params }: { params: { id: 
 
       {l.description.trim() ? (
         <Card title="Beschreibung">
-          <div className="whitespace-pre-wrap text-sm text-zinc-200">{l.description}</div>
+          <div className="whitespace-pre-wrap text-sm text-zinc-700">{l.description}</div>
         </Card>
       ) : null}
 

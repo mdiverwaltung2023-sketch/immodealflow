@@ -117,7 +117,7 @@ export function NewPropertyForm() {
     <>
       <Card title="Schnell-Import aus Inserat">
         <div className="space-y-3">
-          <div className="text-xs text-zinc-400">
+          <div className="text-xs text-zinc-500">
             Kopiere den Inserats-Text (z. B. von Immoscout24, Immowelt, eBay-Kleinanzeigen)
             und Claude extrahiert Titel, Preis, Miete, Lage und Größe automatisch.
           </div>
@@ -151,7 +151,7 @@ export function NewPropertyForm() {
               </div>
             </div>
           )}
-          {importNote ? <div className="text-sm text-zinc-300">{importNote}</div> : null}
+          {importNote ? <div className="text-sm text-zinc-600">{importNote}</div> : null}
         </div>
       </Card>
 
@@ -203,7 +203,7 @@ export function NewPropertyForm() {
             </div>
           </div>
 
-          {error ? <div className="text-sm text-rose-400">{error}</div> : null}
+          {error ? <div className="text-sm text-rose-600">{error}</div> : null}
 
           <div className="flex items-center gap-2">
             <Button type="submit" disabled={busy || !parsed.success}>

@@ -23,10 +23,10 @@ export default async function ListingInquiriesPage({ params }: { params: { id: s
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-2xl font-semibold">Anfragen</div>
-          <div className="mt-1 text-sm text-zinc-400">
+          <div className="text-2xl font-semibold text-zinc-900">Anfragen</div>
+          <div className="mt-1 text-sm text-zinc-500">
             {listing.title} • Status:{" "}
-            <span className="font-semibold text-white">
+            <span className="font-semibold text-zinc-900">
               {LISTING_STATUS_LABELS[response.listingStatus]}
             </span>
           </div>
@@ -39,7 +39,7 @@ export default async function ListingInquiriesPage({ params }: { params: { id: s
         </div>
         <Link
           href={`/listings/${params.id}/edit`}
-          className="text-sm text-zinc-300 hover:underline"
+          className="text-sm text-zinc-600 hover:text-indigo-700 hover:underline"
         >
           ← Zum Listing
         </Link>
@@ -47,9 +47,9 @@ export default async function ListingInquiriesPage({ params }: { params: { id: s
 
       <Card title={`Offene Anfragen (${pending.length})`}>
         {pending.length === 0 ? (
-          <div className="text-sm text-zinc-400">
+          <div className="text-sm text-zinc-500">
             Keine offenen Anfragen. Stelle dein Listing auf{" "}
-            <span className="font-semibold text-white">Aktiv</span>, damit Investoren es sehen.
+            <span className="font-semibold text-zinc-900">Aktiv</span>, damit Investoren es sehen.
           </div>
         ) : (
           <div className="space-y-4">

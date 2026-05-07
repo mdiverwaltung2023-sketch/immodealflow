@@ -29,9 +29,9 @@ function formatDate(iso: string) {
 }
 
 const RATING_STYLES: Record<string, string> = {
-  below_market: "bg-emerald-950 text-emerald-300 border-emerald-900",
-  fair: "bg-zinc-800 text-zinc-200 border-zinc-700",
-  above_market: "bg-rose-950 text-rose-300 border-rose-900"
+  below_market: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  fair: "bg-zinc-100 text-zinc-700 border-zinc-200",
+  above_market: "bg-rose-50 text-rose-700 border-rose-200"
 };
 
 export function MarketComparisonPanel({
@@ -84,36 +84,36 @@ export function MarketComparisonPanel({
             {MARKET_RATING_LABELS[mc.rating]}
           </span>
         ) : null}
-        {error ? <span className="text-sm text-rose-400">{error}</span> : null}
+        {error ? <span className="text-sm text-rose-600">{error}</span> : null}
       </div>
 
       {mc ? (
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border bg-zinc-950 p-4">
-              <div className="text-xs text-zinc-400">Kaltmiete pro m² (Spanne)</div>
-              <div className="mt-1 text-base font-semibold text-white">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+              <div className="text-xs text-zinc-500">Kaltmiete pro m² (Spanne)</div>
+              <div className="mt-1 text-base font-semibold text-zinc-900">
                 {mc.rentPerSqmLow.toFixed(2)} – {mc.rentPerSqmHigh.toFixed(2)} €
               </div>
-              <div className="mt-2 text-xs text-zinc-400">
-                Dieses Objekt: <span className="text-zinc-200">{ownRentPerSqm.toFixed(2)} €/m²</span>
+              <div className="mt-2 text-xs text-zinc-500">
+                Dieses Objekt: <span className="text-zinc-700">{ownRentPerSqm.toFixed(2)} €/m²</span>
               </div>
             </div>
 
-            <div className="rounded-xl border bg-zinc-950 p-4">
-              <div className="text-xs text-zinc-400">Kaufpreis pro m² (Spanne)</div>
-              <div className="mt-1 text-base font-semibold text-white">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+              <div className="text-xs text-zinc-500">Kaufpreis pro m² (Spanne)</div>
+              <div className="mt-1 text-base font-semibold text-zinc-900">
                 {eur(mc.pricePerSqmLow)} – {eur(mc.pricePerSqmHigh)}
               </div>
-              <div className="mt-2 text-xs text-zinc-400">
-                Dieses Objekt: <span className="text-zinc-200">{eur(ownPricePerSqm)}/m²</span>
+              <div className="mt-2 text-xs text-zinc-500">
+                Dieses Objekt: <span className="text-zinc-700">{eur(ownPricePerSqm)}/m²</span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-xl border bg-zinc-950 p-4">
-            <div className="text-xs text-zinc-400">Bewertung</div>
-            <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">{mc.rationale}</div>
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="text-xs text-zinc-500">Bewertung</div>
+            <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-800">{mc.rationale}</div>
           </div>
 
           <div className="text-xs text-zinc-500">
@@ -122,7 +122,7 @@ export function MarketComparisonPanel({
           </div>
         </div>
       ) : (
-        <div className="text-sm text-zinc-400">
+        <div className="text-sm text-zinc-500">
           Noch kein Marktvergleich. Claude schätzt typische Spannen für Kaufpreis und Miete pro m² in dieser Lage und vergleicht das Objekt damit.
         </div>
       )}

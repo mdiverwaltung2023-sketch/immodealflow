@@ -78,17 +78,17 @@ function BookmarkletPageInner({
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-2xl font-semibold">Infinity Oikos-Bookmarklet</div>
-        <div className="mt-1 text-sm text-zinc-400">
+        <div className="text-2xl font-semibold text-zinc-900">Infinity Oikos-Bookmarklet</div>
+        <div className="mt-1 text-sm text-zinc-500">
           Ein-Klick-Import von jeder beliebigen Immobilien- oder Auktions-Seite. Funktioniert auch dort, wo unser Server-Crawler an JavaScript-Seiten scheitert (DGA, SDL, Immoscout24, Immowelt, Kleinanzeigen.de …).
         </div>
       </div>
 
       <Card title="Schritt 1 — Lesezeichen-Leiste einblenden">
-        <div className="space-y-2 text-sm text-zinc-300">
+        <div className="space-y-2 text-sm text-zinc-700">
           <p>Falls deine Lesezeichen-Leiste nicht sichtbar ist:</p>
-          <ul className="list-disc pl-5 text-zinc-400">
-            <li><strong>Chrome/Edge</strong>: <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs">Strg + Umschalt + B</kbd></li>
+          <ul className="list-disc pl-5 text-zinc-500">
+            <li><strong>Chrome/Edge</strong>: <kbd className="rounded bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 text-xs text-zinc-700">Strg + Umschalt + B</kbd></li>
             <li><strong>Firefox</strong>: Menü → Lesezeichen → Lesezeichen-Symbolleiste anzeigen</li>
             <li><strong>Safari</strong>: Darstellung → Favoriten-Leiste einblenden</li>
           </ul>
@@ -96,7 +96,7 @@ function BookmarkletPageInner({
       </Card>
 
       <Card title="Schritt 2 — Bookmarklet hinzufügen">
-        <div className="space-y-3 text-sm text-zinc-300">
+        <div className="space-y-3 text-sm text-zinc-700">
           <p>
             Ziehe diesen Knopf <strong>per Drag-and-Drop</strong> in deine Lesezeichen-Leiste:
           </p>
@@ -109,14 +109,14 @@ function BookmarkletPageInner({
                 e.preventDefault();
                 alert("Drag-and-drop diesen Knopf in die Lesezeichen-Leiste — nicht klicken (sonst läuft das Bookmarklet auf dieser Infinity Oikos-Seite und findet kein Inserat).");
               }}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-600"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-700"
             >
               ⤓ Infinity Oikos Import
             </a>
 
             <button
               onClick={copy}
-              className="inline-flex items-center justify-center rounded-xl bg-zinc-900 px-3 py-2 text-xs font-medium text-white hover:bg-zinc-800"
+              className="inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50"
             >
               {copied ? "URL kopiert!" : "URL stattdessen kopieren"}
             </button>
@@ -129,13 +129,13 @@ function BookmarkletPageInner({
       </Card>
 
       <Card title="Schritt 3 — Auf einer Inserats- oder Auktions-Seite klicken">
-        <div className="space-y-3 text-sm text-zinc-300">
+        <div className="space-y-3 text-sm text-zinc-700">
           <ol className="list-decimal space-y-1 pl-5">
             <li>Du öffnest eine Inserats-Seite (z. B. <code>www.immoscout24.de/expose/...</code>)</li>
             <li>Du klickst in der Lesezeichen-Leiste auf <strong>Infinity Oikos Import</strong></li>
             <li>
               Eine kleine Abfrage erscheint — wähle:
-              <ul className="mt-1 list-disc pl-5 text-zinc-400">
+              <ul className="mt-1 list-disc pl-5 text-zinc-500">
                 <li><strong>1</strong> = einzelnes Inserat (Immoscout, Immowelt, Kleinanzeigen, normale Makler-Seite)</li>
                 <li><strong>2</strong> = einzelne Versteigerung (ZVG-Termin, einzelne DGA-Auktion, einzelne SDL-Auktion)</li>
                 <li><strong>3</strong> = Liste / Katalog (Übersichtsseite mit mehreren Auktionen)</li>
@@ -144,7 +144,7 @@ function BookmarkletPageInner({
             <li>Bei <strong>1</strong> oder <strong>2</strong>: ein neuer Infinity Oikos-Tab öffnet das frisch importierte Property mit Analyse + ggf. Bietlimit. Bei <strong>3</strong>: Sammelimport mit Anzeige der Anzahl.</li>
           </ol>
 
-          <div className="mt-3 rounded-xl border border-amber-900 bg-amber-950/30 p-3 text-xs text-amber-200">
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <strong>Wichtig:</strong> Der Bookmarklet greift nur den sichtbaren Text der Seite ab und schickt ihn an dein Infinity Oikos-Backend. Es lädt keine externen Skripte und braucht keinerlei Einwilligung der Portale — du bist als User selbst auf der Seite.
           </div>
         </div>
@@ -152,10 +152,10 @@ function BookmarkletPageInner({
 
       <Card title="Sourcecode (für Neugierige)">
         <details>
-          <summary className="cursor-pointer text-sm text-zinc-400 hover:text-white">
+          <summary className="cursor-pointer text-sm text-zinc-600 hover:text-zinc-900">
             Bookmarklet-Code anzeigen
           </summary>
-          <pre className="mt-3 overflow-x-auto rounded-xl border bg-zinc-950 p-3 text-xs text-zinc-300">
+          <pre className="mt-3 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-xs text-zinc-100">
             <code>{bookmarkletSource}</code>
           </pre>
         </details>

@@ -35,7 +35,7 @@ export function StatusEditor({ id, initialStatus }: { id: string; initialStatus:
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-zinc-400">Aktuell:</span>
+        <span className="text-xs text-zinc-500">Aktuell:</span>
         <StatusBadge status={status} />
       </div>
       <div className="flex flex-wrap gap-2">
@@ -51,7 +51,7 @@ export function StatusEditor({ id, initialStatus }: { id: string; initialStatus:
           </Button>
         ))}
       </div>
-      {error ? <div className="text-sm text-rose-400">{error}</div> : null}
+      {error ? <div className="text-sm text-rose-600">{error}</div> : null}
     </div>
   );
 }

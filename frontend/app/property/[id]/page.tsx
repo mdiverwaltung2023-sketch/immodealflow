@@ -23,16 +23,16 @@ export default async function PropertyPage({ params }: { params: { id: string } 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-2xl font-semibold">{p.title}</div>
+            <div className="text-2xl font-semibold text-zinc-900">{p.title}</div>
             <StatusBadge status={p.status} />
           </div>
-          <div className="mt-1 text-sm text-zinc-400">
+          <div className="mt-1 text-sm text-zinc-500">
             {p.location} • {p.size} m² • Preis {eur(p.price)} • Miete {eur(p.rent)}/Monat
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <PropertyHeaderActions id={p.id} />
-          <Link href="/dashboard" className="text-sm text-zinc-300 hover:underline">
+          <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-indigo-700 hover:underline">
             ← Zurück zum Dashboard
           </Link>
         </div>
@@ -61,8 +61,8 @@ export default async function PropertyPage({ params }: { params: { id: string } 
           {latestAnalysis ? (
             <div className="grid gap-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-400">Szenario</span>
-                <span className="text-sm font-semibold text-white">{latestAnalysis.scenarioName}</span>
+                <span className="text-xs text-zinc-500">Szenario</span>
+                <span className="text-sm font-semibold text-zinc-900">{latestAnalysis.scenarioName}</span>
               </div>
               <Stat label="Bruttorendite" value={`${latestAnalysis.grossYield.toFixed(2)} %`} />
               <Stat label="Nettorendite" value={`${latestAnalysis.netYield.toFixed(2)} %`} />
@@ -70,7 +70,7 @@ export default async function PropertyPage({ params }: { params: { id: string } 
               <Stat label="Score" value={`${latestAnalysis.score} / 100`} />
             </div>
           ) : (
-            <div className="text-sm text-zinc-400">
+            <div className="text-sm text-zinc-500">
               Noch keine Analyse vorhanden. Lege unten ein Szenario an.
             </div>
           )}
@@ -80,13 +80,13 @@ export default async function PropertyPage({ params }: { params: { id: string } 
           {p.offer ? (
             <div className="space-y-3">
               <Stat label="Vorgeschlagener Kaufpreis" value={eur(p.offer.suggestedPrice)} />
-              <div className="rounded-xl border bg-zinc-950 p-3">
-                <div className="text-xs text-zinc-400">Nachricht</div>
-                <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">{p.offer.message}</div>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <div className="text-xs text-zinc-500">Nachricht</div>
+                <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-800">{p.offer.message}</div>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-zinc-400">
+            <div className="text-sm text-zinc-500">
               Noch kein Angebot vorhanden. Erzeuge es im Dashboard über „Angebot generieren".
             </div>
           )}

@@ -37,7 +37,6 @@ type Search = {
 export default async function MarketplacePage({ searchParams }: { searchParams?: Search }) {
   await requireOnboardedUser();
 
-  // Filter aus URL bauen
   const params = new URLSearchParams();
   if (searchParams?.city) params.set("city", searchParams.city);
   if (searchParams?.type) {
@@ -60,10 +59,9 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-2xl font-semibold">Marketplace</div>
-        <div className="mt-1 text-sm text-zinc-400">
+        <div className="text-2xl font-semibold text-zinc-900">Marketplace</div>
+        <div className="mt-1 text-sm text-zinc-500">
           Aktive Inserate für MFH und Gewerbe. Lage-Details abhängig von der Anonymisierungsstufe des Verkäufers.
-          Anfragen + Profil-Sichtbarkeit kommen mit Phase D.
         </div>
       </div>
 
@@ -83,7 +81,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
 
       <Card title={`Ergebnisse (${listings.length})`}>
         {listings.length === 0 ? (
-          <div className="text-sm text-zinc-400">
+          <div className="text-sm text-zinc-500">
             Keine Listings passend zu deinem Filter. Versuche eine andere Stadt oder weitere Preisspanne.
           </div>
         ) : (
@@ -95,7 +93,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
                 <Link
                   key={l.id}
                   href={`/marketplace/${l.id}`}
-                  className="group flex flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 transition hover:border-zinc-700"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md hover:border-zinc-300"
                 >
                   {cover ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -105,22 +103,25 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
                       className="aspect-video w-full object-cover"
                     />
                   ) : (
-                    <div className="flex aspect-video items-center justify-center bg-zinc-900 text-xs text-zinc-600">
+                    <div className="flex aspect-video items-center justify-center bg-zinc-100 text-xs text-zinc-400">
                       Kein Bild
                     </div>
                   )}
                   <div className="space-y-2 p-4">
-                    <div className="text-sm font-semibold text-white group-hover:underline">
+                    <div className="text-[10px] uppercase tracking-wide text-indigo-600 font-semibold">
+                      {ASSET_TYPE_LABELS[l.propertyType]}
+                    </div>
+                    <div className="text-sm font-semibold text-zinc-900 group-hover:text-indigo-700 line-clamp-2">
                       {l.title}
                     </div>
-                    <div className="text-xs text-zinc-400">
-                      {ASSET_TYPE_LABELS[l.propertyType]} • {locationStr}
+                    <div className="text-xs text-zinc-500">{locationStr}</div>
+                    <div className="text-sm font-semibold text-zinc-900 pt-1">
+                      {eur(l.askingPrice)}
                     </div>
-                    <div className="text-xs text-zinc-300">
-                      {eur(l.askingPrice)} • {l.totalArea} m²
-                      {l.totalRent ? ` • ${eur(l.totalRent)}/Mon.` : ""}
+                    <div className="text-[11px] text-zinc-500">
+                      {l.totalArea} m²{l.totalRent ? ` · ${eur(l.totalRent)}/Mon.` : ""}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-500">
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-zinc-500">
                       <span>Verkäufer: {l.owner.name ?? "Anonym"}</span>
                       <StarSummary summary={l.sellerRating ?? null} size="sm" withCount />
                     </div>

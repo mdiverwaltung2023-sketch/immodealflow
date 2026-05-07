@@ -32,8 +32,8 @@ export function StarSummary({
       : "text-xs";
   return (
     <span className={`inline-flex items-center gap-1 ${cls}`}>
-      <span className="text-amber-400">{stars}</span>
-      <span className="text-zinc-200">{avg.toFixed(1)}</span>
+      <span className="text-amber-500">{stars}</span>
+      <span className="text-zinc-700">{avg.toFixed(1)}</span>
       {withCount ? (
         <span className="text-zinc-500">({summary.count})</span>
       ) : null}
@@ -62,14 +62,14 @@ export function StarPicker({
           disabled={disabled}
           onClick={() => onChange(n)}
           className={`text-2xl transition disabled:opacity-50 ${
-            value >= n ? "text-amber-400" : "text-zinc-700 hover:text-zinc-500"
+            value >= n ? "text-amber-500" : "text-zinc-300 hover:text-zinc-400"
           }`}
           aria-label={`${n} Sterne`}
         >
           ★
         </button>
       ))}
-      <span className="ml-2 text-xs text-zinc-400">{value}/5</span>
+      <span className="ml-2 text-xs text-zinc-500">{value}/5</span>
     </div>
   );
 }

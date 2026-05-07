@@ -1,37 +1,49 @@
 import Link from "next/link";
 import { z } from "zod";
-import { PropertyListItemSchema, STATUS_ORDER, STATUS_LABELS, DealStatusEnum, type DealStatus } from "@/lib/api";
+import {
+  PropertyListItemSchema,
+  ListingSchema,
+  MarketplaceListingSchema,
+  RatingSummarySchema,
+  ASSET_TYPE_LABELS,
+  type ListingStatusT,
+  type DealStatus
+} from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
-import { Card, StatusBadge } from "@/components/ui";
-import { PropertyActions } from "./PropertyActions";
 import { ClaimLegacyBanner } from "./ClaimLegacyBanner";
 
 const PropertiesSchema = z.array(PropertyListItemSchema);
+const MyListingsSchema = z.array(ListingSchema);
+const MarketplaceListingWithRatingSchema = MarketplaceListingSchema.extend({
+  sellerRating: RatingSummarySchema.optional()
+});
+const MarketplaceSchema = z.array(MarketplaceListingWithRatingSchema);
 
 function eur(n: number) {
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
+  return new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0
+  }).format(n);
 }
 
-type Search = { status?: string };
-
-export default async function DashboardPage({ searchParams }: { searchParams?: Search }) {
-  // Guard zuerst — redirected ggf. auf /onboarding und liefert User mit
+export default async function DashboardPage() {
   const me = await requireOnboardedUser();
 
-  const statusFilter = (() => {
-    const raw = searchParams?.status;
-    const parsed = raw ? DealStatusEnum.safeParse(raw) : null;
-    return parsed?.success ? parsed.data : null;
-  })();
+  // Daten parallel laden — alle individuell mit Fallback, damit ein 404 nicht
+  // die ganze Seite kippt.
+  const [properties, myListings, marketplace] = await Promise.all([
+    apiGet("/properties", PropertiesSchema).catch(() => []),
+    apiGet("/me/listings", MyListingsSchema).catch(() => []),
+    apiGet("/marketplace", MarketplaceSchema).catch(() => [])
+  ]);
 
-  const path = statusFilter ? `/properties?status=${statusFilter}` : "/properties";
-  const properties = await apiGet(path, PropertiesSchema);
+  // KPIs ableiten
+  const pipelineValue = properties.reduce((sum, p) => sum + (p.price ?? 0), 0);
+  const activeListings = myListings.filter((l) => l.status === "ACTIVE").length;
+  const inNegotiation = myListings.filter((l) => l.status === "IN_NEGOTIATION").length;
 
-  // Counts (zweiter Call ohne Filter, damit die Tabs immer Anzahl zeigen — oder von properties wenn kein Filter)
-  const all = statusFilter ? await apiGet("/properties", PropertiesSchema) : properties;
-
-  const counts: Record<DealStatus | "ALL", number> = {
-    ALL: all.length,
+  const dealStatusCounts: Record<DealStatus, number> = {
     WATCHING: 0,
     INQUIRED: 0,
     NEGOTIATING: 0,
@@ -40,91 +52,282 @@ export default async function DashboardPage({ searchParams }: { searchParams?: S
     CLOSED: 0,
     REJECTED: 0
   };
-  all.forEach((p) => {
-    counts[p.status]++;
+  properties.forEach((p) => {
+    dealStatusCounts[p.status]++;
   });
 
+  const listingStatusCounts: Record<ListingStatusT, number> = {
+    DRAFT: 0,
+    ACTIVE: 0,
+    IN_NEGOTIATION: 0,
+    SOLD: 0,
+    ARCHIVED: 0
+  };
+  myListings.forEach((l) => {
+    listingStatusCounts[l.status]++;
+  });
+
+  // Top-6 Marketplace-Tiles für die "Inserate auf der ersten Seite"
+  const tiles = marketplace.slice(0, 6);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <ClaimLegacyBanner count={me.legacyCount ?? 0} />
 
+      {/* Hero-Header: Begrüßung + primäre CTAs */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-2xl font-semibold">Dashboard</div>
-          <div className="mt-1 text-sm text-zinc-400">
-            Properties anlegen, analysieren und Angebot generieren.
+          <div className="text-2xl font-semibold text-zinc-900">
+            Willkommen zurück{me.name ? `, ${me.name.split(" ")[0]}` : ""}.
+          </div>
+          <div className="mt-1 text-sm text-zinc-500">
+            Marketplace für MFH und Gewerbe — Verkäufer sehen dein Investor-Profil.
           </div>
         </div>
-        <Link
-          href="/new"
-          className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
-        >
-          Neues Objekt
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/marketplace"
+            className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+          >
+            Marketplace
+          </Link>
+          <Link
+            href="/listings/new"
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+          >
+            Listing anlegen
+          </Link>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <FilterTab href="/dashboard" active={!statusFilter} label="Alle" count={counts.ALL} />
-        {STATUS_ORDER.map((s) => (
-          <FilterTab
-            key={s}
-            href={`/dashboard?status=${s}`}
-            active={statusFilter === s}
-            label={STATUS_LABELS[s]}
-            count={counts[s]}
-          />
-        ))}
+      {/* Quick-Action-Kacheln */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <QuickAction
+          href="/listings/new"
+          title="Listing anlegen"
+          subtitle="MFH oder Gewerbe inserieren"
+          accent="indigo"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <path d="M3 9l9-6 9 6" />
+              <path d="M5 9v11h14V9" />
+              <path d="M12 14v4" />
+              <path d="M10 16h4" />
+            </svg>
+          }
+        />
+        <QuickAction
+          href="/marketplace"
+          title="Marketplace"
+          subtitle="Inserate durchsuchen"
+          accent="emerald"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-5-5" />
+            </svg>
+          }
+        />
+        <QuickAction
+          href="/inquiries"
+          title="Anfragen"
+          subtitle="Kontaktanfragen verwalten"
+          accent="amber"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+              <path d="M5 4h14l3 8v8H2v-8z" />
+            </svg>
+          }
+        />
+        <QuickAction
+          href="/auctions/import"
+          title="ZVG-Import"
+          subtitle="Versteigerung importieren"
+          accent="rose"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <path d="M14 14l6 6" />
+              <path d="M5 13l6-6" />
+              <path d="M9 3l8 8" />
+              <path d="M3 21h8" />
+            </svg>
+          }
+        />
       </div>
 
-      <Card title={`Properties (${properties.length})`}>
-        {properties.length === 0 ? (
-          <div className="text-sm text-zinc-400">
-            {statusFilter
-              ? <>Keine Properties im Status „{STATUS_LABELS[statusFilter]}".</>
-              : <>Noch keine Properties. Lege über <Link className="underline" href="/new">/new</Link> ein Objekt an.</>}
+      {/* Hero-KPI + KPI-Row */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <HeroKpi
+          label="Pipeline-Wert"
+          value={pipelineValue > 0 ? eur(pipelineValue) : "—"}
+          hint={`${properties.length} Properties verfolgt`}
+        />
+        <Kpi
+          label="Aktive Listings"
+          value={activeListings.toString()}
+          hint={`${listingStatusCounts.DRAFT} Entwurf · ${inNegotiation} verhandeln`}
+        />
+        <Kpi
+          label="Verkauft / SOLD"
+          value={listingStatusCounts.SOLD.toString()}
+          hint={`${myListings.length} Listings gesamt`}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Mini label="In Verhandlung" value={dealStatusCounts.NEGOTIATING.toString()} />
+        <Mini label="LOI" value={dealStatusCounts.LOI.toString()} />
+        <Mini label="Notar" value={dealStatusCounts.NOTAR.toString()} />
+        <Mini label="Gekauft" value={dealStatusCounts.CLOSED.toString()} />
+      </div>
+
+      {/* Marketplace-Tiles — Inserate */}
+      <div className="space-y-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-lg font-semibold text-zinc-900">Aktuelle Inserate</div>
+            <div className="text-xs text-zinc-500">
+              {marketplace.length} Listings im Marketplace
+            </div>
+          </div>
+          <Link
+            href="/marketplace"
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+          >
+            Alle ansehen →
+          </Link>
+        </div>
+
+        {tiles.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
+            <div className="text-sm text-zinc-600">
+              Noch keine aktiven Inserate. Sei der Erste —{" "}
+              <Link href="/listings/new" className="font-medium text-indigo-600 hover:text-indigo-700">
+                Listing anlegen
+              </Link>
+              .
+            </div>
           </div>
         ) : (
-          <div className="divide-y divide-zinc-900">
-            {properties.map((p) => (
-              <div key={p.id} className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/property/${p.id}`} className="text-sm font-semibold text-white hover:underline">
-                      {p.title}
-                    </Link>
-                    <StatusBadge status={p.status} size="sm" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {tiles.map((l) => {
+              const cover = l.images[0]?.url;
+              const locationStr = [l.city, l.district].filter(Boolean).join(", ");
+              return (
+                <Link
+                  key={l.id}
+                  href={`/marketplace/${l.id}`}
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md hover:border-zinc-300"
+                >
+                  {cover ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={cover}
+                      alt={l.images[0].alt ?? ""}
+                      className="aspect-video w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-video items-center justify-center bg-zinc-100 text-xs text-zinc-400">
+                      Kein Bild
+                    </div>
+                  )}
+                  <div className="space-y-1.5 p-4">
+                    <div className="text-[10px] uppercase tracking-wide text-indigo-600 font-semibold">
+                      {ASSET_TYPE_LABELS[l.propertyType]}
+                    </div>
+                    <div className="text-sm font-semibold text-zinc-900 group-hover:text-indigo-700 line-clamp-2">
+                      {l.title}
+                    </div>
+                    <div className="text-xs text-zinc-500">{locationStr}</div>
+                    <div className="pt-1 text-sm font-semibold text-zinc-900">
+                      {eur(l.askingPrice)}
+                    </div>
+                    <div className="text-[11px] text-zinc-500">
+                      {l.totalArea} m²
+                      {l.totalRent ? ` · ${eur(l.totalRent)}/Mon.` : ""}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-zinc-400">
-                    {p.location} • {p.size} m² • Preis {eur(p.price)} • Miete {eur(p.rent)}/Monat
-                    {p.analyses && p.analyses.length > 0 ? (
-                      <> • Score <span className="text-zinc-200">{p.analyses[0].score}/100</span></>
-                    ) : null}
-                  </div>
-                </div>
-                <PropertyActions id={p.id} />
-              </div>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
 
-function FilterTab({ href, active, label, count }: { href: string; active: boolean; label: string; count: number }) {
+/* ---------- Building blocks (server-safe) ---------- */
+
+function QuickAction({
+  href,
+  title,
+  subtitle,
+  icon,
+  accent
+}: {
+  href: string;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  accent: "indigo" | "emerald" | "amber" | "rose";
+}) {
+  const accents = {
+    indigo: "bg-indigo-50 text-indigo-600 ring-indigo-100",
+    emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100",
+    amber: "bg-amber-50 text-amber-600 ring-amber-100",
+    rose: "bg-rose-50 text-rose-600 ring-rose-100"
+  } as const;
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
-        active
-          ? "border-indigo-500 bg-indigo-500/10 text-white"
-          : "border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700 hover:text-white"
-      }`}
+      className="group flex items-start gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-zinc-300"
     >
-      <span>{label}</span>
-      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-indigo-500/30 text-indigo-100" : "bg-zinc-900 text-zinc-400"}`}>
-        {count}
-      </span>
+      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ring-1 ${accents[accent]}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-zinc-900 group-hover:text-indigo-700">
+          {title}
+        </div>
+        <div className="text-xs text-zinc-500 mt-0.5">{subtitle}</div>
+      </div>
     </Link>
+  );
+}
+
+function HeroKpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-2xl border-2 border-emerald-200 bg-white p-5 shadow-sm lg:col-span-1">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
+        {label}
+      </div>
+      <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900">{value}</div>
+      {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
+    </div>
+  );
+}
+
+function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+        {label}
+      </div>
+      <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900">{value}</div>
+      {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
+    </div>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-4">
+      <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+        {label}
+      </div>
+      <div className="mt-1 text-xl font-semibold text-zinc-900">{value}</div>
+    </div>
   );
 }

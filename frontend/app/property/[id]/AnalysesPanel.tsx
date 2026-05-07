@@ -167,11 +167,11 @@ export function AnalysesPanel({
         <Button variant="secondary" onClick={() => setShowForm((s) => !s)} disabled={busy}>
           {showForm ? "Form schließen" : "Eigenes Szenario…"}
         </Button>
-        {error ? <span className="text-sm text-rose-400">{error}</span> : null}
+        {error ? <span className="text-sm text-rose-600">{error}</span> : null}
       </div>
 
       {showForm ? (
-        <form onSubmit={runAnalysis} className="space-y-3 rounded-xl border bg-zinc-950 p-4">
+        <form onSubmit={runAnalysis} className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-3">
               <Label>Szenario-Name</Label>
@@ -275,11 +275,11 @@ export function AnalysesPanel({
       ) : null}
 
       {analyses.length === 0 ? (
-        <div className="text-sm text-zinc-400">Noch keine Analysen.</div>
+        <div className="text-sm text-zinc-500">Noch keine Analysen.</div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-900">
+        <div className="overflow-x-auto rounded-xl border border-zinc-200">
           <table className="w-full min-w-[900px] text-left text-xs">
-            <thead className="bg-zinc-950 text-zinc-400">
+            <thead className="bg-zinc-50 text-zinc-500">
               <tr>
                 <th className="px-3 py-2 font-medium">Datum</th>
                 <th className="px-3 py-2 font-medium">Szenario</th>
@@ -291,10 +291,10 @@ export function AnalysesPanel({
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-900 text-zinc-200">
+            <tbody className="divide-y divide-zinc-200 text-zinc-700">
               {analyses.map((a) => (
-                <tr key={a.id} className="hover:bg-zinc-950/60">
-                  <td className="px-3 py-2 whitespace-nowrap text-zinc-400">{formatDate(a.createdAt)}</td>
+                <tr key={a.id} className="hover:bg-zinc-50">
+                  <td className="px-3 py-2 whitespace-nowrap text-zinc-500">{formatDate(a.createdAt)}</td>
                   <td className="px-3 py-2 font-medium">{a.scenarioName}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {pctFromRatio(a.equityRatio)} / {pctFromRatio(a.loanInterestRate)} / {pctFromRatio(a.loanRepaymentRate)}
@@ -306,13 +306,13 @@ export function AnalysesPanel({
                     {pct(a.grossYield)} / <span className="font-semibold">{pct(a.netYield)}</span>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {eur(a.cashflow)} / <span className={a.cashflowAfterTax >= 0 ? "text-emerald-400" : "text-rose-400"}>{eur(a.cashflowAfterTax)}</span>
+                    {eur(a.cashflow)} / <span className={a.cashflowAfterTax >= 0 ? "text-emerald-700" : "text-rose-600"}>{eur(a.cashflowAfterTax)}</span>
                   </td>
                   <td className="px-3 py-2 font-semibold">{a.score}/100</td>
                   <td className="px-3 py-2 text-right">
                     <button
                       onClick={() => deleteAnalysis(a.id)}
-                      className="text-zinc-500 hover:text-rose-400"
+                      className="text-zinc-500 hover:text-rose-600"
                       title="Analyse löschen"
                     >
                       ×

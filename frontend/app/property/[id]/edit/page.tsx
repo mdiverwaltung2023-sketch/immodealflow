@@ -12,10 +12,10 @@ export default async function PropertyEditPage({ params }: { params: { id: strin
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-2xl font-semibold">Objekt bearbeiten</div>
-          <div className="mt-1 text-sm text-zinc-400">{p.title}</div>
+          <div className="text-2xl font-semibold text-zinc-900">Objekt bearbeiten</div>
+          <div className="mt-1 text-sm text-zinc-500">{p.title}</div>
         </div>
-        <Link href={`/property/${p.id}`} className="text-sm text-zinc-300 hover:underline">
+        <Link href={`/property/${p.id}`} className="text-sm text-zinc-600 hover:text-indigo-700 hover:underline">
           ← Zurück
         </Link>
       </div>

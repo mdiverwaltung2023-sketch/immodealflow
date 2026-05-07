@@ -74,10 +74,10 @@ export function AuctionPanel({
         <div
           className={`rounded-xl border p-4 ${
             isPast
-              ? "border-zinc-800 bg-zinc-950 text-zinc-400"
+              ? "border-zinc-200 bg-zinc-50 text-zinc-500"
               : isImminent
-                ? "border-rose-900 bg-rose-950/40 text-rose-200"
-                : "border-indigo-900 bg-indigo-950/40 text-indigo-200"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : "border-indigo-200 bg-indigo-50 text-indigo-800"
           }`}
         >
           <div className="text-xs uppercase tracking-wide opacity-70">Termin</div>
@@ -94,27 +94,27 @@ export function AuctionPanel({
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-xl border bg-zinc-950 p-4">
-          <div className="text-xs text-zinc-400">Verkehrswert (lt. Gutachten)</div>
-          <div className="mt-1 text-base font-semibold text-white">
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+          <div className="text-xs text-zinc-500">Verkehrswert (lt. Gutachten)</div>
+          <div className="mt-1 text-base font-semibold text-zinc-900">
             {auction.marketValue ? eur(auction.marketValue) : "—"}
           </div>
         </div>
 
-        <div className="rounded-xl border bg-emerald-950/40 p-4">
-          <div className="text-xs text-emerald-300">Bietlimit (CF n. Steuer ≥ 0)</div>
-          <div className="mt-1 text-2xl font-bold text-emerald-300">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="text-xs text-emerald-700">Bietlimit (CF n. Steuer ≥ 0)</div>
+          <div className="mt-1 text-2xl font-bold text-emerald-700">
             {auction.bidLimit ? eur(auction.bidLimit) : "—"}
           </div>
-          <div className="mt-1 text-[11px] text-emerald-400/70">
+          <div className="mt-1 text-[11px] text-emerald-600/80">
             Standard-Annahmen · darüber kippt der monatliche Cashflow ins Negative
           </div>
         </div>
 
-        <div className="rounded-xl border bg-zinc-950 p-4">
-          <div className="text-xs text-zinc-400">Aktenzeichen</div>
-          <div className="mt-1 text-base font-semibold text-white">{auction.caseNumber ?? "—"}</div>
-          <div className="mt-2 text-xs text-zinc-400">{AUCTION_TYPE_LABELS[auction.auctionType]}</div>
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+          <div className="text-xs text-zinc-500">Aktenzeichen</div>
+          <div className="mt-1 text-base font-semibold text-zinc-900">{auction.caseNumber ?? "—"}</div>
+          <div className="mt-2 text-xs text-zinc-500">{AUCTION_TYPE_LABELS[auction.auctionType]}</div>
         </div>
       </div>
 
@@ -127,18 +127,18 @@ export function AuctionPanel({
             href={auction.sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-zinc-400 underline hover:text-white"
+            className="text-xs text-zinc-500 underline hover:text-indigo-700"
           >
             Quelle öffnen ↗
           </a>
         ) : null}
-        {error ? <span className="text-sm text-rose-400">{error}</span> : null}
+        {error ? <span className="text-sm text-rose-600">{error}</span> : null}
       </div>
 
       {auction.notes ? (
         <div className="rounded-xl border bg-zinc-950 p-3">
-          <div className="text-xs text-zinc-400">Auffälligkeiten aus der Bekanntmachung</div>
-          <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">{auction.notes}</div>
+          <div className="text-xs text-zinc-500">Auffälligkeiten aus der Bekanntmachung</div>
+          <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-800">{auction.notes}</div>
         </div>
       ) : null}
     </div>

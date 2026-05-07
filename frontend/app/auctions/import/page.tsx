@@ -133,12 +133,12 @@ export default function AuctionImportPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-2xl font-semibold">Versteigerung importieren</div>
-          <div className="mt-1 text-sm text-zinc-400">
+          <div className="text-2xl font-semibold text-zinc-900">Versteigerung importieren</div>
+          <div className="mt-1 text-sm text-zinc-500">
             ZVG-Bekanntmachung, DGA-/SDL-Katalogseite oder andere Auktionstermine importieren. Claude extrahiert die Eckdaten und berechnet dein Bietlimit.
           </div>
         </div>
-        <Link href="/auctions" className="text-sm text-zinc-300 hover:underline">
+        <Link href="/auctions" className="text-sm text-zinc-600 hover:underline">
           ← Zur Übersicht
         </Link>
       </div>
@@ -154,7 +154,7 @@ export default function AuctionImportPage() {
         <Card title="Eingabe">
           {mode === "text" ? (
             <div className="space-y-3">
-              <div className="text-xs text-zinc-400">
+              <div className="text-xs text-zinc-500">
                 Kopiere den Text einer ZVG-Bekanntmachung (von <a className="underline" href="https://www.zvg-portal.de" target="_blank" rel="noreferrer">zvg-portal.de</a>) oder eines Auktionskatalogs hier hinein.
               </div>
               <Textarea
@@ -168,7 +168,7 @@ export default function AuctionImportPage() {
 
           {mode === "pdf" ? (
             <div className="space-y-3">
-              <div className="text-xs text-zinc-400">
+              <div className="text-xs text-zinc-500">
                 Lade die PDF-Bekanntmachung hoch (z. B. von zvg-portal.de). Wir extrahieren den Text lokal und schicken ihn dann an Claude.
               </div>
               <div>
@@ -177,16 +177,16 @@ export default function AuctionImportPage() {
                   type="file"
                   accept="application/pdf"
                   onChange={onPdfChange}
-                  className="block w-full text-sm text-zinc-300 file:mr-3 file:rounded-lg file:border file:border-zinc-700 file:bg-zinc-900 file:px-3 file:py-2 file:text-zinc-200 hover:file:bg-zinc-800"
+                  className="block w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border file:border-zinc-300 file:bg-zinc-50 file:px-3 file:py-2 file:text-zinc-700 hover:file:bg-zinc-100"
                 />
-                {pdfName ? <div className="mt-2 text-xs text-zinc-400">Ausgewählt: {pdfName}</div> : null}
+                {pdfName ? <div className="mt-2 text-xs text-zinc-500">Ausgewählt: {pdfName}</div> : null}
               </div>
             </div>
           ) : null}
 
           {mode === "url" ? (
             <div className="space-y-3">
-              <div className="text-xs text-zinc-400">
+              <div className="text-xs text-zinc-500">
                 Direktlink zu **einem** Termin / einer Bekanntmachung. Funktioniert für PDFs und HTML-Seiten ohne aktive Bot-Sperre (z. B. zvg-portal.de, einzelne DGA-/SDL-Detailseiten).
               </div>
               <Input
@@ -197,13 +197,13 @@ export default function AuctionImportPage() {
             </div>
           ) : null}
 
-          {error ? <div className="mt-3 text-sm text-rose-400">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-rose-600">{error}</div> : null}
 
           <div className="mt-4 flex items-center gap-2">
             <Button onClick={submitSingle} disabled={busy}>
               {busy ? "Importiere…" : "Importieren & Bietlimit berechnen"}
             </Button>
-            <Link href="/auctions" className="text-sm text-zinc-300 hover:underline">
+            <Link href="/auctions" className="text-sm text-zinc-600 hover:underline">
               Abbrechen
             </Link>
           </div>
@@ -211,7 +211,7 @@ export default function AuctionImportPage() {
       ) : (
         <Card title="Auktions-Liste / Katalog importieren">
           <div className="space-y-4">
-            <div className="text-xs text-zinc-400">
+            <div className="text-xs text-zinc-500">
               URL einer Übersichts-/Katalogseite eingeben — Infinity Oikos holt die Seite, Claude extrahiert die Liste der Auktionen, alle werden als Properties mit `dealType=AUCTION` angelegt. Funktioniert für DGA, SDL, Karhausen und ähnliche Anbieter ohne aktive Bot-Sperre.
             </div>
 
@@ -223,7 +223,7 @@ export default function AuctionImportPage() {
                     key={ex.url}
                     type="button"
                     onClick={() => setListUrl(ex.url)}
-                    className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-700 hover:text-white"
+                    className="rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:border-indigo-400 hover:text-indigo-700"
                   >
                     {ex.label}
                   </button>
@@ -240,22 +240,22 @@ export default function AuctionImportPage() {
               />
             </div>
 
-            {error ? <div className="text-sm text-rose-400">{error}</div> : null}
+            {error ? <div className="text-sm text-rose-600">{error}</div> : null}
 
             {listResult ? (
-              <div className="rounded-xl border bg-zinc-950 p-4 text-sm">
-                <div className="font-semibold text-emerald-300">
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm">
+                <div className="font-semibold text-emerald-700">
                   {listResult.imported} Auktionen importiert
                 </div>
-                <div className="mt-1 text-xs text-zinc-400">
+                <div className="mt-1 text-xs text-zinc-500">
                   Erkannter Typ: {listResult.detectedType}
                   {listResult.skipped > 0 ? ` · ${listResult.skipped} übersprungen` : ""}
                 </div>
                 {listResult.message ? (
-                  <div className="mt-2 text-xs text-zinc-300">{listResult.message}</div>
+                  <div className="mt-2 text-xs text-zinc-600">{listResult.message}</div>
                 ) : null}
                 {listResult.imported > 0 ? (
-                  <div className="mt-2 text-xs text-zinc-400">Wechsle zur Übersicht …</div>
+                  <div className="mt-2 text-xs text-zinc-500">Wechsle zur Übersicht …</div>
                 ) : null}
               </div>
             ) : null}
@@ -264,7 +264,7 @@ export default function AuctionImportPage() {
               <Button onClick={submitList} disabled={busy}>
                 {busy ? "Lade & extrahiere …" : "Liste importieren"}
               </Button>
-              <Link href="/auctions" className="text-sm text-zinc-300 hover:underline">
+              <Link href="/auctions" className="text-sm text-zinc-600 hover:underline">
                 Abbrechen
               </Link>
             </div>
@@ -281,8 +281,8 @@ function ModeTab({ active, onClick, children }: { active: boolean; onClick: () =
       onClick={onClick}
       className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
         active
-          ? "border-indigo-500 bg-indigo-500/10 text-white"
-          : "border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700 hover:text-white"
+          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+          : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 hover:text-zinc-900"
       }`}
     >
       {children}

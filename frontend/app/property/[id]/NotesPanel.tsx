@@ -79,27 +79,27 @@ export function NotesPanel({ id, initialNotes }: { id: string; initialNotes: Not
           <Button type="submit" disabled={busy || !body.trim()}>
             {busy ? "Speichere…" : "Notiz hinzufügen"}
           </Button>
-          {error ? <div className="text-sm text-rose-400">{error}</div> : null}
+          {error ? <div className="text-sm text-rose-600">{error}</div> : null}
         </div>
       </form>
 
       {notes.length === 0 ? (
-        <div className="text-sm text-zinc-400">Noch keine Notizen.</div>
+        <div className="text-sm text-zinc-500">Noch keine Notizen.</div>
       ) : (
         <div className="space-y-2">
           {notes.map((n) => (
-            <div key={n.id} className="rounded-xl border bg-zinc-950 p-3">
+            <div key={n.id} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="text-xs text-zinc-500">{formatDate(n.createdAt)}</div>
                 <button
                   onClick={() => deleteNote(n.id)}
-                  className="text-xs text-zinc-500 hover:text-rose-400"
+                  className="text-xs text-zinc-500 hover:text-rose-600"
                   title="Notiz löschen"
                 >
                   Löschen
                 </button>
               </div>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">{n.body}</div>
+              <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-800">{n.body}</div>
             </div>
           ))}
         </div>
