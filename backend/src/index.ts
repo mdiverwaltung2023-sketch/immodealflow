@@ -1576,12 +1576,15 @@ app.post("/me/ratings/:id/rebuttal", async (req, res) => {
   return res.json(updated);
 });
 
+// /users/* nimmt requireAuth auf Sub-Pfad-Ebene, damit /me-Routes nicht
+// betroffen sind (sonst hätten wir doppelte Middleware-Anwendung).
+app.use("/users", requireAuth);
+
 // GET /users/:id/ratings — public Ratings + Summary für einen User
-// (geschützt: User muss eingeloggt sein, weil /me/* Middleware nicht greift —
-// wir hängen es manuell an /users an)
-app.get("/users/:id/ratings", requireAuth, async (req, res) => {
+app.get("/users/:id/ratings", async (req, res) => {
+  const targetId = req.params.id;
   const ratings = await prisma.rating.findMany({
-    where: { toUserId: req.params.id },
+    where: { toUserId: targetId },
     orderBy: { createdAt: "desc" },
     take: 50,
     include: {
@@ -1593,7 +1596,7 @@ app.get("/users/:id/ratings", requireAuth, async (req, res) => {
       }
     }
   });
-  const summary = await ratingSummaryFor(req.params.id);
+  const summary = await ratingSummaryFor(targetId);
   return res.json({ summary, ratings });
 });
 
