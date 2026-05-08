@@ -970,6 +970,37 @@ const AnonymizationLevelEnum = z.enum([
   "CITY_ONLY"
 ]);
 
+// Listing-v2 Enums (für Zod)
+const BuildingConditionEnum = z.enum([
+  "NEW",
+  "REFURBISHED",
+  "MODERNIZED",
+  "MAINTAINED",
+  "NEEDS_RENOVATION"
+]);
+const EnergyClassEnum = z.enum([
+  "A_PLUS",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H"
+]);
+const EnergyCarrierEnum = z.enum([
+  "GAS",
+  "OIL",
+  "ELECTRIC",
+  "DISTRICT_HEATING",
+  "HEAT_PUMP",
+  "PELLETS",
+  "WOOD",
+  "SOLAR",
+  "OTHER"
+]);
+
 const ListingCreateSchema = z.object({
   title: z.string().min(3).max(200),
   description: z.string().max(20000).optional().default(""),
@@ -981,7 +1012,47 @@ const ListingCreateSchema = z.object({
   postalCode: z.string().max(10).nullable().optional(),
   district: z.string().max(120).nullable().optional(),
   fullAddress: z.string().max(200).nullable().optional(),
-  anonymizationLevel: AnonymizationLevelEnum.optional()
+  anonymizationLevel: AnonymizationLevelEnum.optional(),
+
+  // --- Listing v2: alle optional, alles kann später per PATCH gepflegt werden ---
+  yearBuilt: z.number().int().min(1500).max(2100).nullable().optional(),
+  lastRenovation: z.number().int().min(1500).max(2100).nullable().optional(),
+  condition: BuildingConditionEnum.nullable().optional(),
+  livingArea: z.number().min(0).nullable().optional(),
+  commercialArea: z.number().min(0).nullable().optional(),
+  landArea: z.number().min(0).nullable().optional(),
+  floors: z.number().int().min(0).max(200).nullable().optional(),
+
+  residentialUnits: z.number().int().min(0).max(10000).nullable().optional(),
+  commercialUnits: z.number().int().min(0).max(10000).nullable().optional(),
+
+  energyClass: EnergyClassEnum.nullable().optional(),
+  energyConsumption: z.number().min(0).nullable().optional(),
+  energyCarrier: EnergyCarrierEnum.nullable().optional(),
+  heatingType: z.string().max(120).nullable().optional(),
+
+  actualRent: z.number().int().min(0).nullable().optional(),
+  vacancyRate: z.number().min(0).max(1).nullable().optional(),
+  waltMonths: z.number().min(0).max(1200).nullable().optional(),
+  rentIndexed: z.boolean().nullable().optional(),
+  rentEscalation: z.boolean().nullable().optional(),
+  rentUpsidePotential: z.number().int().min(0).nullable().optional(),
+
+  modernizationBacklog: z.number().int().min(0).nullable().optional(),
+  gegCompliant: z.boolean().nullable().optional(),
+
+  commissionRate: z.number().min(0).max(20).nullable().optional(),
+  commissionFree: z.boolean().nullable().optional(),
+  buyerCommission: z.number().min(0).nullable().optional(),
+
+  availableFrom: z.string().nullable().optional(),
+
+  features: z.array(z.string().max(50)).max(40).optional(),
+  highlights: z.array(z.string().max(50)).max(20).optional(),
+
+  tenantCount: z.number().int().min(0).max(10000).nullable().optional(),
+  anchorTenant: z.string().max(120).nullable().optional(),
+  tenantSectors: z.array(z.string().max(50)).max(20).optional()
 });
 
 const ListingPatchSchema = ListingCreateSchema.partial().extend({
@@ -1011,6 +1082,251 @@ function anonymizeListing<
   return { ...l, fullAddress: null, postalCode: null, district: null };
 }
 
+/**
+ * Liefert die Demo-Inserate für /me/seed-demo-listings.
+ * Bilder via Unsplash-Photo-IDs (stabile, frei lizensierte Architektur-Fotos).
+ * Description enthält den Marker "[DEMO-INSERAT]" damit Reset funktioniert.
+ */
+function buildDemoListings() {
+  // Helper für Unsplash-URLs — Format-Parameter sorgt für sinnvolle Größe + Zuschnitt
+  const u = (id: string) => `https://images.unsplash.com/photo-${id}?w=1600&q=80&auto=format&fit=crop`;
+
+  return [
+    {
+      title: "Saniertes 12-Einheiten-MFH in Berlin-Kreuzberg",
+      description:
+        "[DEMO-INSERAT]\n\nVollständig kernsaniertes Mehrfamilienhaus mit 12 Wohneinheiten in begehrter Kreuzberger Lage. Nach dem Erwerb 2019 wurde das Objekt komplett modernisiert — neue Heizung (Brennwerttherme + Solar), Fenster, Bäder und Elektroinstallation. Mietverträge sind durchgängig indexiert. Cashflow vom ersten Tag positiv, mittelfristig deutliches Mietsteigerungspotenzial nach Auslauf der Bestandsverträge.\n\nAusstattung: Aufzug, Keller, Hofgrundstück mit Stellplätzen.",
+      propertyType: "MFH" as const,
+      status: "ACTIVE" as const,
+      askingPrice: 4_650_000,
+      totalArea: 920,
+      totalRent: 21_500,
+      city: "Berlin",
+      postalCode: "10997",
+      district: "Kreuzberg",
+      anonymizationLevel: "DISTRICT_ONLY" as const,
+      yearBuilt: 1908,
+      lastRenovation: 2019,
+      condition: "REFURBISHED" as const,
+      livingArea: 920,
+      landArea: 410,
+      floors: 5,
+      residentialUnits: 12,
+      commercialUnits: 0,
+      energyClass: "C" as const,
+      energyConsumption: 78,
+      energyCarrier: "GAS" as const,
+      heatingType: "Zentralheizung mit Solar-Unterstützung",
+      actualRent: 19_800,
+      vacancyRate: 0.04,
+      waltMonths: 38,
+      rentIndexed: true,
+      rentEscalation: false,
+      rentUpsidePotential: 1_700,
+      modernizationBacklog: 0,
+      gegCompliant: true,
+      commissionRate: 3.57,
+      commissionFree: false,
+      features: ["Aufzug", "Keller", "Stellplatz", "Balkone", "Hofgrundstück"],
+      highlights: ["Vollvermietet", "Kernsaniert", "Indexmiete", "Cashflow-positiv"],
+      tenantCount: 11,
+      tenantSectors: [],
+      images: [
+        u("1568605114967-8130f3a36994"),
+        u("1582268611958-ebfd161ef9cf"),
+        u("1560448204-e02f11c3d0e2"),
+        u("1567496898669-ee935f5f647a"),
+        u("1502672260266-1c1ef2d93688")
+      ]
+    },
+    {
+      title: "Geschäftshaus mit Vollvermietung — REWE als Anker",
+      description:
+        "[DEMO-INSERAT]\n\nProfessionell vermietetes Geschäftshaus in einer Mittelstadt-Innenstadt. Anchor-Tenant REWE (Restmietdauer > 8 Jahre, Indexmiete), zwei weitere Filialisten im Erdgeschoss, fünf Büroeinheiten in den Obergeschossen mit überwiegend lokalen Mittelstandsmietern.\n\nDas Objekt wurde 2021 fassadensaniert und mit moderner Wärmepumpen-Hybridheizung ausgestattet. WALT 6,2 Jahre, sehr stabile Cashflow-Story.",
+      propertyType: "COMMERCIAL" as const,
+      status: "ACTIVE" as const,
+      askingPrice: 8_900_000,
+      totalArea: 2_400,
+      totalRent: 49_500,
+      city: "Münster",
+      postalCode: "48143",
+      district: "Innenstadt",
+      anonymizationLevel: "DISTRICT_ONLY" as const,
+      yearBuilt: 1982,
+      lastRenovation: 2021,
+      condition: "MODERNIZED" as const,
+      commercialArea: 2400,
+      landArea: 1100,
+      floors: 4,
+      residentialUnits: 0,
+      commercialUnits: 8,
+      energyClass: "B" as const,
+      energyConsumption: 62,
+      energyCarrier: "HEAT_PUMP" as const,
+      heatingType: "Wärmepumpe + Gas-Spitzenlast",
+      actualRent: 49_500,
+      vacancyRate: 0,
+      waltMonths: 74,
+      rentIndexed: true,
+      rentEscalation: false,
+      rentUpsidePotential: 2_400,
+      modernizationBacklog: 80_000,
+      gegCompliant: true,
+      commissionRate: 0,
+      commissionFree: true,
+      features: ["Aufzug", "Klimatisiert", "Tiefgarage", "Schaufenster"],
+      highlights: ["Vollvermietet", "Anchor-Tenant", "WALT 6+", "Provisionsfrei"],
+      tenantCount: 8,
+      anchorTenant: "REWE Markt GmbH",
+      tenantSectors: ["Einzelhandel", "Büro", "Dienstleistung"],
+      images: [
+        u("1486406146926-c627a92ad1ab"),
+        u("1497366216548-37526070297c"),
+        u("1497366811353-6870744d04b2"),
+        u("1497366754035-f200968a6e72")
+      ]
+    },
+    {
+      title: "Off-Market: 8-Familien-Bestand Hamburg-Eimsbüttel",
+      description:
+        "[DEMO-INSERAT]\n\nDiskreter Verkauf eines klassischen Hamburger Altbaus — kein Inserat auf Portalen, nur direktes Investoren-Targeting. Acht Wohneinheiten, gemischte Mieterstruktur, durchschnittlicher Mietspiegel-Abstand 18 % nach unten — entsprechendes Mietsteigerungspotenzial bei Mieterwechsel.\n\nObjekt befindet sich in Bewirtschaftungs-OK-Zustand, mittelfristig empfehlenswert: Bad-Sanierungen (~ 8.000 € pro Einheit) und neue Heizung (Pflicht ab 2028 nach GEG).",
+      propertyType: "MFH" as const,
+      status: "ACTIVE" as const,
+      askingPrice: 3_200_000,
+      totalArea: 640,
+      totalRent: 11_900,
+      city: "Hamburg",
+      district: "Eimsbüttel",
+      anonymizationLevel: "CITY_ONLY" as const,
+      yearBuilt: 1924,
+      lastRenovation: 2008,
+      condition: "MAINTAINED" as const,
+      livingArea: 640,
+      landArea: 320,
+      floors: 4,
+      residentialUnits: 8,
+      commercialUnits: 0,
+      energyClass: "E" as const,
+      energyConsumption: 145,
+      energyCarrier: "GAS" as const,
+      heatingType: "Zentralheizung Gas (Bj. 2008)",
+      actualRent: 11_900,
+      vacancyRate: 0,
+      waltMonths: 14,
+      rentIndexed: false,
+      rentEscalation: false,
+      rentUpsidePotential: 2_100,
+      modernizationBacklog: 95_000,
+      gegCompliant: false,
+      commissionRate: 3.57,
+      commissionFree: false,
+      features: ["Keller", "Garten", "Stuckdecken"],
+      highlights: ["Off-Market", "Mietsteigerungspotenzial", "Altbau"],
+      tenantCount: 8,
+      tenantSectors: [],
+      images: [
+        u("1572120360610-d971b9d7767c"),
+        u("1564013799919-ab600027ffc6"),
+        u("1502005229762-cf1b2da7c5d6"),
+        u("1599809275671-b5942cabc7a2")
+      ]
+    },
+    {
+      title: "Wohn- und Geschäftshaus — Mischnutzung Leipzig-Plagwitz",
+      description:
+        "[DEMO-INSERAT]\n\nMischgenutztes Objekt mit Café im Erdgeschoss (10-Jahres-Vertrag, indexiert) und 6 Wohneinheiten darüber. Plagwitz hat sich in den letzten Jahren zu einem der gefragtesten Stadtteile Leipzigs entwickelt — Mietniveau zieht entsprechend an.\n\nBesondere Merkmale: 2017 energetisch saniert (Energieklasse B), neue Wärmepumpe, alle Wohnungen mit Balkon. WEG-fähige Aufteilung möglich, Teilungserklärung in Vorbereitung.",
+      propertyType: "MIXED_USE" as const,
+      status: "ACTIVE" as const,
+      askingPrice: 2_750_000,
+      totalArea: 580,
+      totalRent: 13_400,
+      city: "Leipzig",
+      postalCode: "04229",
+      district: "Plagwitz",
+      anonymizationLevel: "DISTRICT_ONLY" as const,
+      yearBuilt: 1898,
+      lastRenovation: 2017,
+      condition: "REFURBISHED" as const,
+      livingArea: 460,
+      commercialArea: 120,
+      landArea: 280,
+      floors: 4,
+      residentialUnits: 6,
+      commercialUnits: 1,
+      energyClass: "B" as const,
+      energyConsumption: 68,
+      energyCarrier: "HEAT_PUMP" as const,
+      heatingType: "Erdwärme-Wärmepumpe",
+      actualRent: 13_400,
+      vacancyRate: 0,
+      waltMonths: 52,
+      rentIndexed: true,
+      rentEscalation: true,
+      rentUpsidePotential: 900,
+      modernizationBacklog: 0,
+      gegCompliant: true,
+      commissionRate: 3.57,
+      commissionFree: false,
+      features: ["Balkon", "Aufzug", "Keller", "Wärmepumpe"],
+      highlights: ["Mischnutzung", "WEG-fähig", "Energieklasse B", "Anchor-Café"],
+      tenantCount: 7,
+      anchorTenant: "Café Lieblingsplatz",
+      tenantSectors: ["Gastronomie", "Wohnen"],
+      images: [
+        u("1545324418-cc1a3fa10c00"),
+        u("1493809842364-78817add7ffb"),
+        u("1576941089067-2de3c901e126"),
+        u("1560185007-c5ca9d2c014d")
+      ]
+    },
+    {
+      title: "Logistikhalle mit Anschlussgleis — Süddeutschland",
+      description:
+        "[DEMO-INSERAT]\n\n4.200 m² Logistikfläche an einem Standort mit eigenem Bahnanschluss — selten am Markt. Vollvermietet an einen mittelständischen Kontraktlogistiker, Vertrag mit Indexierung und 9 Jahren Restlaufzeit. Halle aus 2015 mit moderner Sprinkleranlage und 12-Tor-Verladung.\n\nIdeal für Family Offices oder Logistik-Spezialfonds: stabile Cashflow-Story, hochinvestiv-grade Mieter.",
+      propertyType: "COMMERCIAL" as const,
+      status: "ACTIVE" as const,
+      askingPrice: 6_400_000,
+      totalArea: 4_200,
+      totalRent: 32_500,
+      city: "Augsburg",
+      district: "Lechhausen",
+      anonymizationLevel: "DISTRICT_ONLY" as const,
+      yearBuilt: 2015,
+      condition: "MAINTAINED" as const,
+      commercialArea: 4200,
+      landArea: 8500,
+      floors: 1,
+      residentialUnits: 0,
+      commercialUnits: 1,
+      energyClass: "C" as const,
+      energyConsumption: 42,
+      energyCarrier: "GAS" as const,
+      heatingType: "Hallenheizung Gas-Dunkelstrahler",
+      actualRent: 32_500,
+      vacancyRate: 0,
+      waltMonths: 108,
+      rentIndexed: true,
+      rentEscalation: false,
+      rentUpsidePotential: 0,
+      modernizationBacklog: 0,
+      gegCompliant: true,
+      commissionRate: 0,
+      commissionFree: true,
+      features: ["Sprinkleranlage", "Verladetore", "Bahnanschluss", "Sozialräume"],
+      highlights: ["Single-Tenant", "WALT 9+", "Bahnanschluss", "Provisionsfrei"],
+      tenantCount: 1,
+      anchorTenant: "Mittelständischer Kontraktlogistiker",
+      tenantSectors: ["Logistik"],
+      images: [
+        u("1553413077-190dd305871c"),
+        u("1586528116311-ad8dd3c8310d"),
+        u("1601584115197-04ecc0da31d7"),
+        u("1610978472146-d8c3a8b6d85b")
+      ]
+    }
+  ];
+}
+
 // GET /me/listings — eigene Listings (alle Status, optional Filter)
 app.get("/me/listings", async (req, res) => {
   const rawStatus = req.query.status;
@@ -1031,20 +1347,17 @@ app.get("/me/listings", async (req, res) => {
 // POST /me/listings — neues Listing (immer als DRAFT angelegt)
 app.post("/me/listings", async (req, res) => {
   const body = ListingCreateSchema.parse(req.body);
+  const { availableFrom, features, highlights, tenantSectors, ...rest } = body;
   const listing = await prisma.listing.create({
     data: {
       ownerId: req.userId!,
-      title: body.title,
-      description: body.description ?? "",
-      propertyType: body.propertyType,
-      askingPrice: body.askingPrice,
-      totalArea: body.totalArea,
-      totalRent: body.totalRent ?? null,
-      city: body.city,
-      postalCode: body.postalCode ?? null,
-      district: body.district ?? null,
-      fullAddress: body.fullAddress ?? null,
-      anonymizationLevel: body.anonymizationLevel ?? "DISTRICT_ONLY"
+      ...rest,
+      description: rest.description ?? "",
+      anonymizationLevel: rest.anonymizationLevel ?? "DISTRICT_ONLY",
+      availableFrom: availableFrom ? new Date(availableFrom) : null,
+      features: features ?? [],
+      highlights: highlights ?? [],
+      tenantSectors: tenantSectors ?? []
     },
     include: { images: { orderBy: { sortOrder: "asc" } } }
   });
@@ -1068,9 +1381,17 @@ app.patch("/me/listings/:id", async (req, res) => {
     where: { id: req.params.id, ownerId: req.userId! }
   });
   if (!owned) return res.status(404).json({ error: "Not found" });
+
+  // availableFrom kommt als ISO-String — in Date umwandeln, oder null lassen
+  const { availableFrom, ...rest } = body;
+  const data: Record<string, unknown> = { ...rest };
+  if (availableFrom !== undefined) {
+    data.availableFrom = availableFrom ? new Date(availableFrom) : null;
+  }
+
   const updated = await prisma.listing.update({
     where: { id: owned.id },
-    data: body,
+    data,
     include: { images: { orderBy: { sortOrder: "asc" } } }
   });
   return res.json(updated);
@@ -1084,6 +1405,53 @@ app.delete("/me/listings/:id", async (req, res) => {
   if (!owned) return res.status(404).json({ error: "Not found" });
   await prisma.listing.delete({ where: { id: owned.id } });
   return res.json({ ok: true });
+});
+
+// POST /me/seed-demo-listings — Beispiel-Inserate mit echten Bildern anlegen.
+// Idempotent: legt nur an, wenn der User noch keine ACTIVE-Listings hat.
+// Bilder kommen von Unsplash (Foto-CDN, frei lizensiert für Demo).
+app.post("/me/seed-demo-listings", async (req, res) => {
+  const existing = await prisma.listing.count({
+    where: { ownerId: req.userId!, status: "ACTIVE" }
+  });
+  if (existing > 0) {
+    return res.json({ created: 0, message: "Bereits aktive Inserate vorhanden — kein Seed nötig." });
+  }
+
+  const demos = buildDemoListings();
+  let created = 0;
+  for (const demo of demos) {
+    const { images, ...rest } = demo;
+    await prisma.listing.create({
+      data: {
+        ownerId: req.userId!,
+        ...rest,
+        availableFrom: rest.availableFrom ? new Date(rest.availableFrom) : null,
+        images: {
+          create: images.map((url, i) => ({
+            url,
+            sortOrder: i,
+            alt: `${rest.title} – Bild ${i + 1}`
+          }))
+        }
+      }
+    });
+    created++;
+  }
+
+  return res.json({ created, message: `${created} Demo-Inserate angelegt.` });
+});
+
+// DELETE /me/seed-demo-listings — alle eigenen Demo-Inserate (per Marker im Description)
+// wieder entfernen, falls der User reset will.
+app.delete("/me/seed-demo-listings", async (req, res) => {
+  const result = await prisma.listing.deleteMany({
+    where: {
+      ownerId: req.userId!,
+      description: { contains: "[DEMO-INSERAT]" }
+    }
+  });
+  return res.json({ deleted: result.count });
 });
 
 // POST /me/listings/:id/images — Bild-URL anhängen (Frontend hat sie schon
@@ -1610,7 +1978,17 @@ app.get("/marketplace", async (req, res) => {
       type: AssetTypeEnum.optional(),
       priceMin: z.coerce.number().int().min(0).optional(),
       priceMax: z.coerce.number().int().min(0).optional(),
-      areaMin: z.coerce.number().min(0).optional()
+      areaMin: z.coerce.number().min(0).optional(),
+
+      // --- USP-Filter (Investor-Sicht) ---
+      yieldMin: z.coerce.number().min(0).max(50).optional(),       // Bruttorendite % (post-filter)
+      waltMin: z.coerce.number().min(0).max(1200).optional(),      // WALT in Monaten
+      energyMin: EnergyClassEnum.optional(),                       // Min-Energieklasse
+      fullyRented: z.coerce.boolean().optional(),                  // vacancyRate ≤ 5%
+      offMarket: z.coerce.boolean().optional(),                    // anonymizationLevel = CITY_ONLY
+      withAnchor: z.coerce.boolean().optional(),                   // anchorTenant gesetzt
+      modernizationOnly: z.coerce.boolean().optional(),            // modernizationBacklog > 0
+      indexedRent: z.coerce.boolean().optional()                   // rentIndexed = true
     })
     .parse(req.query);
 
@@ -1618,25 +1996,51 @@ app.get("/marketplace", async (req, res) => {
   if (q.priceMin != null) priceFilter.gte = q.priceMin;
   if (q.priceMax != null) priceFilter.lte = q.priceMax;
 
+  // Energieklasse-Range: alle Klassen >= q.energyMin (also "besser oder gleich")
+  // Reihenfolge: A_PLUS > A > B > C > D > E > F > G > H
+  const ENERGY_ORDER: ReadonlyArray<z.infer<typeof EnergyClassEnum>> = [
+    "A_PLUS", "A", "B", "C", "D", "E", "F", "G", "H"
+  ];
+  const energyClassesInScope = q.energyMin
+    ? Array.from(ENERGY_ORDER.slice(0, ENERGY_ORDER.indexOf(q.energyMin) + 1))
+    : null;
+
   const listings = await prisma.listing.findMany({
     where: {
       status: "ACTIVE",
       ...(q.city ? { city: { contains: q.city, mode: "insensitive" as const } } : {}),
       ...(q.type ? { propertyType: q.type } : {}),
       ...(Object.keys(priceFilter).length > 0 ? { askingPrice: priceFilter } : {}),
-      ...(q.areaMin != null ? { totalArea: { gte: q.areaMin } } : {})
+      ...(q.areaMin != null ? { totalArea: { gte: q.areaMin } } : {}),
+      ...(q.waltMin != null ? { waltMonths: { gte: q.waltMin } } : {}),
+      ...(energyClassesInScope ? { energyClass: { in: energyClassesInScope } } : {}),
+      ...(q.fullyRented ? { OR: [{ vacancyRate: null }, { vacancyRate: { lte: 0.05 } }] } : {}),
+      ...(q.offMarket ? { anonymizationLevel: "CITY_ONLY" } : {}),
+      ...(q.withAnchor ? { anchorTenant: { not: null } } : {}),
+      ...(q.modernizationOnly ? { modernizationBacklog: { gt: 0 } } : {}),
+      ...(q.indexedRent ? { rentIndexed: true } : {})
     },
     orderBy: { updatedAt: "desc" },
     include: {
       images: { orderBy: { sortOrder: "asc" }, take: 5 },
       owner: { select: { id: true, name: true, role: true } }
     },
-    take: 100
+    take: 200
   });
+
+  // Post-Filter für yieldMin (kann nicht direkt in Prisma da computed)
+  const yieldFiltered =
+    q.yieldMin != null
+      ? listings.filter((l) => {
+          if (!l.totalRent || l.askingPrice <= 0) return false;
+          const grossYield = ((l.totalRent * 12) / l.askingPrice) * 100;
+          return grossYield >= (q.yieldMin as number);
+        })
+      : listings;
 
   // Bewertungs-Summary pro Verkäufer dazuladen
   const enriched = await Promise.all(
-    listings.map(async (l) => ({
+    yieldFiltered.slice(0, 100).map(async (l) => ({
       ...anonymizeListing(l),
       sellerRating: await ratingSummaryFor(l.ownerId)
     }))

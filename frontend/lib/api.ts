@@ -349,6 +349,72 @@ export const ListingImageSchema = z.object({
 });
 export type ListingImageT = z.infer<typeof ListingImageSchema>;
 
+// --- Listing-v2 Enums ----------------------------------------------
+
+export const BuildingConditionEnum = z.enum([
+  "NEW",
+  "REFURBISHED",
+  "MODERNIZED",
+  "MAINTAINED",
+  "NEEDS_RENOVATION"
+]);
+export type BuildingConditionT = z.infer<typeof BuildingConditionEnum>;
+export const BUILDING_CONDITION_LABELS: Record<BuildingConditionT, string> = {
+  NEW: "Erstbezug nach Sanierung / Neubau",
+  REFURBISHED: "Kernsaniert",
+  MODERNIZED: "Modernisiert",
+  MAINTAINED: "Gepflegt",
+  NEEDS_RENOVATION: "Sanierungsbedürftig"
+};
+
+export const EnergyClassEnum = z.enum([
+  "A_PLUS",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H"
+]);
+export type EnergyClassT = z.infer<typeof EnergyClassEnum>;
+export const ENERGY_CLASS_LABELS: Record<EnergyClassT, string> = {
+  A_PLUS: "A+",
+  A: "A",
+  B: "B",
+  C: "C",
+  D: "D",
+  E: "E",
+  F: "F",
+  G: "G",
+  H: "H"
+};
+
+export const EnergyCarrierEnum = z.enum([
+  "GAS",
+  "OIL",
+  "ELECTRIC",
+  "DISTRICT_HEATING",
+  "HEAT_PUMP",
+  "PELLETS",
+  "WOOD",
+  "SOLAR",
+  "OTHER"
+]);
+export type EnergyCarrierT = z.infer<typeof EnergyCarrierEnum>;
+export const ENERGY_CARRIER_LABELS: Record<EnergyCarrierT, string> = {
+  GAS: "Gas",
+  OIL: "Öl",
+  ELECTRIC: "Strom",
+  DISTRICT_HEATING: "Fernwärme",
+  HEAT_PUMP: "Wärmepumpe",
+  PELLETS: "Pellets",
+  WOOD: "Holz",
+  SOLAR: "Solar",
+  OTHER: "Sonstiges"
+};
+
 export const ListingSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
@@ -366,7 +432,55 @@ export const ListingSchema = z.object({
   district: z.string().nullable().optional(),
   fullAddress: z.string().nullable().optional(),
   anonymizationLevel: AnonymizationLevelEnum,
-  images: z.array(ListingImageSchema).default([])
+  images: z.array(ListingImageSchema).default([]),
+
+  // --- Listing v2: Bausubstanz ---
+  yearBuilt: z.number().nullable().optional(),
+  lastRenovation: z.number().nullable().optional(),
+  condition: BuildingConditionEnum.nullable().optional(),
+  livingArea: z.number().nullable().optional(),
+  commercialArea: z.number().nullable().optional(),
+  landArea: z.number().nullable().optional(),
+  floors: z.number().nullable().optional(),
+
+  // --- Einheiten ---
+  residentialUnits: z.number().nullable().optional(),
+  commercialUnits: z.number().nullable().optional(),
+
+  // --- Energie ---
+  energyClass: EnergyClassEnum.nullable().optional(),
+  energyConsumption: z.number().nullable().optional(),
+  energyCarrier: EnergyCarrierEnum.nullable().optional(),
+  heatingType: z.string().nullable().optional(),
+
+  // --- Vermietung (USP) ---
+  actualRent: z.number().nullable().optional(),
+  vacancyRate: z.number().nullable().optional(),
+  waltMonths: z.number().nullable().optional(),
+  rentIndexed: z.boolean().nullable().optional(),
+  rentEscalation: z.boolean().nullable().optional(),
+  rentUpsidePotential: z.number().nullable().optional(),
+
+  // --- Modernisierung ---
+  modernizationBacklog: z.number().nullable().optional(),
+  gegCompliant: z.boolean().nullable().optional(),
+
+  // --- Provision ---
+  commissionRate: z.number().nullable().optional(),
+  commissionFree: z.boolean().nullable().optional(),
+  buyerCommission: z.number().nullable().optional(),
+
+  // --- Verfügbarkeit ---
+  availableFrom: z.string().nullable().optional(),
+
+  // --- Tags ---
+  features: z.array(z.string()).default([]),
+  highlights: z.array(z.string()).default([]),
+
+  // --- Tenant-Mix (Gewerbe) ---
+  tenantCount: z.number().nullable().optional(),
+  anchorTenant: z.string().nullable().optional(),
+  tenantSectors: z.array(z.string()).default([])
 });
 export type ListingT = z.infer<typeof ListingSchema>;
 

@@ -11,8 +11,17 @@ import {
   AnonymizationLevelEnum,
   LISTING_STATUS_LABELS,
   LISTING_STATUS_ORDER,
+  BUILDING_CONDITION_LABELS,
+  BuildingConditionEnum,
+  ENERGY_CLASS_LABELS,
+  EnergyClassEnum,
+  ENERGY_CARRIER_LABELS,
+  EnergyCarrierEnum,
   type AnonymizationLevelT,
   type AssetTypeT,
+  type BuildingConditionT,
+  type EnergyCarrierT,
+  type EnergyClassT,
   type ListingImageT,
   type ListingStatusT,
   type ListingT
@@ -20,6 +29,9 @@ import {
 
 const ASSET_TYPES = AssetTypeEnum.options;
 const ANON_LEVELS = AnonymizationLevelEnum.options;
+const BUILDING_CONDITIONS = BuildingConditionEnum.options;
+const ENERGY_CLASSES = EnergyClassEnum.options;
+const ENERGY_CARRIERS = EnergyCarrierEnum.options;
 
 function intInput(v: string): number {
   const n = Number(v.replace(/\./g, "").replace(",", "."));
@@ -48,9 +60,55 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
   const [status, setStatus] = useState<ListingStatusT>(initial.status);
   const [images, setImages] = useState<ListingImageT[]>(initial.images);
 
+  // --- v2-Felder ---
+  const [yearBuilt, setYearBuilt] = useState(initial.yearBuilt != null ? String(initial.yearBuilt) : "");
+  const [lastRenovation, setLastRenovation] = useState(initial.lastRenovation != null ? String(initial.lastRenovation) : "");
+  const [condition, setCondition] = useState<BuildingConditionT | "">(initial.condition ?? "");
+  const [livingArea, setLivingArea] = useState(initial.livingArea != null ? String(initial.livingArea) : "");
+  const [commercialArea, setCommercialArea] = useState(initial.commercialArea != null ? String(initial.commercialArea) : "");
+  const [landArea, setLandArea] = useState(initial.landArea != null ? String(initial.landArea) : "");
+  const [floors, setFloors] = useState(initial.floors != null ? String(initial.floors) : "");
+  const [residentialUnits, setResidentialUnits] = useState(initial.residentialUnits != null ? String(initial.residentialUnits) : "");
+  const [commercialUnits, setCommercialUnits] = useState(initial.commercialUnits != null ? String(initial.commercialUnits) : "");
+  const [energyClass, setEnergyClass] = useState<EnergyClassT | "">(initial.energyClass ?? "");
+  const [energyConsumption, setEnergyConsumption] = useState(initial.energyConsumption != null ? String(initial.energyConsumption) : "");
+  const [energyCarrier, setEnergyCarrier] = useState<EnergyCarrierT | "">(initial.energyCarrier ?? "");
+  const [heatingType, setHeatingType] = useState(initial.heatingType ?? "");
+  const [actualRent, setActualRent] = useState(initial.actualRent != null ? String(initial.actualRent) : "");
+  const [vacancyRate, setVacancyRate] = useState(initial.vacancyRate != null ? String(initial.vacancyRate * 100) : "");
+  const [waltMonths, setWaltMonths] = useState(initial.waltMonths != null ? String(initial.waltMonths) : "");
+  const [rentIndexed, setRentIndexed] = useState<boolean>(initial.rentIndexed === true);
+  const [rentEscalation, setRentEscalation] = useState<boolean>(initial.rentEscalation === true);
+  const [rentUpsidePotential, setRentUpsidePotential] = useState(initial.rentUpsidePotential != null ? String(initial.rentUpsidePotential) : "");
+  const [modernizationBacklog, setModernizationBacklog] = useState(initial.modernizationBacklog != null ? String(initial.modernizationBacklog) : "");
+  const [gegCompliant, setGegCompliant] = useState<"" | "yes" | "no">(
+    initial.gegCompliant === true ? "yes" : initial.gegCompliant === false ? "no" : ""
+  );
+  const [commissionRate, setCommissionRate] = useState(initial.commissionRate != null ? String(initial.commissionRate) : "");
+  const [commissionFree, setCommissionFree] = useState<boolean>(initial.commissionFree === true);
+  const [features, setFeatures] = useState((initial.features ?? []).join(", "));
+  const [highlights, setHighlights] = useState((initial.highlights ?? []).join(", "));
+  const [anchorTenant, setAnchorTenant] = useState(initial.anchorTenant ?? "");
+  const [tenantCount, setTenantCount] = useState(initial.tenantCount != null ? String(initial.tenantCount) : "");
+  const [tenantSectors, setTenantSectors] = useState((initial.tenantSectors ?? []).join(", "));
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+
+  function intOrNull(s: string): number | null {
+    if (!s.trim()) return null;
+    const n = intInput(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  function floatOrNull(s: string): number | null {
+    if (!s.trim()) return null;
+    const n = floatInput(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  function tagsOrEmpty(s: string): string[] {
+    return s.split(",").map((t) => t.trim()).filter((t) => t.length > 0).slice(0, 30);
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -58,6 +116,7 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
     setSaved(null);
     setBusy(true);
     try {
+      const vacancyParsed = floatOrNull(vacancyRate);
       const body = {
         title: title.trim(),
         description: description,
@@ -70,7 +129,37 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
         district: district.trim() || null,
         fullAddress: fullAddress.trim() || null,
         anonymizationLevel: anon,
-        status
+        status,
+
+        // --- v2 ---
+        yearBuilt: intOrNull(yearBuilt),
+        lastRenovation: intOrNull(lastRenovation),
+        condition: condition || null,
+        livingArea: floatOrNull(livingArea),
+        commercialArea: floatOrNull(commercialArea),
+        landArea: floatOrNull(landArea),
+        floors: intOrNull(floors),
+        residentialUnits: intOrNull(residentialUnits),
+        commercialUnits: intOrNull(commercialUnits),
+        energyClass: energyClass || null,
+        energyConsumption: floatOrNull(energyConsumption),
+        energyCarrier: energyCarrier || null,
+        heatingType: heatingType.trim() || null,
+        actualRent: intOrNull(actualRent),
+        vacancyRate: vacancyParsed != null ? Math.max(0, Math.min(1, vacancyParsed / 100)) : null,
+        waltMonths: floatOrNull(waltMonths),
+        rentIndexed,
+        rentEscalation,
+        rentUpsidePotential: intOrNull(rentUpsidePotential),
+        modernizationBacklog: intOrNull(modernizationBacklog),
+        gegCompliant: gegCompliant === "yes" ? true : gegCompliant === "no" ? false : null,
+        commissionRate: commissionFree ? null : floatOrNull(commissionRate),
+        commissionFree,
+        features: tagsOrEmpty(features),
+        highlights: tagsOrEmpty(highlights),
+        anchorTenant: anchorTenant.trim() || null,
+        tenantCount: intOrNull(tenantCount),
+        tenantSectors: tagsOrEmpty(tenantSectors)
       };
       const res = await apiFetch(`/me/listings/${initial.id}`, {
         method: "PATCH",
@@ -208,6 +297,214 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
           </div>
         </div>
 
+        {/* --- v2: Bausubstanz --- */}
+        <FieldGroup title="Bausubstanz" hint="Baujahr, Sanierung, Zustand, Flächen.">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label>Baujahr</Label>
+              <Input inputMode="numeric" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} placeholder="z. B. 1908" />
+            </div>
+            <div>
+              <Label>Letzte Sanierung (Jahr)</Label>
+              <Input inputMode="numeric" value={lastRenovation} onChange={(e) => setLastRenovation(e.target.value)} placeholder="z. B. 2019" />
+            </div>
+            <div>
+              <Label>Zustand</Label>
+              <select
+                value={condition}
+                onChange={(e) => setCondition(e.target.value as BuildingConditionT | "")}
+                className="h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="">— bitte wählen —</option>
+                {BUILDING_CONDITIONS.map((c) => (
+                  <option key={c} value={c}>{BUILDING_CONDITION_LABELS[c]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Wohnfläche (m²)</Label>
+              <Input inputMode="decimal" value={livingArea} onChange={(e) => setLivingArea(e.target.value)} placeholder="z. B. 920" />
+            </div>
+            <div>
+              <Label>Gewerbefläche (m²)</Label>
+              <Input inputMode="decimal" value={commercialArea} onChange={(e) => setCommercialArea(e.target.value)} placeholder="z. B. 120" />
+            </div>
+            <div>
+              <Label>Grundstück (m²)</Label>
+              <Input inputMode="decimal" value={landArea} onChange={(e) => setLandArea(e.target.value)} placeholder="z. B. 410" />
+            </div>
+            <div>
+              <Label>Etagen</Label>
+              <Input inputMode="numeric" value={floors} onChange={(e) => setFloors(e.target.value)} placeholder="z. B. 5" />
+            </div>
+            <div>
+              <Label>Modernisierungsstau (EUR)</Label>
+              <Input inputMode="numeric" value={modernizationBacklog} onChange={(e) => setModernizationBacklog(e.target.value)} placeholder="0 wenn keiner" />
+            </div>
+            <div>
+              <Label>GEG-Konformität</Label>
+              <select
+                value={gegCompliant}
+                onChange={(e) => setGegCompliant(e.target.value as "" | "yes" | "no")}
+                className="h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="">— bitte wählen —</option>
+                <option value="yes">Ja, erfüllt</option>
+                <option value="no">Nein, Sanierungspflicht</option>
+              </select>
+            </div>
+          </div>
+        </FieldGroup>
+
+        {/* --- v2: Einheiten + Energie --- */}
+        <FieldGroup title="Einheiten & Energie" hint="Anzahl Wohn-/Gewerbeeinheiten, Energieausweis, Heizung.">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label>Wohneinheiten (WE)</Label>
+              <Input inputMode="numeric" value={residentialUnits} onChange={(e) => setResidentialUnits(e.target.value)} placeholder="z. B. 12" />
+            </div>
+            <div>
+              <Label>Gewerbeeinheiten (GE)</Label>
+              <Input inputMode="numeric" value={commercialUnits} onChange={(e) => setCommercialUnits(e.target.value)} placeholder="z. B. 1" />
+            </div>
+            <div />
+            <div>
+              <Label>Energieklasse</Label>
+              <select
+                value={energyClass}
+                onChange={(e) => setEnergyClass(e.target.value as EnergyClassT | "")}
+                className="h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="">—</option>
+                {ENERGY_CLASSES.map((c) => (
+                  <option key={c} value={c}>{ENERGY_CLASS_LABELS[c]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Endenergie (kWh/m²a)</Label>
+              <Input inputMode="decimal" value={energyConsumption} onChange={(e) => setEnergyConsumption(e.target.value)} placeholder="z. B. 78" />
+            </div>
+            <div>
+              <Label>Energieträger</Label>
+              <select
+                value={energyCarrier}
+                onChange={(e) => setEnergyCarrier(e.target.value as EnergyCarrierT | "")}
+                className="h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="">—</option>
+                {ENERGY_CARRIERS.map((c) => (
+                  <option key={c} value={c}>{ENERGY_CARRIER_LABELS[c]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-3">
+              <Label>Heizungstechnik (freier Text)</Label>
+              <Input value={heatingType} onChange={(e) => setHeatingType(e.target.value)} placeholder="z. B. Zentralheizung mit Solar-Unterstützung" />
+            </div>
+          </div>
+        </FieldGroup>
+
+        {/* --- v2: Vermietung (USP) --- */}
+        <FieldGroup
+          title="Vermietung (Cashflow-Story)"
+          hint="Investor-Sicht: Was Privatkäufer-Portale nicht zeigen — die Lücke zwischen Soll und Ist, WALT, Mietsteigerungspotenzial."
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label>Istmiete / Monat (EUR)</Label>
+              <Input inputMode="numeric" value={actualRent} onChange={(e) => setActualRent(e.target.value)} placeholder="tatsächlich kassiert" />
+            </div>
+            <div>
+              <Label>Leerstand (%)</Label>
+              <Input inputMode="decimal" value={vacancyRate} onChange={(e) => setVacancyRate(e.target.value)} placeholder="z. B. 4" />
+            </div>
+            <div>
+              <Label>WALT (Restmietdauer in Monaten)</Label>
+              <Input inputMode="decimal" value={waltMonths} onChange={(e) => setWaltMonths(e.target.value)} placeholder="z. B. 38" />
+            </div>
+            <div>
+              <Label>Mietsteigerungspotenzial (EUR/Mon.)</Label>
+              <Input inputMode="numeric" value={rentUpsidePotential} onChange={(e) => setRentUpsidePotential(e.target.value)} placeholder="vs. Mietspiegel" />
+            </div>
+            <div className="md:col-span-2 grid grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 text-sm text-zinc-700">
+                <input
+                  type="checkbox"
+                  checked={rentIndexed}
+                  onChange={(e) => setRentIndexed(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500"
+                />
+                Indexmiete
+              </label>
+              <label className="flex items-center gap-2 text-sm text-zinc-700">
+                <input
+                  type="checkbox"
+                  checked={rentEscalation}
+                  onChange={(e) => setRentEscalation(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500"
+                />
+                Staffelmiete
+              </label>
+            </div>
+          </div>
+        </FieldGroup>
+
+        {/* --- v2: Tenant-Mix (für Gewerbe/Mischnutzung) --- */}
+        <FieldGroup title="Mieter-Mix" hint="Vor allem bei Gewerbe/Mischnutzung: Anchor-Tenant, Anzahl Verträge, Branchen.">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label>Anzahl Mietverträge</Label>
+              <Input inputMode="numeric" value={tenantCount} onChange={(e) => setTenantCount(e.target.value)} placeholder="z. B. 8" />
+            </div>
+            <div className="md:col-span-2">
+              <Label>Anchor-Tenant (Hauptmieter)</Label>
+              <Input value={anchorTenant} onChange={(e) => setAnchorTenant(e.target.value)} placeholder="z. B. REWE Markt GmbH" />
+            </div>
+            <div className="md:col-span-3">
+              <Label>Branchen (kommagetrennt)</Label>
+              <Input value={tenantSectors} onChange={(e) => setTenantSectors(e.target.value)} placeholder="z. B. Einzelhandel, Gastronomie, Büro" />
+            </div>
+          </div>
+        </FieldGroup>
+
+        {/* --- v2: Provision + Tags --- */}
+        <FieldGroup title="Provision & Tags">
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                checked={commissionFree}
+                onChange={(e) => setCommissionFree(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300 bg-white text-indigo-600 focus:ring-indigo-500"
+              />
+              Provisionsfrei
+            </label>
+            <div className="md:col-span-2">
+              <Label>Käuferprovision (%)</Label>
+              <Input
+                inputMode="decimal"
+                value={commissionRate}
+                onChange={(e) => setCommissionRate(e.target.value)}
+                placeholder="z. B. 3.57"
+                disabled={commissionFree}
+              />
+            </div>
+            <div className="md:col-span-3">
+              <Label>Ausstattung (kommagetrennt)</Label>
+              <Input value={features} onChange={(e) => setFeatures(e.target.value)} placeholder="Aufzug, Keller, Stellplatz, Balkon, Garten" />
+            </div>
+            <div className="md:col-span-3">
+              <Label>Highlights (kommagetrennt)</Label>
+              <Input value={highlights} onChange={(e) => setHighlights(e.target.value)} placeholder="Vollvermietet, Off-Market, Renditestark, Indexmiete" />
+              <div className="mt-1 text-xs text-zinc-500">
+                Erscheinen als Pills auf Karten und in der Detail-Ansicht. Spezielle Erkennung:
+                „Off-Market" und „Vollvermietet" rendern als prominente Badges.
+              </div>
+            </div>
+          </div>
+        </FieldGroup>
+
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={busy}>
             {busy ? "Speichern…" : "Speichern"}
@@ -226,6 +523,27 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
         onChange={setImages}
       />
     </div>
+  );
+}
+
+/**
+ * Visuelle Trennung für Form-Sektionen.
+ */
+function FieldGroup({
+  title,
+  hint,
+  children
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <fieldset className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+      <legend className="px-2 text-sm font-semibold text-zinc-900">{title}</legend>
+      {hint ? <p className="mb-3 text-xs text-zinc-500">{hint}</p> : null}
+      {children}
+    </fieldset>
   );
 }
 

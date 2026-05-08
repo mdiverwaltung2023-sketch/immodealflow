@@ -7,24 +7,49 @@ import {
   AssetTypeEnum,
   type AssetTypeT
 } from "@/lib/api";
+import type { MarketplaceFilterState } from "./MarketplaceFilters";
 
 const ASSET_TYPES = AssetTypeEnum.options;
 
-const QUICK_PRESETS: { label: string; params: Record<string, string> }[] = [
-  { label: "MFH bis 2 Mio €", params: { type: "MFH", priceMax: "2000000" } },
-  { label: "Renditeobjekte ab 5%", params: { type: "MFH" } },
-  { label: "Gewerbe in Berlin", params: { type: "COMMERCIAL", city: "Berlin" } },
-  { label: "Großbestände ab 1000 m²", params: { areaMin: "1000" } }
+/**
+ * USP-Quick-Presets — jeder Preset triggert einen echten Investor-Filter,
+ * den Privatkäufer-Portale gar nicht haben.
+ */
+const QUICK_PRESETS: { label: string; tone: "indigo" | "amber" | "emerald" | "rose"; params: Record<string, string> }[] = [
+  {
+    label: "Renditestark (≥ 5 % brutto)",
+    tone: "emerald",
+    params: { yieldMin: "5", sort: "yield-desc" }
+  },
+  {
+    label: "Off-Market Bestand",
+    tone: "indigo",
+    params: { offMarket: "true" }
+  },
+  {
+    label: "Vollvermietet + Indexmiete",
+    tone: "emerald",
+    params: { fullyRented: "true", indexedRent: "true" }
+  },
+  {
+    label: "Anchor-Tenant Gewerbe",
+    tone: "amber",
+    params: { type: "COMMERCIAL", withAnchor: "true" }
+  },
+  {
+    label: "WALT 5+ Jahre",
+    tone: "indigo",
+    params: { waltMin: "60" }
+  },
+  {
+    label: "Modernisierungschancen",
+    tone: "rose",
+    params: { modernizationOnly: "true" }
+  }
 ];
 
 type Props = {
-  initial: {
-    city: string;
-    type: AssetTypeT | "";
-    priceMin: string;
-    priceMax: string;
-    areaMin: string;
-  };
+  initial: MarketplaceFilterState;
   totalCount: number;
 };
 
@@ -135,21 +160,28 @@ export function MarketplaceHero({ initial, totalCount }: Props) {
           </button>
         </form>
 
-        {/* Quick-Presets */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-indigo-200">
-            Schnellsuche:
-          </span>
-          {QUICK_PRESETS.map((p) => (
-            <button
-              key={p.label}
-              type="button"
-              onClick={() => applyPreset(p.params)}
-              className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/20"
-            >
-              {p.label}
-            </button>
-          ))}
+        {/* USP-Quick-Presets — investor-spezifische Suchen */}
+        <div className="mt-4">
+          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-indigo-200">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+              <polyline points="17 6 23 6 23 12" />
+            </svg>
+            USP-Suchen — kein Privatkäufer-Krempel
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {QUICK_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => applyPreset(p.params)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20 hover:border-white/50"
+              >
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white/70" />
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </section>

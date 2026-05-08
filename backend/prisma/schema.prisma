@@ -80,6 +80,42 @@ enum AnonymizationLevel {
   CITY_ONLY
 }
 
+// Zustand der Bausubstanz — relevant für Modernisierungs-Einschätzung.
+enum BuildingCondition {
+  NEW                // Erstbezug nach Sanierung / Neubau
+  REFURBISHED        // Kernsaniert
+  MODERNIZED         // Modernisiert (Heizung, Fenster, Bäder)
+  MAINTAINED         // Gepflegt, ohne grossen Stau
+  NEEDS_RENOVATION   // Sanierungsbedürftig
+}
+
+// Energieausweis-Klasse (GEG/EnEV-konforme Skala).
+// "A_PLUS" weil "+" in Prisma-Enums nicht erlaubt ist.
+enum EnergyClass {
+  A_PLUS
+  A
+  B
+  C
+  D
+  E
+  F
+  G
+  H
+}
+
+// Primärer Energieträger der Heizung.
+enum EnergyCarrier {
+  GAS
+  OIL
+  ELECTRIC
+  DISTRICT_HEATING   // Fernwärme
+  HEAT_PUMP          // Wärmepumpe
+  PELLETS
+  WOOD
+  SOLAR
+  OTHER
+}
+
 enum InquiryStatus {
   PENDING
   ACCEPTED
@@ -187,6 +223,54 @@ model Listing {
   district           String?             // z. B. "Mitte"
   fullAddress        String?             // Straße + Hausnummer, nur intern
   anonymizationLevel AnonymizationLevel  @default(DISTRICT_ONLY)
+
+  // --- Bausubstanz / Eckdaten (Listing v2) -----------------------
+  yearBuilt        Int?                // Baujahr
+  lastRenovation   Int?                // Jahr der letzten Sanierung
+  condition        BuildingCondition?  // Zustand
+  livingArea       Float?              // Wohnfläche m² (Wohnnutzung)
+  commercialArea   Float?              // Gewerbefläche m²
+  landArea         Float?              // Grundstücksfläche m²
+  floors           Int?                // Anzahl Etagen
+
+  // --- Einheiten (zentral für MFH/Gewerbe) -----------------------
+  residentialUnits Int?                // Anzahl Wohneinheiten
+  commercialUnits  Int?                // Anzahl Gewerbeeinheiten
+
+  // --- Energie ---------------------------------------------------
+  energyClass        EnergyClass?
+  energyConsumption  Float?            // kWh/m²a (Endenergie)
+  energyCarrier      EnergyCarrier?
+  heatingType        String?           // "Etagenheizung", "Zentralheizung", ...
+
+  // --- Vermietung (USP gegen Privatkäufer-Portale) ---------------
+  actualRent           Int?            // Istmiete monatlich (EUR)
+  vacancyRate          Float?          // Leerstand 0..1
+  waltMonths           Float?          // gewichtete Restmietdauer (Monate)
+  rentIndexed          Boolean?        // Indexmiete vorhanden
+  rentEscalation       Boolean?        // Staffelmiete
+  rentUpsidePotential  Int?            // EUR/Mon. zusätzlich erreichbar (vs. Mietspiegel)
+
+  // --- Bausubstanz / Modernisierung (USP) ------------------------
+  modernizationBacklog Int?            // Modernisierungsstau in EUR
+  gegCompliant         Boolean?        // GEG-konform (oder Sanierung erforderlich)
+
+  // --- Provision / Käufer-Nebenkosten ----------------------------
+  commissionRate     Float?            // Käuferprovision in % (z. B. 3.57)
+  commissionFree     Boolean?          // true => provisionsfrei
+  buyerCommission    Float?            // alternativ: Provision absolut
+
+  // --- Verfügbarkeit ---------------------------------------------
+  availableFrom      DateTime?
+
+  // --- Tag-Listen ------------------------------------------------
+  features           String[]   @default([])  // "Aufzug","Keller","Stellplatz",...
+  highlights         String[]   @default([])  // "Vollvermietet","Off-Market",...
+
+  // --- Tenant-Mix (Gewerbe / Mischnutzung) -----------------------
+  tenantCount        Int?              // Anzahl bestehender Mietverträge
+  anchorTenant       String?           // Hauptmieter (z. B. "REWE", "DHL")
+  tenantSectors      String[]   @default([])  // ["Einzelhandel","Gastronomie",...]
 
   images    ListingImage[]
   inquiries Inquiry[]

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   ASSET_TYPE_LABELS,
+  ENERGY_CLASS_LABELS,
+  type EnergyClassT,
   type MarketplaceListingT,
   type RatingSummaryT
 } from "@/lib/api";
@@ -123,7 +125,7 @@ export function ListingCard({ listing, compact = false }: Props) {
       ) : null}
 
       {/* Top-Left Badges */}
-      <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
+      <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5 max-w-[80%]">
         {fresh ? (
           <span className="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow">
             Neu
@@ -132,6 +134,16 @@ export function ListingCard({ listing, compact = false }: Props) {
         <span className="rounded-md bg-white/95 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700 shadow">
           {ASSET_TYPE_LABELS[listing.propertyType]}
         </span>
+        {listing.highlights?.includes("Off-Market") ? (
+          <span className="rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow">
+            Off-Market
+          </span>
+        ) : null}
+        {listing.highlights?.includes("Vollvermietet") ? (
+          <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 shadow">
+            Vollvermietet
+          </span>
+        ) : null}
       </div>
 
       {/* Top-Right Save-Heart */}
@@ -188,6 +200,69 @@ export function ListingCard({ listing, compact = false }: Props) {
         <div className="line-clamp-2 text-sm font-semibold text-zinc-900 group-hover:text-indigo-700">
           {listing.title}
         </div>
+
+        {/* Investor-Kennzahlen-Reihe: Mietmultiplikator, WALT, Einheiten, Bj, Energie */}
+        {(() => {
+          const rentMultiplier =
+            listing.totalRent && listing.totalRent > 0
+              ? listing.askingPrice / (listing.totalRent * 12)
+              : null;
+          const waltYears =
+            listing.waltMonths != null ? listing.waltMonths / 12 : null;
+          const hasAny =
+            rentMultiplier != null ||
+            waltYears != null ||
+            (listing.residentialUnits != null && listing.residentialUnits > 0) ||
+            (listing.commercialUnits != null && listing.commercialUnits > 0) ||
+            listing.energyClass ||
+            listing.yearBuilt ||
+            listing.rentIndexed === true;
+          if (!hasAny) return null;
+          return (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              {rentMultiplier != null ? (
+                <span
+                  className="rounded bg-indigo-50 border border-indigo-200 px-2 py-0.5 font-semibold text-indigo-700"
+                  title="Mietmultiplikator (Kaufpreis / Jahreskaltmiete)"
+                >
+                  {num(rentMultiplier, 1)}-fach
+                </span>
+              ) : null}
+              {waltYears != null ? (
+                <span
+                  className="rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-semibold text-emerald-700"
+                  title="Gewichtete Restmietdauer"
+                >
+                  WALT {num(waltYears, 1)}J
+                </span>
+              ) : null}
+              {listing.rentIndexed === true ? (
+                <span
+                  className="rounded bg-amber-50 border border-amber-200 px-2 py-0.5 font-semibold text-amber-800"
+                  title="Indexmiete vorhanden"
+                >
+                  Indexmiete
+                </span>
+              ) : null}
+              {listing.residentialUnits && listing.residentialUnits > 0 ? (
+                <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700">
+                  {listing.residentialUnits} WE
+                </span>
+              ) : null}
+              {listing.commercialUnits && listing.commercialUnits > 0 ? (
+                <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700">
+                  {listing.commercialUnits} GE
+                </span>
+              ) : null}
+              {listing.yearBuilt ? (
+                <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700">
+                  Bj. {listing.yearBuilt}
+                </span>
+              ) : null}
+              {listing.energyClass ? <EnergyPill cls={listing.energyClass} /> : null}
+            </div>
+          );
+        })()}
 
         {/* Kennzahlen-Reihe */}
         <div className="mt-auto grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3">
@@ -260,5 +335,29 @@ function Metric({
         {value}
       </div>
     </div>
+  );
+}
+
+/**
+ * Farb-Pill für die Energieklasse — wie auf den Energieausweisen üblich.
+ */
+export function EnergyPill({ cls, size = "sm" }: { cls: EnergyClassT; size?: "sm" | "md" }) {
+  const colorMap: Record<EnergyClassT, string> = {
+    A_PLUS: "bg-emerald-600 text-white",
+    A: "bg-emerald-500 text-white",
+    B: "bg-lime-500 text-white",
+    C: "bg-yellow-400 text-zinc-900",
+    D: "bg-amber-400 text-zinc-900",
+    E: "bg-orange-500 text-white",
+    F: "bg-orange-600 text-white",
+    G: "bg-red-600 text-white",
+    H: "bg-red-700 text-white"
+  };
+  const sizeCls = size === "md" ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded font-semibold ${sizeCls} ${colorMap[cls]}`}>
+      <span aria-hidden>⚡</span>
+      <span>{ENERGY_CLASS_LABELS[cls]}</span>
+    </span>
   );
 }

@@ -124,8 +124,8 @@ const SECTION_SELLER: Section = {
   id: "seller",
   title: "Als Verkäufer (anbieten)",
   items: [
-    { href: "/listings", label: "Meine Listings", icon: IcList },
-    { href: "/listings/new", label: "Neues Listing", icon: IcPlus }
+    { href: "/listings", label: "Meine Inserate", icon: IcList },
+    { href: "/listings/new", label: "Inserat anlegen", icon: IcPlus }
   ]
 };
 

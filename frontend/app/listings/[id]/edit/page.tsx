@@ -12,7 +12,7 @@ export default async function ListingEditPage({ params }: { params: { id: string
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-2xl font-semibold text-zinc-900">Listing bearbeiten</div>
+          <div className="text-2xl font-semibold text-zinc-900">Inserat bearbeiten</div>
           <div className="mt-1 text-sm text-zinc-500">{listing.title}</div>
         </div>
         <div className="flex flex-wrap items-center gap-3">

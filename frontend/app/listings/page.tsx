@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
+import { DemoSeedButton } from "@/components/DemoSeedButton";
 
 const ListingsSchema = z.array(ListingSchema);
 
@@ -48,23 +49,26 @@ export default async function MyListingsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-2xl font-semibold text-zinc-900">Meine Listings</div>
+          <div className="text-2xl font-semibold text-zinc-900">Meine Inserate</div>
           <div className="mt-1 text-sm text-zinc-500">
-            Verkaufs-Inserate für den Marketplace. Verkäufer-Sicht.
+            Eigene Verkaufs-Inserate für den Marketplace. Verkäufer-Sicht.
           </div>
         </div>
         <Link
           href="/listings/new"
           className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         >
-          Neues Listing
+          Inserat anlegen
         </Link>
       </div>
 
-      <Card title={`Listings (${listings.length})`}>
+      {listings.length === 0 ? <DemoSeedButton /> : null}
+
+      <Card title={`Inserate (${listings.length})`}>
         {listings.length === 0 ? (
           <div className="text-sm text-zinc-500">
-            Noch keine Listings. Lege über „Neues Listing" ein erstes Inserat als Entwurf an.
+            Noch keine Inserate. Lege über „Inserat anlegen" ein erstes Inserat als Entwurf an —
+            oder nutze den Knopf oben, um Beispiel-Inserate mit Bildern zu laden.
           </div>
         ) : (
           <div className="divide-y divide-zinc-200">
