@@ -30,6 +30,7 @@ export function InquiryActions({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paywall, setPaywall] = useState<{ message: string; upgradeTo: "INVESTOR_PRO" | "SELLER_PRO" } | null>(null);
 
   // Verkäufer sieht keine Anfrage-Aktion auf eigenes Listing
   if (isOwner) {
@@ -94,6 +95,7 @@ export function InquiryActions({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setPaywall(null);
     if (message.trim().length < 10) {
       setError("Bitte mindestens 10 Zeichen Nachricht.");
       return;
@@ -104,6 +106,16 @@ export function InquiryActions({
         method: "POST",
         body: JSON.stringify({ listingId, message: message.trim() })
       });
+      // Pay-Wall: Backend liefert 402 mit strukturiertem paywall-Body
+      if (res.status === 402) {
+        const data = (await res.json().catch(() => null)) as {
+          paywall?: { message: string; upgradeTo: "INVESTOR_PRO" | "SELLER_PRO" };
+        } | null;
+        if (data?.paywall) {
+          setPaywall(data.paywall);
+          return;
+        }
+      }
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
         throw new Error(`Anfrage fehlgeschlagen (${res.status}) ${txt.slice(0, 200)}`);
@@ -132,6 +144,27 @@ export function InquiryActions({
 
   return (
     <form onSubmit={submit} className="space-y-3">
+      {paywall ? (
+        <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-2.5">
+            <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-amber-900">Anfrage-Limit erreicht</div>
+              <div className="mt-1 text-xs text-amber-800">{paywall.message}</div>
+              <Link
+                href="/pricing"
+                className="mt-3 inline-block rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+              >
+                Investor Pro freischalten →
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <Textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
@@ -143,7 +176,7 @@ export function InquiryActions({
       </div>
       {error ? <div className="text-xs text-rose-600">{error}</div> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || paywall !== null}>
           {busy ? "Sende…" : "Anfrage absenden"}
         </Button>
         <Button
@@ -153,6 +186,7 @@ export function InquiryActions({
             setOpen(false);
             setMessage("");
             setError(null);
+            setPaywall(null);
           }}
           disabled={busy}
         >

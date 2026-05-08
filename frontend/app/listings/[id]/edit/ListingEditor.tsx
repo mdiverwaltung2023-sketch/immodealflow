@@ -95,6 +95,7 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [paywall, setPaywall] = useState<{ message: string; upgradeTo: string } | null>(null);
 
   function intOrNull(s: string): number | null {
     if (!s.trim()) return null;
@@ -114,6 +115,7 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
     e.preventDefault();
     setError(null);
     setSaved(null);
+    setPaywall(null);
     setBusy(true);
     try {
       const vacancyParsed = floatOrNull(vacancyRate);
@@ -165,6 +167,16 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
         method: "PATCH",
         body: JSON.stringify(body)
       });
+      // Pay-Wall: 402 mit strukturiertem paywall-Body (Listing-Limit erreicht)
+      if (res.status === 402) {
+        const data = (await res.json().catch(() => null)) as {
+          paywall?: { message: string; upgradeTo: string };
+        } | null;
+        if (data?.paywall) {
+          setPaywall(data.paywall);
+          return;
+        }
+      }
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
         throw new Error(`Speichern fehlgeschlagen (${res.status}) ${txt.slice(0, 200)}`);
@@ -504,6 +516,33 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
             </div>
           </div>
         </FieldGroup>
+
+        {paywall ? (
+          <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-2.5">
+              <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-amber-900">
+                  Listing-Limit erreicht
+                </div>
+                <div className="mt-1 text-xs text-amber-800">{paywall.message}</div>
+                <a
+                  href="/pricing"
+                  className="mt-3 inline-block rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                >
+                  Verkäufer Pro freischalten →
+                </a>
+                <div className="mt-2 text-[11px] text-amber-700">
+                  Tipp: Du kannst dein Listing als Entwurf speichern, indem du den
+                  Status oben auf <span className="font-semibold">Entwurf</span> stellst.
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={busy}>

@@ -19,6 +19,13 @@ import {
 } from "./lib/claude.js";
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 import { requireAuth } from "./lib/auth.js";
+import {
+  countActiveListings,
+  countInquiriesLast30d,
+  getPlanLimits,
+  paywallBody,
+  type PlanT
+} from "./lib/billing.js";
 
 // --- Stripe-Client (lazy, optional) ---
 // Wenn STRIPE_SECRET_KEY fehlt, laufen Billing-Endpoints im Stub-Modus
@@ -1436,6 +1443,31 @@ app.patch("/me/listings/:id", async (req, res) => {
   });
   if (!owned) return res.status(404).json({ error: "Not found" });
 
+  // Phase G3 — Listing-Limit beim Aktivieren (status: "ACTIVE").
+  // Beim PATCH zählt nur, wenn Status ZU "ACTIVE" wechselt.
+  if (body.status === "ACTIVE" && owned.status !== "ACTIVE") {
+    const me = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { plan: true }
+    });
+    const plan = (me?.plan ?? "FREE") as PlanT;
+    const limits = getPlanLimits(plan);
+    if (limits.activeListingsMax != null) {
+      const active = await countActiveListings(req.userId!);
+      if (active >= limits.activeListingsMax) {
+        return res.status(402).json(
+          paywallBody({
+            reason: "listing_limit_reached",
+            message: `Du hast bereits ${active} aktive Inserate. Dein Plan (${plan}) erlaubt maximal ${limits.activeListingsMax}. Verkäufer Pro hebt das Limit auf 10.`,
+            upgradeTo: "SELLER_PRO",
+            current: active,
+            limit: limits.activeListingsMax
+          })
+        );
+      }
+    }
+  }
+
   // availableFrom kommt als ISO-String — in Date umwandeln, oder null lassen
   const { availableFrom, ...rest } = body;
   const data: Record<string, unknown> = { ...rest };
@@ -1648,6 +1680,28 @@ app.post("/me/inquiries", async (req, res) => {
       error: "Es liegt bereits eine offene Anfrage zu diesem Listing vor",
       inquiryId: existingPending.id
     });
+  }
+
+  // Phase G3 — Inquiry-Limit (Free: 3 in 30d). Pro: unlimited.
+  const me = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: { plan: true }
+  });
+  const plan = (me?.plan ?? "FREE") as PlanT;
+  const limits = getPlanLimits(plan);
+  if (limits.inquiriesPer30dMax != null) {
+    const sent = await countInquiriesLast30d(req.userId!);
+    if (sent >= limits.inquiriesPer30dMax) {
+      return res.status(402).json(
+        paywallBody({
+          reason: "inquiry_limit_reached",
+          message: `Du hast in den letzten 30 Tagen ${sent} Anfragen abgeschickt — das Limit deines Plans (${plan}) ist erreicht. Investor Pro entsperrt unlimitierte Anfragen.`,
+          upgradeTo: "INVESTOR_PRO",
+          current: sent,
+          limit: limits.inquiriesPer30dMax
+        })
+      );
+    }
   }
 
   const created = await prisma.inquiry.create({
@@ -2043,6 +2097,24 @@ app.get("/marketplace", async (req, res) => {
       indexedRent: z.coerce.boolean().optional()                   // rentIndexed = true
     })
     .parse(req.query);
+
+  // Off-Market-Filter ist Investor-Pro-only (Phase G3 Feature-Gating).
+  if (q.offMarket) {
+    const me = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { plan: true }
+    });
+    const plan = (me?.plan ?? "FREE") as PlanT;
+    if (!getPlanLimits(plan).canSeeOffMarket) {
+      return res.status(402).json(
+        paywallBody({
+          reason: "off_market_locked",
+          message: "Off-Market-Inserate sind Investor-Pro-Feature. Upgrade unter /pricing.",
+          upgradeTo: "INVESTOR_PRO"
+        })
+      );
+    }
+  }
 
   const priceFilter: { gte?: number; lte?: number } = {};
   if (q.priceMin != null) priceFilter.gte = q.priceMin;

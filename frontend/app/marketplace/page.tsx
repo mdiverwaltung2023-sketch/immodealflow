@@ -67,7 +67,14 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
     if (e.success) params.set("energyMin", e.data);
   }
   if (truthy(searchParams?.fullyRented)) params.set("fullyRented", "true");
-  if (truthy(searchParams?.offMarket)) params.set("offMarket", "true");
+  // Off-Market ist Investor-Pro-Feature — Free-User dürfen den Filter nicht setzen.
+  // Wir stripen ihn lieber clientseitig, statt das Backend mit 402 zu antworten
+  // und die SSR-Page zu crashen.
+  const offMarketRequested = truthy(searchParams?.offMarket);
+  const offMarketStripped = offMarketRequested && userPlan !== "INVESTOR_PRO";
+  if (offMarketRequested && userPlan === "INVESTOR_PRO") {
+    params.set("offMarket", "true");
+  }
   if (truthy(searchParams?.withAnchor)) params.set("withAnchor", "true");
   if (truthy(searchParams?.modernizationOnly)) params.set("modernizationOnly", "true");
   if (truthy(searchParams?.indexedRent)) params.set("indexedRent", "true");
@@ -118,6 +125,27 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
         initial={filters}
         totalCount={listings.length}
       />
+
+      {offMarketStripped ? (
+        <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm">
+          <svg className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0110 0v4" />
+          </svg>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-indigo-900">Off-Market-Filter ist Investor-Pro-Feature</div>
+            <div className="mt-0.5 text-xs text-indigo-800/90">
+              Wir zeigen dir die regulären Inserate. Schalte Off-Market mit Investor Pro frei.
+            </div>
+          </div>
+          <a
+            href="/pricing"
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+          >
+            Tarife ansehen
+          </a>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
         <aside className="lg:sticky lg:top-20 lg:self-start">
