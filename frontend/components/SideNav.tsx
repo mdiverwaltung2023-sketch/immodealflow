@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
+import type { UserRoleT } from "@/lib/api";
+import { VIEW_MODE_STORAGE_KEY, VIEW_MODE_EVENT, type ViewMode } from "@/components/viewMode";
 
 type Item = {
   href: string;
@@ -13,11 +15,12 @@ type Item = {
 };
 
 type Section = {
+  id: "overview" | "investor" | "seller" | "account";
   title: string;
   items: Item[];
 };
 
-/* ---------- Mini-Icon-Set (inline SVGs, keine Library nötig) ---------- */
+/* ---------- Mini-Icon-Set (inline SVGs) ---------- */
 
 function Icon({ children }: { children: ReactNode }) {
   return (
@@ -90,43 +93,105 @@ const IcBookmark = (
     <path d="M6 3h12v18l-6-4-6 4z" />
   </Icon>
 );
+const IcChart = (
+  <Icon>
+    <path d="M3 3v18h18" />
+    <path d="M7 14l4-4 4 4 5-7" />
+  </Icon>
+);
 
-const SECTIONS: Section[] = [
-  {
-    title: "Übersicht",
-    items: [{ href: "/dashboard", label: "Dashboard", icon: IcHome, exact: true }]
-  },
-  {
-    title: "Marktplatz",
-    items: [
-      { href: "/marketplace", label: "Marketplace", icon: IcStore },
-      { href: "/inquiries", label: "Anfragen", icon: IcInbox },
-      { href: "/auctions", label: "Versteigerungen", icon: IcGavel }
-    ]
-  },
-  {
-    title: "Meine Objekte",
-    items: [
-      { href: "/listings", label: "Meine Listings", icon: IcList },
-      { href: "/new", label: "Neues Objekt", icon: IcPlus }
-    ]
-  },
-  {
-    title: "Konto",
-    items: [
-      { href: "/profile", label: "Profil", icon: IcUser },
-      { href: "/bookmarklet", label: "Bookmarklet", icon: IcBookmark }
-    ]
+/* ---------- Sektionen ---------- */
+
+const SECTION_OVERVIEW: Section = {
+  id: "overview",
+  title: "Übersicht",
+  items: [{ href: "/dashboard", label: "Dashboard", icon: IcHome, exact: true }]
+};
+
+const SECTION_INVESTOR: Section = {
+  id: "investor",
+  title: "Als Investor (kaufen)",
+  items: [
+    { href: "/marketplace", label: "Marketplace", icon: IcStore },
+    { href: "/inquiries", label: "Meine Anfragen", icon: IcInbox },
+    { href: "/auctions", label: "Versteigerungen", icon: IcGavel },
+    { href: "/new", label: "Objekt beobachten", icon: IcChart },
+    { href: "/bookmarklet", label: "Bookmarklet", icon: IcBookmark }
+  ]
+};
+
+const SECTION_SELLER: Section = {
+  id: "seller",
+  title: "Als Verkäufer (anbieten)",
+  items: [
+    { href: "/listings", label: "Meine Listings", icon: IcList },
+    { href: "/listings/new", label: "Neues Listing", icon: IcPlus }
+  ]
+};
+
+const SECTION_ACCOUNT: Section = {
+  id: "account",
+  title: "Konto",
+  items: [{ href: "/profile", label: "Profil", icon: IcUser }]
+};
+
+/**
+ * Sektionen je nach (Rolle × ViewMode):
+ * - INVESTOR -> Übersicht + Investor + Konto
+ * - SELLER   -> Übersicht + Verkäufer + Konto
+ * - BOTH + viewMode "BOTH"     -> alle 4
+ * - BOTH + viewMode "INVESTOR" -> Übersicht + Investor + Konto
+ * - BOTH + viewMode "SELLER"   -> Übersicht + Verkäufer + Konto
+ */
+function getVisibleSections(role: UserRoleT, mode: ViewMode): Section[] {
+  if (role === "INVESTOR" || (role === "BOTH" && mode === "INVESTOR")) {
+    return [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
   }
-];
+  if (role === "SELLER" || (role === "BOTH" && mode === "SELLER")) {
+    return [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+  }
+  return [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_SELLER, SECTION_ACCOUNT];
+}
 
 function isActive(pathname: string, item: Item): boolean {
   if (item.exact) return pathname === item.href;
   return pathname === item.href || pathname.startsWith(item.href + "/");
 }
 
-export function SideNav() {
+export function SideNav({ userRole }: { userRole: UserRoleT }) {
   const pathname = usePathname() || "/";
+  const [viewMode, setViewMode] = useState<ViewMode>("BOTH");
+  const [hydrated, setHydrated] = useState(false);
+
+  // ViewMode aus localStorage initialisieren + auf Toggle-Events hören
+  useEffect(() => {
+    setHydrated(true);
+    if (userRole !== "BOTH") {
+      // Reine Investoren/Verkäufer haben keinen Modus zum Wechseln
+      return;
+    }
+    try {
+      const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      if (saved === "INVESTOR" || saved === "SELLER" || saved === "BOTH") {
+        setViewMode(saved);
+      }
+    } catch {
+      // localStorage kann blockiert sein — egal, dann Default
+    }
+
+    function onChange(e: Event) {
+      const detail = (e as CustomEvent<ViewMode>).detail;
+      if (detail === "INVESTOR" || detail === "SELLER" || detail === "BOTH") {
+        setViewMode(detail);
+      }
+    }
+    window.addEventListener(VIEW_MODE_EVENT, onChange);
+    return () => window.removeEventListener(VIEW_MODE_EVENT, onChange);
+  }, [userRole]);
+
+  // Vor Hydration: nutze die Server-Default-Variante (BOTH-View) damit kein
+  // Layout-Shift entsteht, der schlimmer wäre als die kurze Anzeige aller Items.
+  const sections = getVisibleSections(userRole, hydrated ? viewMode : "BOTH");
 
   return (
     <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:shrink-0 lg:border-r lg:border-zinc-200 lg:bg-white">
@@ -144,8 +209,8 @@ export function SideNav() {
       </Link>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        {SECTIONS.map((section) => (
-          <div key={section.title}>
+        {sections.map((section) => (
+          <div key={section.id}>
             <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
               {section.title}
             </div>

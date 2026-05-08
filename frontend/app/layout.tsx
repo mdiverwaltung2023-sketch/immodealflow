@@ -1,8 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import { ClerkProvider, SignedIn, SignedOut } from "@clerk/nextjs";
-import { SideNav } from "@/components/SideNav";
-import { TopBar } from "@/components/TopBar";
+import { SidebarShell } from "@/components/SidebarShell";
 
 export const metadata = {
   title: "Infinity Oikos — Marketplace für MFH und Gewerbe",
@@ -25,23 +24,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <html lang="de">
         <body>
-          {/* Eingeloggte User: Sidebar-Shell mit TopBar */}
+          {/* Eingeloggte User: rollenabhängige Sidebar-Shell */}
           <SignedIn>
-            <div className="flex min-h-screen bg-zinc-50">
-              <SideNav />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <TopBar />
-                <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
-                  <div className="mx-auto max-w-7xl">{children}</div>
-                </main>
-                <footer className="border-t border-zinc-200 bg-white px-4 py-4 lg:px-8 text-xs text-zinc-500">
-                  Infinity Oikos · Marketplace für MFH und Gewerbe ·{" "}
-                  <a href="mailto:info@infinityoikos.com" className="underline hover:text-zinc-700">
-                    info@infinityoikos.com
-                  </a>
-                </footer>
-              </div>
-            </div>
+            <SidebarShell>{children}</SidebarShell>
           </SignedIn>
 
           {/* Pre-Auth (Landing, Sign-in, Sign-up): Vollbild ohne Shell */}
