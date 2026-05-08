@@ -19,7 +19,7 @@ const PLANS: Plan[] = [
     id: "INVESTOR_PRO",
     name: "Investor Pro",
     monthly: 99,
-    yearly: 999,
+    yearly: 990,
     tagline: "Für Käufer, die ernsthaft suchen — Off-Market und KI-Tools.",
     highlight: true,
     features: [
