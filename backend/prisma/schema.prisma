@@ -128,6 +128,13 @@ enum RatingDirection {
   SELLER_TO_INVESTOR
 }
 
+// Subscription-Plan eines Users (Stripe-gestützt).
+enum UserPlan {
+  FREE
+  INVESTOR_PRO
+  SELLER_PRO
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -139,6 +146,12 @@ model User {
   role      UserRole @default(INVESTOR)
 
   onboardingCompletedAt DateTime?
+
+  // --- Subscription / Stripe (Phase G1) ---
+  plan                 UserPlan  @default(FREE)
+  planValidUntil       DateTime? // Ende der bezahlten Periode; null = nie aktiv gewesen
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
 
   properties        Property[]
   investorProfile   InvestorProfile?

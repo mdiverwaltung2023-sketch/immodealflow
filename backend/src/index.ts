@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { z } from "zod";
+import Stripe from "stripe";
 import { prisma } from "./lib/prisma.js";
 import {
   computeFullAnalysis,
@@ -19,7 +20,54 @@ import {
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 import { requireAuth } from "./lib/auth.js";
 
+// --- Stripe-Client (lazy, optional) ---
+// Wenn STRIPE_SECRET_KEY fehlt, laufen Billing-Endpoints im Stub-Modus
+// und antworten 503 mit klarer Meldung — App startet trotzdem.
+const stripeSecret = process.env.STRIPE_SECRET_KEY;
+const stripe: Stripe | null = stripeSecret
+  ? new Stripe(stripeSecret, { apiVersion: "2025-09-30.clover" })
+  : null;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+const STRIPE_PRICE_INVESTOR_MONTHLY = process.env.STRIPE_PRICE_INVESTOR_MONTHLY ?? "";
+const STRIPE_PRICE_INVESTOR_YEARLY = process.env.STRIPE_PRICE_INVESTOR_YEARLY ?? "";
+const STRIPE_PRICE_SELLER_MONTHLY = process.env.STRIPE_PRICE_SELLER_MONTHLY ?? "";
+const STRIPE_PRICE_SELLER_YEARLY = process.env.STRIPE_PRICE_SELLER_YEARLY ?? "";
+
 const app = express();
+
+// =========================================================
+// Stripe-Webhook MUSS VOR express.json() registriert werden,
+// weil die Signatur-Verifikation den unparsed Raw-Body braucht.
+// =========================================================
+app.post(
+  "/webhooks/stripe",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+      return res.status(503).json({ error: "Stripe not configured" });
+    }
+    const sig = req.headers["stripe-signature"];
+    if (typeof sig !== "string") return res.status(400).send("Missing signature");
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown";
+      console.error("Stripe webhook signature failed:", msg);
+      return res.status(400).send(`Webhook Error: ${msg}`);
+    }
+
+    try {
+      await handleStripeEvent(event);
+    } catch (err) {
+      console.error("Stripe webhook handler failed:", err);
+      // 200 trotzdem zurückgeben, sonst retried Stripe endlos. Wir haben den
+      // Fehler in den Logs; manueller Fix per Customer Portal möglich.
+    }
+    return res.json({ received: true });
+  }
+);
 
 app.use(express.json({ limit: "2mb" }));
 
@@ -2097,6 +2145,202 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 // Express 5: async-Handler-Errors auch fangen (sollte automatisch sein,
 // aber sicherheitshalber mit einer Wrapper-Variante getestet werden falls
 // ein unhandled async error in 500 ohne Stack mündet).
+
+// =========================================================
+// Phase G1 — Stripe-Billing-Endpoints
+// =========================================================
+
+const CheckoutBodySchema = z.object({
+  plan: z.enum(["INVESTOR_PRO", "SELLER_PRO"]),
+  interval: z.enum(["monthly", "yearly"]).default("monthly")
+});
+
+function priceIdFor(plan: "INVESTOR_PRO" | "SELLER_PRO", interval: "monthly" | "yearly"): string {
+  if (plan === "INVESTOR_PRO") {
+    return interval === "yearly" ? STRIPE_PRICE_INVESTOR_YEARLY : STRIPE_PRICE_INVESTOR_MONTHLY;
+  }
+  return interval === "yearly" ? STRIPE_PRICE_SELLER_YEARLY : STRIPE_PRICE_SELLER_MONTHLY;
+}
+
+function planFromPriceId(priceId: string): "INVESTOR_PRO" | "SELLER_PRO" | null {
+  if (priceId === STRIPE_PRICE_INVESTOR_MONTHLY || priceId === STRIPE_PRICE_INVESTOR_YEARLY) {
+    return "INVESTOR_PRO";
+  }
+  if (priceId === STRIPE_PRICE_SELLER_MONTHLY || priceId === STRIPE_PRICE_SELLER_YEARLY) {
+    return "SELLER_PRO";
+  }
+  return null;
+}
+
+// GET /me/billing — aktueller Plan + Status
+app.get("/me/billing", async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: {
+      plan: true,
+      planValidUntil: true,
+      stripeCustomerId: true,
+      stripeSubscriptionId: true
+    }
+  });
+  if (!user) return res.status(404).json({ error: "Not found" });
+  return res.json({
+    plan: user.plan,
+    planValidUntil: user.planValidUntil,
+    hasSubscription: !!user.stripeSubscriptionId,
+    stripeReady: !!stripe
+  });
+});
+
+// POST /me/billing/checkout — startet Stripe-Checkout
+app.post("/me/billing/checkout", async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe not configured" });
+
+  const body = CheckoutBodySchema.parse(req.body);
+  const priceId = priceIdFor(body.plan, body.interval);
+  if (!priceId) {
+    return res.status(503).json({ error: `Stripe price not configured for ${body.plan} ${body.interval}` });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: { id: true, email: true, name: true, stripeCustomerId: true }
+  });
+  if (!user) return res.status(404).json({ error: "Not found" });
+
+  // Customer anlegen, falls noch keiner existiert
+  let customerId = user.stripeCustomerId;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: user.email,
+      name: user.name ?? undefined,
+      metadata: { userId: user.id }
+    });
+    customerId = customer.id;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { stripeCustomerId: customerId }
+    });
+  }
+
+  const frontend = (process.env.FRONTEND_ORIGIN?.split(",")[0] ?? "https://infinityoikos.com").trim();
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    customer: customerId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${frontend}/profile?billing=success`,
+    cancel_url: `${frontend}/profile?billing=cancelled`,
+    allow_promotion_codes: true,
+    client_reference_id: user.id,
+    metadata: { userId: user.id, plan: body.plan, interval: body.interval },
+    subscription_data: {
+      metadata: { userId: user.id, plan: body.plan }
+    }
+  });
+
+  return res.json({ url: session.url });
+});
+
+// POST /me/billing/portal — Stripe Customer Portal (Karte/Cancel/Plan)
+app.post("/me/billing/portal", async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe not configured" });
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: { stripeCustomerId: true }
+  });
+  if (!user?.stripeCustomerId) {
+    return res.status(409).json({ error: "Kein Abo aktiv — bitte zuerst eines starten." });
+  }
+
+  const frontend = (process.env.FRONTEND_ORIGIN?.split(",")[0] ?? "https://infinityoikos.com").trim();
+  const portal = await stripe.billingPortal.sessions.create({
+    customer: user.stripeCustomerId,
+    return_url: `${frontend}/profile`
+  });
+  return res.json({ url: portal.url });
+});
+
+// =========================================================
+// Stripe Event-Handler — wird von Webhook-Route aufgerufen
+// =========================================================
+async function handleStripeEvent(event: Stripe.Event) {
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const userId = (session.metadata?.userId ?? session.client_reference_id) as string | null;
+      if (!userId || session.mode !== "subscription" || !session.subscription) return;
+
+      const subscriptionId = typeof session.subscription === "string"
+        ? session.subscription
+        : session.subscription.id;
+      const sub = await stripe!.subscriptions.retrieve(subscriptionId);
+      const item = sub.items.data[0];
+      const priceId = item?.price.id ?? "";
+      const plan = planFromPriceId(priceId);
+      if (!plan) return;
+
+      // Stripe-Subscription liefert period_end auf dem Item, nicht auf sub direkt
+      const periodEnd = (item as { current_period_end?: number } | undefined)?.current_period_end;
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          plan,
+          stripeSubscriptionId: sub.id,
+          planValidUntil: periodEnd ? new Date(periodEnd * 1000) : null
+        }
+      });
+      return;
+    }
+
+    case "customer.subscription.updated":
+    case "customer.subscription.created": {
+      const sub = event.data.object as Stripe.Subscription;
+      const userId = (sub.metadata?.userId ?? null) as string | null;
+      if (!userId) return;
+
+      // Wenn Subscription cancelled (cancelled_at gesetzt + status canceled): Plan zurück
+      if (sub.status === "canceled" || sub.status === "unpaid" || sub.status === "incomplete_expired") {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { plan: "FREE", stripeSubscriptionId: null }
+        });
+        return;
+      }
+
+      const item = sub.items.data[0];
+      const priceId = item?.price.id ?? "";
+      const plan = planFromPriceId(priceId);
+      if (!plan) return;
+
+      const periodEnd = (item as { current_period_end?: number } | undefined)?.current_period_end;
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          plan,
+          stripeSubscriptionId: sub.id,
+          planValidUntil: periodEnd ? new Date(periodEnd * 1000) : null
+        }
+      });
+      return;
+    }
+
+    case "customer.subscription.deleted": {
+      const sub = event.data.object as Stripe.Subscription;
+      const userId = (sub.metadata?.userId ?? null) as string | null;
+      if (!userId) return;
+      await prisma.user.update({
+        where: { id: userId },
+        data: { plan: "FREE", stripeSubscriptionId: null }
+      });
+      return;
+    }
+
+    default:
+      // andere Events ignorieren — wir hören nur auf das Wesentliche
+      return;
+  }
+}
 
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {
