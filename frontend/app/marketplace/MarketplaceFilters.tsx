@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -8,7 +9,8 @@ import {
   ENERGY_CLASS_LABELS,
   EnergyClassEnum,
   type AssetTypeT,
-  type EnergyClassT
+  type EnergyClassT,
+  type UserPlanT
 } from "@/lib/api";
 
 const ASSET_TYPES = AssetTypeEnum.options;
@@ -34,9 +36,12 @@ export type MarketplaceFilterState = {
 type Props = {
   initial: MarketplaceFilterState;
   variant?: "sidebar" | "horizontal";
+  /** Wenn FREE, ist Off-Market gesperrt mit Lock + Upgrade-Hint. */
+  userPlan?: UserPlanT;
 };
 
-export function MarketplaceFilters({ initial, variant = "sidebar" }: Props) {
+export function MarketplaceFilters({ initial, variant = "sidebar", userPlan = "FREE" }: Props) {
+  const isPro = userPlan === "INVESTOR_PRO" || userPlan === "SELLER_PRO";
   const router = useRouter();
   const [city, setCity] = useState(initial.city);
   const [type, setType] = useState<AssetTypeT | "">(initial.type);
@@ -246,12 +251,40 @@ export function MarketplaceFilters({ initial, variant = "sidebar" }: Props) {
               checked={withAnchor}
               onChange={setWithAnchor}
             />
-            <Toggle
-              label="Off-Market only"
-              hint="Diskrete Verkäufe"
-              checked={offMarket}
-              onChange={setOffMarket}
-            />
+            {isPro ? (
+              <Toggle
+                label="Off-Market only"
+                hint="Diskrete Verkäufe"
+                checked={offMarket}
+                onChange={setOffMarket}
+              />
+            ) : (
+              <Link
+                href="/pricing"
+                className="flex items-start gap-2 rounded-md border border-dashed border-indigo-300 bg-white p-2 hover:bg-indigo-50"
+              >
+                <svg
+                  className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium text-zinc-800">
+                    Off-Market only
+                  </span>
+                  <span className="block text-[10px] text-indigo-600">
+                    Investor Pro freischalten →
+                  </span>
+                </span>
+              </Link>
+            )}
             <Toggle
               label="Modernisierungspotenzial"
               hint="Wertsteigerungs-Chance"

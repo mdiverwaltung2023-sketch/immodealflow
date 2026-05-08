@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
-import type { UserRoleT } from "@/lib/api";
+import { PlanBadge } from "@/components/PlanBadge";
+import type { UserPlanT, UserRoleT } from "@/lib/api";
 import { VIEW_MODE_STORAGE_KEY, VIEW_MODE_EVENT, type ViewMode } from "@/components/viewMode";
 
 type Item = {
@@ -99,6 +100,12 @@ const IcChart = (
     <path d="M7 14l4-4 4 4 5-7" />
   </Icon>
 );
+const IcSparkle = (
+  <Icon>
+    <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5z" />
+    <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />
+  </Icon>
+);
 
 /* ---------- Sektionen ---------- */
 
@@ -132,7 +139,10 @@ const SECTION_SELLER: Section = {
 const SECTION_ACCOUNT: Section = {
   id: "account",
   title: "Konto",
-  items: [{ href: "/profile", label: "Profil", icon: IcUser }]
+  items: [
+    { href: "/profile", label: "Profil", icon: IcUser },
+    { href: "/pricing", label: "Tarife", icon: IcSparkle }
+  ]
 };
 
 /**
@@ -158,7 +168,7 @@ function isActive(pathname: string, item: Item): boolean {
   return pathname === item.href || pathname.startsWith(item.href + "/");
 }
 
-export function SideNav({ userRole }: { userRole: UserRoleT }) {
+export function SideNav({ userRole, plan }: { userRole: UserRoleT; plan: UserPlanT }) {
   const pathname = usePathname() || "/";
   const [viewMode, setViewMode] = useState<ViewMode>("BOTH");
   const [hydrated, setHydrated] = useState(false);
@@ -240,8 +250,42 @@ export function SideNav({ userRole }: { userRole: UserRoleT }) {
         ))}
       </nav>
 
-      <div className="border-t border-zinc-200 px-5 py-4 text-[11px] text-zinc-400">
-        © {new Date().getFullYear()} Infinity Oikos
+      {/* Plan-Block am Sidebar-Footer: Free zeigt CTA, Pro zeigt Badge */}
+      <div className="border-t border-zinc-200 px-4 py-4">
+        {plan === "FREE" ? (
+          <Link
+            href="/pricing"
+            className="block rounded-lg bg-gradient-to-br from-indigo-600 to-violet-700 p-3 text-white shadow-sm transition hover:shadow-md"
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">
+              Free-Plan
+            </div>
+            <div className="mt-0.5 text-sm font-semibold">Auf Pro upgraden →</div>
+            <div className="mt-1 text-[10px] text-indigo-100/90">
+              Off-Market, KI-Tools, Verifiziert-Badge
+            </div>
+          </Link>
+        ) : (
+          <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                Aktueller Plan
+              </div>
+              <div className="mt-1">
+                <PlanBadge plan={plan} size="md" asLink={false} />
+              </div>
+            </div>
+            <Link
+              href="/profile"
+              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
+            >
+              Verwalten
+            </Link>
+          </div>
+        )}
+        <div className="mt-3 text-[10px] text-zinc-400">
+          © {new Date().getFullYear()} Infinity Oikos
+        </div>
       </div>
     </aside>
   );

@@ -1,14 +1,21 @@
-import { InvestorProfileSchema, RatingsReceivedResponseSchema } from "@/lib/api";
+import { BillingStateSchema, InvestorProfileSchema, RatingsReceivedResponseSchema } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { StarSummary } from "@/components/StarRating";
 import { ProfileEditor } from "./ProfileEditor";
+import { BillingCard } from "./BillingCard";
 
 export default async function ProfilePage() {
   const me = await requireOnboardedUser();
-  const [profile, ratings] = await Promise.all([
+  const [profile, ratings, billing] = await Promise.all([
     apiGet("/me/profile", InvestorProfileSchema),
-    apiGet("/me/ratings/received", RatingsReceivedResponseSchema)
+    apiGet("/me/ratings/received", RatingsReceivedResponseSchema),
+    apiGet("/me/billing", BillingStateSchema).catch(() => ({
+      plan: "FREE" as const,
+      planValidUntil: null,
+      hasSubscription: false,
+      stripeReady: false
+    }))
   ]);
 
   return (
@@ -20,6 +27,8 @@ export default async function ProfilePage() {
           Sichtbarkeit das erlaubt — und je nach Stufe erst nach einer Anfrage.
         </div>
       </div>
+
+      <BillingCard billing={billing} />
 
       <Card title="Bewertungen über mich">
         <div className="flex flex-wrap items-center gap-3">

@@ -199,6 +199,25 @@ export const USER_ROLE_LABELS: Record<UserRoleT, string> = {
   BOTH: "Beides"
 };
 
+// --- Subscription / Billing (Phase G1+G2) -----------------------
+
+export const UserPlanEnum = z.enum(["FREE", "INVESTOR_PRO", "SELLER_PRO"]);
+export type UserPlanT = z.infer<typeof UserPlanEnum>;
+
+export const USER_PLAN_LABELS: Record<UserPlanT, string> = {
+  FREE: "Free",
+  INVESTOR_PRO: "Investor Pro",
+  SELLER_PRO: "Verkäufer Pro"
+};
+
+export const BillingStateSchema = z.object({
+  plan: UserPlanEnum,
+  planValidUntil: z.string().nullable().optional(),
+  hasSubscription: z.boolean(),
+  stripeReady: z.boolean()
+});
+export type BillingStateT = z.infer<typeof BillingStateSchema>;
+
 export const MeSchema = z.object({
   id: z.string(),
   clerkId: z.string(),
@@ -206,7 +225,10 @@ export const MeSchema = z.object({
   name: z.string().nullable().optional(),
   role: UserRoleEnum,
   onboardingCompletedAt: z.string().nullable().optional(),
-  legacyCount: z.number().optional()
+  legacyCount: z.number().optional(),
+  // Phase G1: Plan kommt aus /me jetzt mit (Backend hat Feld auf User)
+  plan: UserPlanEnum.optional(),
+  planValidUntil: z.string().nullable().optional()
 });
 
 export type Me = z.infer<typeof MeSchema>;

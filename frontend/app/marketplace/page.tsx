@@ -38,7 +38,8 @@ type Search = {
 const truthy = (v: string | undefined) => v === "true" || v === "1";
 
 export default async function MarketplacePage({ searchParams }: { searchParams?: Search }) {
-  await requireOnboardedUser();
+  const me = await requireOnboardedUser();
+  const userPlan = me.plan ?? "FREE";
 
   const params = new URLSearchParams();
   if (searchParams?.city) params.set("city", searchParams.city);
@@ -121,7 +122,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams?:
       <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
         <aside className="lg:sticky lg:top-20 lg:self-start">
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <MarketplaceFilters initial={filters} variant="sidebar" />
+            <MarketplaceFilters initial={filters} variant="sidebar" userPlan={userPlan} />
           </div>
         </aside>
 

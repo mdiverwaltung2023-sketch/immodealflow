@@ -4,14 +4,22 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
-import type { UserRoleT } from "@/lib/api";
+import { PlanBadge } from "@/components/PlanBadge";
+import type { UserPlanT, UserRoleT } from "@/lib/api";
 
 /**
  * Topbar oben in der eingeloggten App-Shell.
  * Auf mobile zeigt sie zusätzlich Logo (weil dann Sidebar ausgeblendet ist).
  * Bei Rolle BOTH erscheint zusätzlich der Sidebar-Modus-Toggle.
+ * Plan-Badge rechts neben dem Rollen-Badge — Free klickbar zur Pricing-Page.
  */
-export function TopBar({ userRole }: { userRole: UserRoleT }) {
+export function TopBar({
+  userRole,
+  plan
+}: {
+  userRole: UserRoleT;
+  plan: UserPlanT;
+}) {
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/85 backdrop-blur">
       <div className="flex items-center justify-between px-4 lg:px-8 h-14 gap-3">
@@ -27,6 +35,9 @@ export function TopBar({ userRole }: { userRole: UserRoleT }) {
         </div>
 
         <div className="flex items-center gap-3">
+          <span className="hidden md:inline-flex">
+            <PlanBadge plan={plan} />
+          </span>
           <RoleBadge role={userRole} />
           <UserButton afterSignOutUrl="/" />
         </div>

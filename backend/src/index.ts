@@ -766,7 +766,9 @@ app.get("/me", async (req, res) => {
     name: user.name,
     role: user.role,
     onboardingCompletedAt: user.onboardingCompletedAt,
-    legacyCount
+    legacyCount,
+    plan: user.plan,
+    planValidUntil: user.planValidUntil
   });
 });
 
