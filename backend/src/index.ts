@@ -31,8 +31,10 @@ import {
 // Wenn STRIPE_SECRET_KEY fehlt, laufen Billing-Endpoints im Stub-Modus
 // und antworten 503 mit klarer Meldung — App startet trotzdem.
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
+// apiVersion bewusst NICHT setzen — Library nimmt ihren Default,
+// was Type-Mismatches mit zukuenftigen API-Versionen vermeidet.
 const stripe: Stripe | null = stripeSecret
-  ? new Stripe(stripeSecret, { apiVersion: "2025-09-30.clover" })
+  ? new Stripe(stripeSecret)
   : null;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "";
 const STRIPE_PRICE_INVESTOR_MONTHLY = process.env.STRIPE_PRICE_INVESTOR_MONTHLY ?? "";
@@ -2180,23 +2182,23 @@ app.get("/marketplace", async (req, res) => {
   // Bewertungs-Summary pro Verkäufer dazuladen + Verifiziert-Flag
   const enriched = await Promise.all(
     yieldFiltered.slice(0, 100).map(async (l) => {
+      const ownerPlan = l.owner?.plan;
       const ownerVerified =
-        (l.owner as { plan?: string } | null)?.plan === "INVESTOR_PRO" ||
-        (l.owner as { plan?: string } | null)?.plan === "SELLER_PRO";
+        ownerPlan === "INVESTOR_PRO" || ownerPlan === "SELLER_PRO";
       const featured =
         !!l.featuredUntil && l.featuredUntil.getTime() > nowMs;
+      const anonymized = anonymizeListing(l);
       // owner.plan im Response weglassen — Plan ist intern.
-      const { owner: ownerWithPlan, ...rest } = anonymizeListing(l);
-      const owner = ownerWithPlan
+      const ownerOut = anonymized.owner
         ? {
-            id: (ownerWithPlan as { id: string }).id,
-            name: (ownerWithPlan as { name: string | null }).name,
-            role: (ownerWithPlan as { role: string }).role
+            id: anonymized.owner.id,
+            name: anonymized.owner.name,
+            role: anonymized.owner.role
           }
         : null;
       return {
-        ...rest,
-        owner,
+        ...anonymized,
+        owner: ownerOut,
         ownerVerified,
         featured,
         sellerRating: await ratingSummaryFor(l.ownerId)
@@ -2234,25 +2236,25 @@ app.get("/marketplace/:id", async (req, res) => {
     select: { id: true, status: true, createdAt: true }
   });
 
+  const ownerPlan = listing.owner?.plan;
   const ownerVerified =
-    listing.owner?.plan === "INVESTOR_PRO" ||
-    listing.owner?.plan === "SELLER_PRO";
+    ownerPlan === "INVESTOR_PRO" || ownerPlan === "SELLER_PRO";
   const featured =
     !!listing.featuredUntil && listing.featuredUntil.getTime() > Date.now();
 
+  const anonymized = anonymizeListing(listing);
   // owner.plan im Response weglassen — Plan ist intern.
-  const { owner: ownerWithPlan, ...rest } = anonymizeListing(listing);
-  const owner = ownerWithPlan
+  const ownerOut = anonymized.owner
     ? {
-        id: (ownerWithPlan as { id: string }).id,
-        name: (ownerWithPlan as { name: string | null }).name,
-        role: (ownerWithPlan as { role: string }).role
+        id: anonymized.owner.id,
+        name: anonymized.owner.name,
+        role: anonymized.owner.role
       }
     : null;
 
   return res.json({
-    ...rest,
-    owner,
+    ...anonymized,
+    owner: ownerOut,
     ownerVerified,
     featured,
     myInquiry,
@@ -2487,7 +2489,7 @@ async function handleStripeEvent(event: Stripe.Event) {
       if (!plan) return;
 
       // Stripe-Subscription liefert period_end auf dem Item, nicht auf sub direkt
-      const periodEnd = (item as { current_period_end?: number } | undefined)?.current_period_end;
+      const periodEnd = ((item as unknown) as { current_period_end?: number } | undefined)?.current_period_end;
       await prisma.user.update({
         where: { id: userId },
         data: {
@@ -2519,7 +2521,7 @@ async function handleStripeEvent(event: Stripe.Event) {
       const plan = planFromPriceId(priceId);
       if (!plan) return;
 
-      const periodEnd = (item as { current_period_end?: number } | undefined)?.current_period_end;
+      const periodEnd = ((item as unknown) as { current_period_end?: number } | undefined)?.current_period_end;
       await prisma.user.update({
         where: { id: userId },
         data: {
