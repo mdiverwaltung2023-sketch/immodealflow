@@ -32,14 +32,15 @@ Zwei Prices:
 - **Monatlich**: `49 €` recurring monthly
 - **Jährlich**: `490 €` recurring yearly
 
-### Product 3 (optional, kommt erst in G4): "Premium Listing"
-Beschreibung: *"Top-Position 30 Tage, Highlight-Pill, Push an passende Investor-Profile"*
+### Product 3: "Premium Listing" (Phase G4)
+Beschreibung: *"Top-Position 30 Tage, Premium-Pill in Karte und Detail"*
 
 Ein Price:
-- **One-Time**: `99 €`
+- **One-Time**: `99 €` · Price ID notieren
 
-> Für G1 reichen Product 1 + 2. Product 3 kannst du jetzt schon anlegen
-> oder später beim G4-Push. Das Backend verlangt die G4-Price-ID nicht.
+> Phase G4 nutzt diese Price-ID als `STRIPE_PRICE_PREMIUM_LISTING`.
+> Wenn die Variable fehlt, antwortet `/me/listings/:id/checkout-feature`
+> mit 503 — alles andere läuft normal.
 
 ---
 
@@ -90,6 +91,7 @@ Variablen anlegen:
 | `STRIPE_PRICE_INVESTOR_YEARLY` | `price_...` | Product 1, Jährlich |
 | `STRIPE_PRICE_SELLER_MONTHLY` | `price_...` | Product 2, Monatlich |
 | `STRIPE_PRICE_SELLER_YEARLY` | `price_...` | Product 2, Jährlich |
+| `STRIPE_PRICE_PREMIUM_LISTING` | `price_...` | Product 3, One-Time (G4) |
 
 > **Test-Mode-Tipp:** Für die ersten Tests den Test-Mode in Stripe nutzen
 > (oben rechts im Dashboard umschalten). Test-Karten:
@@ -144,3 +146,11 @@ abschließen → Erfolgreich → User in der DB hat `plan = INVESTOR_PRO`.
 - Upgrade-CTAs an den richtigen Stellen (Off-Market-Sperre, mehr-als-1-Inserat)
 - Customer-Portal-Button im Profil
 - Plan-Badge in der TopBar
+
+## Was kommt in Phase G4
+
+- Premium-Listing one-off (99 €/30 Tage) via Stripe Checkout (mode=payment)
+- `Listing.featuredUntil` wird durch Webhook gesetzt
+- Marketplace-Sortierung priorisiert featured Listings
+- Premium-Pill in `ListingCard` und Detail-Header
+- Verifiziert-Badge bei Verkäufer-Pro / Investor-Pro

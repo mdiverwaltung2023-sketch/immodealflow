@@ -126,6 +126,15 @@ export function ListingCard({ listing, compact = false }: Props) {
 
       {/* Top-Left Badges */}
       <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5 max-w-[80%]">
+        {/* Premium ist die wichtigste Auszeichnung — kommt immer zuerst */}
+        {listing.featured ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-indigo-600 to-violet-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5z" />
+            </svg>
+            Premium
+          </span>
+        ) : null}
         {fresh ? (
           <span className="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow">
             Neu
@@ -303,8 +312,19 @@ export function ListingCard({ listing, compact = false }: Props) {
 
         {!compact ? (
           <div className="flex items-center justify-between gap-2 border-t border-zinc-100 pt-3 text-[11px] text-zinc-500">
-            <span className="truncate">
+            <span className="truncate inline-flex items-center gap-1">
               Verkäufer: <span className="text-zinc-700">{listing.owner.name ?? "Anonym"}</span>
+              {listing.ownerVerified ? (
+                <span
+                  className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700"
+                  title="Verifiziert (Pro-Plan)"
+                >
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  verif.
+                </span>
+              ) : null}
             </span>
             <StarSummary summary={listing.sellerRating ?? null} size="sm" withCount />
           </div>

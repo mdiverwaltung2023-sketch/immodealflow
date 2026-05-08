@@ -285,6 +285,12 @@ model Listing {
   anchorTenant       String?           // Hauptmieter (z. B. "REWE", "DHL")
   tenantSectors      String[]   @default([])  // ["Einzelhandel","Gastronomie",...]
 
+  // --- Premium-Listing (Phase G4) -------------------------------
+  // Wenn featuredUntil > now: Inserat wird im Marketplace oben sortiert
+  // und bekommt eine Premium-Pill. Wird durch Stripe-Checkout (one-off
+  // 99 EUR) auf now + 30 Tage gesetzt.
+  featuredUntil DateTime?
+
   images    ListingImage[]
   inquiries Inquiry[]
 

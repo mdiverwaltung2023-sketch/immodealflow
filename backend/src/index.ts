@@ -39,6 +39,10 @@ const STRIPE_PRICE_INVESTOR_MONTHLY = process.env.STRIPE_PRICE_INVESTOR_MONTHLY 
 const STRIPE_PRICE_INVESTOR_YEARLY = process.env.STRIPE_PRICE_INVESTOR_YEARLY ?? "";
 const STRIPE_PRICE_SELLER_MONTHLY = process.env.STRIPE_PRICE_SELLER_MONTHLY ?? "";
 const STRIPE_PRICE_SELLER_YEARLY = process.env.STRIPE_PRICE_SELLER_YEARLY ?? "";
+const STRIPE_PRICE_PREMIUM_LISTING = process.env.STRIPE_PRICE_PREMIUM_LISTING ?? "";
+
+// Premium-Listing-Feature-Dauer in Tagen
+const PREMIUM_LISTING_DAYS = 30;
 
 const app = express();
 
@@ -2147,7 +2151,7 @@ app.get("/marketplace", async (req, res) => {
     orderBy: { updatedAt: "desc" },
     include: {
       images: { orderBy: { sortOrder: "asc" }, take: 5 },
-      owner: { select: { id: true, name: true, role: true } }
+      owner: { select: { id: true, name: true, role: true, plan: true } }
     },
     take: 200
   });
@@ -2162,12 +2166,42 @@ app.get("/marketplace", async (req, res) => {
         })
       : listings;
 
-  // Bewertungs-Summary pro Verkäufer dazuladen
+  // Phase G4 — Premium-Sortierung: aktiv-featured Listings nach oben.
+  // featured = featuredUntil > now. Innerhalb der beiden Gruppen bleibt
+  // updatedAt-DESC (kommt schon aus der DB-Sortierung).
+  const nowMs = Date.now();
+  yieldFiltered.sort((a, b) => {
+    const aF = a.featuredUntil && a.featuredUntil.getTime() > nowMs ? 1 : 0;
+    const bF = b.featuredUntil && b.featuredUntil.getTime() > nowMs ? 1 : 0;
+    if (aF !== bF) return bF - aF;
+    return b.updatedAt.getTime() - a.updatedAt.getTime();
+  });
+
+  // Bewertungs-Summary pro Verkäufer dazuladen + Verifiziert-Flag
   const enriched = await Promise.all(
-    yieldFiltered.slice(0, 100).map(async (l) => ({
-      ...anonymizeListing(l),
-      sellerRating: await ratingSummaryFor(l.ownerId)
-    }))
+    yieldFiltered.slice(0, 100).map(async (l) => {
+      const ownerVerified =
+        (l.owner as { plan?: string } | null)?.plan === "INVESTOR_PRO" ||
+        (l.owner as { plan?: string } | null)?.plan === "SELLER_PRO";
+      const featured =
+        !!l.featuredUntil && l.featuredUntil.getTime() > nowMs;
+      // owner.plan im Response weglassen — Plan ist intern.
+      const { owner: ownerWithPlan, ...rest } = anonymizeListing(l);
+      const owner = ownerWithPlan
+        ? {
+            id: (ownerWithPlan as { id: string }).id,
+            name: (ownerWithPlan as { name: string | null }).name,
+            role: (ownerWithPlan as { role: string }).role
+          }
+        : null;
+      return {
+        ...rest,
+        owner,
+        ownerVerified,
+        featured,
+        sellerRating: await ratingSummaryFor(l.ownerId)
+      };
+    })
   );
   return res.json(enriched);
 });
@@ -2183,7 +2217,7 @@ app.get("/marketplace/:id", async (req, res) => {
     },
     include: {
       images: { orderBy: { sortOrder: "asc" } },
-      owner: { select: { id: true, name: true, role: true } }
+      owner: { select: { id: true, name: true, role: true, plan: true } }
     }
   });
   if (!listing) return res.status(404).json({ error: "Not found" });
@@ -2200,8 +2234,27 @@ app.get("/marketplace/:id", async (req, res) => {
     select: { id: true, status: true, createdAt: true }
   });
 
+  const ownerVerified =
+    listing.owner?.plan === "INVESTOR_PRO" ||
+    listing.owner?.plan === "SELLER_PRO";
+  const featured =
+    !!listing.featuredUntil && listing.featuredUntil.getTime() > Date.now();
+
+  // owner.plan im Response weglassen — Plan ist intern.
+  const { owner: ownerWithPlan, ...rest } = anonymizeListing(listing);
+  const owner = ownerWithPlan
+    ? {
+        id: (ownerWithPlan as { id: string }).id,
+        name: (ownerWithPlan as { name: string | null }).name,
+        role: (ownerWithPlan as { role: string }).role
+      }
+    : null;
+
   return res.json({
-    ...anonymizeListing(listing),
+    ...rest,
+    owner,
+    ownerVerified,
+    featured,
     myInquiry,
     isOwner: listing.ownerId === req.userId!,
     sellerRating: await ratingSummaryFor(listing.ownerId)
@@ -2335,6 +2388,60 @@ app.post("/me/billing/portal", async (req, res) => {
   return res.json({ url: portal.url });
 });
 
+// POST /me/listings/:id/checkout-feature — Stripe Checkout für Premium-Listing
+// (one-off Zahlung, 30 Tage Top-Position).
+app.post("/me/listings/:id/checkout-feature", async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: "Stripe not configured" });
+  if (!STRIPE_PRICE_PREMIUM_LISTING) {
+    return res.status(503).json({
+      error: "STRIPE_PRICE_PREMIUM_LISTING ist nicht gesetzt — siehe deploy/STRIPE-SETUP.md"
+    });
+  }
+
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden oder nicht deins." });
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: { id: true, email: true, name: true, stripeCustomerId: true }
+  });
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  let customerId = user.stripeCustomerId;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: user.email,
+      name: user.name ?? undefined,
+      metadata: { userId: user.id }
+    });
+    customerId = customer.id;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { stripeCustomerId: customerId }
+    });
+  }
+
+  const frontend = (process.env.FRONTEND_ORIGIN?.split(",")[0] ?? "https://infinityoikos.com").trim();
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer: customerId,
+    line_items: [{ price: STRIPE_PRICE_PREMIUM_LISTING, quantity: 1 }],
+    success_url: `${frontend}/listings/${listing.id}/edit?premium=success`,
+    cancel_url: `${frontend}/listings/${listing.id}/edit?premium=cancelled`,
+    client_reference_id: user.id,
+    metadata: {
+      kind: "premium_listing",
+      userId: user.id,
+      listingId: listing.id,
+      days: String(PREMIUM_LISTING_DAYS)
+    }
+  });
+
+  return res.json({ url: session.url });
+});
+
 // =========================================================
 // Stripe Event-Handler — wird von Webhook-Route aufgerufen
 // =========================================================
@@ -2343,7 +2450,32 @@ async function handleStripeEvent(event: Stripe.Event) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = (session.metadata?.userId ?? session.client_reference_id) as string | null;
-      if (!userId || session.mode !== "subscription" || !session.subscription) return;
+      if (!userId) return;
+
+      // ----- Premium-Listing (one-off, mode=payment) -----
+      if (session.mode === "payment" && session.metadata?.kind === "premium_listing") {
+        const listingId = session.metadata?.listingId;
+        const days = Number(session.metadata?.days ?? PREMIUM_LISTING_DAYS);
+        if (!listingId) return;
+        const owned = await prisma.listing.findFirst({
+          where: { id: listingId, ownerId: userId }
+        });
+        if (!owned) return;
+        // Verlängert ein bestehendes Featured um weitere n Tage, sonst startet neu ab jetzt.
+        const baseline =
+          owned.featuredUntil && owned.featuredUntil.getTime() > Date.now()
+            ? owned.featuredUntil
+            : new Date();
+        const next = new Date(baseline.getTime() + days * 24 * 60 * 60 * 1000);
+        await prisma.listing.update({
+          where: { id: listingId },
+          data: { featuredUntil: next }
+        });
+        return;
+      }
+
+      // ----- Subscription-Checkout (mode=subscription) -----
+      if (session.mode !== "subscription" || !session.subscription) return;
 
       const subscriptionId = typeof session.subscription === "string"
         ? session.subscription

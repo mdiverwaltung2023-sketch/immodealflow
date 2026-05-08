@@ -502,7 +502,10 @@ export const ListingSchema = z.object({
   // --- Tenant-Mix (Gewerbe) ---
   tenantCount: z.number().nullable().optional(),
   anchorTenant: z.string().nullable().optional(),
-  tenantSectors: z.array(z.string()).default([])
+  tenantSectors: z.array(z.string()).default([]),
+
+  // --- Premium-Listing (Phase G4) ---
+  featuredUntil: z.string().nullable().optional()
 });
 export type ListingT = z.infer<typeof ListingSchema>;
 
@@ -511,7 +514,10 @@ export const MarketplaceListingSchema = ListingSchema.extend({
     id: z.string(),
     name: z.string().nullable().optional(),
     role: UserRoleEnum
-  })
+  }),
+  // Phase G4: Marketplace-Response liefert beide Flags ausgeprägt mit
+  ownerVerified: z.boolean().optional(),
+  featured: z.boolean().optional()
 });
 export type MarketplaceListingT = z.infer<typeof MarketplaceListingSchema>;
 
