@@ -1348,17 +1348,21 @@ app.get("/me/listings", async (req, res) => {
 app.post("/me/listings", async (req, res) => {
   const body = ListingCreateSchema.parse(req.body);
   const { availableFrom, features, highlights, tenantSectors, ...rest } = body;
+  const data = {
+    ownerId: req.userId!,
+    ...rest,
+    description: rest.description ?? "",
+    anonymizationLevel: rest.anonymizationLevel ?? "DISTRICT_ONLY",
+    availableFrom: availableFrom ? new Date(availableFrom) : null,
+    features: features ?? [],
+    highlights: highlights ?? [],
+    tenantSectors: tenantSectors ?? []
+  };
+  // Cast: Zod-Output-Type ist Subset von Prisma.ListingCreateInput
+  // (alle neuen Felder optional in der DB), aber TS erkennt das nicht
+  // automatisch wegen Spread-Inferenz. Defensive Cast.
   const listing = await prisma.listing.create({
-    data: {
-      ownerId: req.userId!,
-      ...rest,
-      description: rest.description ?? "",
-      anonymizationLevel: rest.anonymizationLevel ?? "DISTRICT_ONLY",
-      availableFrom: availableFrom ? new Date(availableFrom) : null,
-      features: features ?? [],
-      highlights: highlights ?? [],
-      tenantSectors: tenantSectors ?? []
-    },
+    data: data as never,
     include: { images: { orderBy: { sortOrder: "asc" } } }
   });
   return res.json(listing);
@@ -1391,7 +1395,7 @@ app.patch("/me/listings/:id", async (req, res) => {
 
   const updated = await prisma.listing.update({
     where: { id: owned.id },
-    data,
+    data: data as never,
     include: { images: { orderBy: { sortOrder: "asc" } } }
   });
   return res.json(updated);
@@ -1421,21 +1425,19 @@ app.post("/me/seed-demo-listings", async (req, res) => {
   const demos = buildDemoListings();
   let created = 0;
   for (const demo of demos) {
-    const { images, ...rest } = demo;
-    await prisma.listing.create({
-      data: {
-        ownerId: req.userId!,
-        ...rest,
-        availableFrom: rest.availableFrom ? new Date(rest.availableFrom) : null,
-        images: {
-          create: images.map((url, i) => ({
-            url,
-            sortOrder: i,
-            alt: `${rest.title} – Bild ${i + 1}`
-          }))
-        }
+    const { images, ...rest } = demo as { images: string[] } & Record<string, unknown>;
+    const data = {
+      ownerId: req.userId!,
+      ...rest,
+      images: {
+        create: images.map((url: string, i: number) => ({
+          url,
+          sortOrder: i,
+          alt: `${(rest as { title: string }).title} – Bild ${i + 1}`
+        }))
       }
-    });
+    };
+    await prisma.listing.create({ data: data as never });
     created++;
   }
 
@@ -2013,7 +2015,7 @@ app.get("/marketplace", async (req, res) => {
       ...(Object.keys(priceFilter).length > 0 ? { askingPrice: priceFilter } : {}),
       ...(q.areaMin != null ? { totalArea: { gte: q.areaMin } } : {}),
       ...(q.waltMin != null ? { waltMonths: { gte: q.waltMin } } : {}),
-      ...(energyClassesInScope ? { energyClass: { in: energyClassesInScope } } : {}),
+      ...(energyClassesInScope ? { energyClass: { in: energyClassesInScope as never } } : {}),
       ...(q.fullyRented ? { OR: [{ vacancyRate: null }, { vacancyRate: { lte: 0.05 } }] } : {}),
       ...(q.offMarket ? { anonymizationLevel: "CITY_ONLY" } : {}),
       ...(q.withAnchor ? { anchorTenant: { not: null } } : {}),
