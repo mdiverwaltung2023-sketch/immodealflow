@@ -1,5 +1,4 @@
 import { requireOnboardedUser } from "@/lib/api-server";
-import { Card } from "@/components/ui";
 import { NewListingForm } from "./NewListingForm";
 import Link from "next/link";
 
@@ -12,7 +11,9 @@ export default async function NewListingPage() {
         <div>
           <div className="text-2xl font-semibold text-zinc-900">Inserat anlegen</div>
           <div className="mt-1 text-sm text-zinc-500">
-            Wird als Entwurf angelegt. Bilder, Adresse und Sichtbarkeit pflegst du danach im Edit-Modus.
+            Pflichtfelder sind <span className="font-semibold">Titel, Asset-Typ, Stadt, Preis, Fläche</span> —
+            der Rest ist optional, schärft aber dein Inserat für Investoren.
+            Bilder & Sichtbarkeit pflegst du nach dem Anlegen im Edit-Modus.
           </div>
         </div>
         <Link href="/listings" className="text-sm text-zinc-600 hover:text-indigo-700 hover:underline">
@@ -20,9 +21,7 @@ export default async function NewListingPage() {
         </Link>
       </div>
 
-      <Card title="Eckdaten">
-        <NewListingForm />
-      </Card>
+      <NewListingForm />
     </div>
   );
 }
