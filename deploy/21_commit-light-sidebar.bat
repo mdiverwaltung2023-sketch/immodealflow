@@ -1,13 +1,24 @@
 @echo off
 REM ============================================================
 REM 21_commit-light-sidebar.bat
-REM Phase F: Light-Theme + Sidebar-Layout (wie Infinity Nous)
-REM   - Globals.css auf Light-Theme
-REM   - SideNav + TopBar Komponenten
-REM   - Layout-Refactor: Sidebar-Shell für SignedIn
-REM   - Dashboard-Redesign mit Quick-Action-Tiles + KPIs +
-REM     Marketplace-Listing-Kacheln
-REM   - Alle Pages auf hellen Hintergrund umgestellt
+REM Phase F: Light-Theme + Sidebar + Marketplace-Ausbau
+REM
+REM Beinhaltet:
+REM  F1 - Light-Theme (globals.css, ui.tsx)
+REM  F2 - Sidebar-Shell (SideNav, TopBar, Layout-Refactor)
+REM  F3 - Dashboard mit Quick-Actions, KPIs, Inserate-Kacheln
+REM  F4 - Marketplace im Immoscout-Stil:
+REM       * Hero-Suchblock mit Indigo-Gradient + Quick-Presets
+REM       * Sidebar-Filter links (Asset-Typ-Chips, Preisspanne)
+REM       * Sortier-Toolbar (Preis aufst./abst./Rendite/...)
+REM       * ListingCard mit Bilder-Carousel, Save-Heart,
+REM         NEW-Badge, Kennzahlen-Reihe (m2, Miete, Rendite)
+REM  F5 - Marketplace-Detail upgraded:
+REM       * Bilder-Galerie (Hauptbild + Thumbs + Lightbox)
+REM       * Sticky-Sidebar mit Verkaeufer-Card + CTA + Kennzahlen
+REM       * Eckdaten-Strip mit Icon-Stats
+REM       * Breadcrumb-Navigation
+REM  F6 - Restliche Pages auf Light-Theme angepasst
 REM ============================================================
 
 cd /d "%~dp0\.."
@@ -25,7 +36,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-git commit -m "feat: Light-Theme + Sidebar-Layout + Dashboard mit Inserate-Kacheln"
+git commit -m "feat: Light-Theme + Sidebar + Marketplace im Immoscout-Stil"
 if errorlevel 1 (
     echo.
     echo Nichts zu committen oder Fehler.
@@ -49,11 +60,16 @@ echo  Railway-Backend ist nicht betroffen.
 echo.
 echo  Nach dem Build pruefen:
 echo    https://infinityoikos.com/dashboard
-echo  - Linke Sidebar mit Sektionen (Uebersicht, Marktplatz,
-echo    Meine Objekte, Konto)
-echo  - Helles Theme, weisse Karten
-echo  - Dashboard mit Quick-Action-Tiles + KPI-Kacheln +
-echo    Marketplace-Inserate-Kacheln
+echo      - Sidebar links + helles Theme
+echo      - Quick-Action-Tiles + KPIs + Inserate-Kacheln
+echo    https://infinityoikos.com/marketplace
+echo      - Hero-Suchblock mit Quick-Presets
+echo      - Filter-Sidebar links + Sortier-Dropdown
+echo      - Reichere Kacheln mit Carousel + Heart + Rendite
+echo    https://infinityoikos.com/marketplace/<id>
+echo      - Bilder-Galerie mit Lightbox
+echo      - Sticky-Sidebar mit Anfrage-CTA + Verkaeufer
+echo      - Eckdaten-Strip + Section-Layout
 echo ============================================================
 echo.
 pause

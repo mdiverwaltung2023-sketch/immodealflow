@@ -5,11 +5,11 @@ import {
   ListingSchema,
   MarketplaceListingSchema,
   RatingSummarySchema,
-  ASSET_TYPE_LABELS,
   type ListingStatusT,
   type DealStatus
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
+import { ListingCard } from "@/components/ListingCard";
 import { ClaimLegacyBanner } from "./ClaimLegacyBanner";
 
 const PropertiesSchema = z.array(PropertyListItemSchema);
@@ -210,47 +210,10 @@ export default async function DashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {tiles.map((l) => {
-              const cover = l.images[0]?.url;
-              const locationStr = [l.city, l.district].filter(Boolean).join(", ");
-              return (
-                <Link
-                  key={l.id}
-                  href={`/marketplace/${l.id}`}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md hover:border-zinc-300"
-                >
-                  {cover ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={cover}
-                      alt={l.images[0].alt ?? ""}
-                      className="aspect-video w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex aspect-video items-center justify-center bg-zinc-100 text-xs text-zinc-400">
-                      Kein Bild
-                    </div>
-                  )}
-                  <div className="space-y-1.5 p-4">
-                    <div className="text-[10px] uppercase tracking-wide text-indigo-600 font-semibold">
-                      {ASSET_TYPE_LABELS[l.propertyType]}
-                    </div>
-                    <div className="text-sm font-semibold text-zinc-900 group-hover:text-indigo-700 line-clamp-2">
-                      {l.title}
-                    </div>
-                    <div className="text-xs text-zinc-500">{locationStr}</div>
-                    <div className="pt-1 text-sm font-semibold text-zinc-900">
-                      {eur(l.askingPrice)}
-                    </div>
-                    <div className="text-[11px] text-zinc-500">
-                      {l.totalArea} m²
-                      {l.totalRent ? ` · ${eur(l.totalRent)}/Mon.` : ""}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {tiles.map((l) => (
+              <ListingCard key={l.id} listing={l} compact />
+            ))}
           </div>
         )}
       </div>
