@@ -106,6 +106,12 @@ const IcSparkle = (
     <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />
   </Icon>
 );
+const IcCoin = (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9 9.5h4.5a2 2 0 010 4H9.5a2 2 0 000 4H14" />
+  </Icon>
+);
 
 /* ---------- Sektionen ---------- */
 
@@ -141,6 +147,7 @@ const SECTION_ACCOUNT: Section = {
   title: "Konto",
   items: [
     { href: "/profile", label: "Profil", icon: IcUser },
+    { href: "/coins", label: "Meine Coins", icon: IcCoin },
     { href: "/pricing", label: "Tarife", icon: IcSparkle }
   ]
 };

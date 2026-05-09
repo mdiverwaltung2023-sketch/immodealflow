@@ -190,13 +190,14 @@ export const PropertyDetailSchema = PropertySchema.extend({
   auction: AuctionInfoSchema.nullable().optional()
 });
 
-export const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH"]);
+export const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH", "BROKER"]);
 export type UserRoleT = z.infer<typeof UserRoleEnum>;
 
 export const USER_ROLE_LABELS: Record<UserRoleT, string> = {
   INVESTOR: "Investor",
   SELLER: "Verkäufer",
-  BOTH: "Beides"
+  BOTH: "Beides",
+  BROKER: "Makler"
 };
 
 // --- Subscription / Billing (Phase G1+G2) -----------------------
@@ -228,10 +229,105 @@ export const MeSchema = z.object({
   legacyCount: z.number().optional(),
   // Phase G1: Plan kommt aus /me jetzt mit (Backend hat Feld auf User)
   plan: UserPlanEnum.optional(),
-  planValidUntil: z.string().nullable().optional()
+  planValidUntil: z.string().nullable().optional(),
+  // Phase H3: Coin-System
+  coinsBalance: z.number().optional(),
+  isEarlyBird: z.boolean().optional()
 });
 
 export type Me = z.infer<typeof MeSchema>;
+
+// --- Coin-System (Phase H4 + H5) -------------------------------
+
+export const CoinTxKindEnum = z.enum([
+  "PROFILE_COMPLETED",
+  "LISTING_ACTIVATED",
+  "SELLER_CONTACTED",
+  "DAILY_LOGIN",
+  "REFERRAL_BROKER_ONBOARDED",
+  "SPEND_LISTING_HIGHLIGHT",
+  "SPEND_PROFILE_BOOST",
+  "SPEND_FEED_BOOST",
+  "ADMIN_ADJUSTMENT"
+]);
+export type CoinTxKindT = z.infer<typeof CoinTxKindEnum>;
+
+export const COIN_TX_LABELS: Record<CoinTxKindT, string> = {
+  PROFILE_COMPLETED: "Profil vollständig",
+  LISTING_ACTIVATED: "Inserat aktiviert",
+  SELLER_CONTACTED: "Verkäufer hat geantwortet",
+  DAILY_LOGIN: "Täglicher Login",
+  REFERRAL_BROKER_ONBOARDED: "Geworbener Makler aktiviert",
+  SPEND_LISTING_HIGHLIGHT: "Inserat hervorgehoben",
+  SPEND_PROFILE_BOOST: "Profil-Boost gebucht",
+  SPEND_FEED_BOOST: "Feed-Boost gebucht",
+  ADMIN_ADJUSTMENT: "Manuelle Korrektur"
+};
+
+export const SpendKindEnum = z.enum([
+  "SPEND_LISTING_HIGHLIGHT",
+  "SPEND_PROFILE_BOOST",
+  "SPEND_FEED_BOOST"
+]);
+export type SpendKindT = z.infer<typeof SpendKindEnum>;
+
+export const EarnKindEnum = z.enum([
+  "PROFILE_COMPLETED",
+  "LISTING_ACTIVATED",
+  "SELLER_CONTACTED",
+  "DAILY_LOGIN",
+  "REFERRAL_BROKER_ONBOARDED"
+]);
+export type EarnKindT = z.infer<typeof EarnKindEnum>;
+
+export const CoinTransactionSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  userId: z.string(),
+  kind: CoinTxKindEnum,
+  amount: z.number(),
+  refId: z.string().nullable().optional(),
+  note: z.string().nullable().optional()
+});
+export type CoinTransactionT = z.infer<typeof CoinTransactionSchema>;
+
+export const CoinSpendSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  userId: z.string(),
+  kind: CoinTxKindEnum,
+  targetId: z.string().nullable().optional(),
+  validUntil: z.string()
+});
+export type CoinSpendT = z.infer<typeof CoinSpendSchema>;
+
+export const SpendCostSchema = z.object({
+  coins: z.number(),
+  days: z.number()
+});
+
+export const CoinsViewSchema = z.object({
+  balance: z.number(),
+  isEarlyBird: z.boolean(),
+  role: UserRoleEnum,
+  multiplier: z.number(),
+  transactions: z.array(CoinTransactionSchema),
+  activeSpends: z.array(CoinSpendSchema),
+  earnAmounts: z.record(EarnKindEnum, z.number()),
+  spendCosts: z.record(SpendKindEnum, SpendCostSchema),
+  earlyBirdLimit: z.number()
+});
+export type CoinsViewT = z.infer<typeof CoinsViewSchema>;
+
+export const SpendResultSchema = z.object({
+  ok: z.literal(true),
+  spent: z.number(),
+  newBalance: z.number(),
+  validUntil: z.string(),
+  spendId: z.string(),
+  kind: SpendKindEnum
+});
+export type SpendResultT = z.infer<typeof SpendResultSchema>;
 
 // --- Investor-Profil + Trackrecord (Push B) ----------------------
 

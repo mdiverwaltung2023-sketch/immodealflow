@@ -3,6 +3,7 @@ import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { ListingEditor } from "./ListingEditor";
 import { FeatureCheckoutButton } from "./FeatureCheckoutButton";
+import { CoinHighlightButton } from "./CoinHighlightButton";
 import Link from "next/link";
 
 type Search = { premium?: string };
@@ -59,6 +60,8 @@ export default async function ListingEditPage({
         listingId={listing.id}
         featuredUntil={listing.featuredUntil ?? null}
       />
+
+      <CoinHighlightButton listingId={listing.id} />
 
       <Card title="Felder & Status">
         <ListingEditor initial={listing} />
