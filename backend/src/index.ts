@@ -2022,6 +2022,40 @@ app.patch("/me/inquiries/:id/respond", async (req, res) => {
     });
   }
 
+  // Phase J2 — Auto-Trigger: bei ACCEPT automatisch SaleProcess anlegen
+  // (sofern noch keiner zur Inquiry existiert). Eintrag im Stage-Audit-Log.
+  // Verkaeufer-Sicht: "Verkaufsabwicklung" zeigt sofort den neuen Prozess.
+  if (body.status === "ACCEPTED") {
+    try {
+      const existing = await prisma.saleProcess.findUnique({
+        where: { inquiryId: inquiry.id },
+        select: { id: true }
+      });
+      if (!existing) {
+        const proc = await prisma.saleProcess.create({
+          data: {
+            listingId: inquiry.listingId,
+            inquiryId: inquiry.id,
+            sellerId: inquiry.listing.ownerId,
+            buyerId: inquiry.investorId,
+            currentStage: "ANFRAGE_AKZEPTIERT",
+            stageEnteredAt: new Date()
+          }
+        });
+        await prisma.saleStageEntry.create({
+          data: {
+            processId: proc.id,
+            stage: "ANFRAGE_AKZEPTIERT",
+            note: "Automatisch angelegt nach Accept der Anfrage.",
+            byUserId: req.userId!
+          }
+        });
+      }
+    } catch {
+      /* leise — Verkaufsabwicklung ist bequemer Add-on, kein Pflicht-Pfad */
+    }
+  }
+
   // Phase H3 — SELLER_CONTACTED-Hook fuer den Investor (Anfrager).
   // Triggert sobald der Verkaeufer antwortet, egal ob ACCEPTED oder REJECTED —
   // die Logik aus dem MVP-Konzept ist "Verkaeufer hat geantwortet, Investor
@@ -2701,6 +2735,273 @@ app.post("/me/coins/spend", async (req, res) => {
     spendId: result.spendId,
     kind
   });
+});
+
+// =========================================================
+// Verkaufsabwicklung (Phase J2) — SaleProcess-Endpoints
+// =========================================================
+// Sicherheit: nur eigene Prozesse (sellerId = req.userId) sichtbar
+// und mutierbar. Bei Buyer-Sicht spaeter optional eigenen Endpoint
+// /me/buying-processes anlegen — V1 fokussiert auf den Verkaeufer.
+
+const SaleStageEnum = z.enum([
+  "ANFRAGE_AKZEPTIERT",
+  "BESICHTIGUNG",
+  "VERHANDLUNG",
+  "RESERVIERUNG_LOI",
+  "NOTARENTWURF",
+  "NOTARTERMIN",
+  "BEURKUNDET",
+  "AUFLASSUNGSVORMERKUNG",
+  "KAUFPREISZAHLUNG",
+  "UEBERGABE",
+  "EIGENTUMSUMSCHREIBUNG",
+  "ABGESCHLOSSEN",
+  "ABGEBROCHEN"
+]);
+
+const SaleDocKindEnum = z.enum([
+  "GRUNDBUCH",
+  "ENERGIEAUSWEIS",
+  "FLURKARTE",
+  "WOHNFLAECHENBERECHNUNG",
+  "KAUFVERTRAG_ENTWURF",
+  "KAUFVERTRAG_BEURKUNDET",
+  "VORFAELLIGKEITSSCHREIBEN",
+  "AUFLASSUNGSVORMERKUNG",
+  "UEBERGABEPROTOKOLL",
+  "TEILUNGSERKLAERUNG",
+  "EIGENTUEMERVERSAMMLUNG_PROTOKOLL",
+  "MIETVERTRAEGE",
+  "MAKLERVERTRAG",
+  "SONSTIGES"
+]);
+
+// GET /me/sale-processes — Liste aller eigenen Verkaeufe
+//   ?stage=BESICHTIGUNG  -> filtert auf eine Stage
+//   ?active=true         -> nur nicht-ABGESCHLOSSEN/ABGEBROCHEN
+app.get("/me/sale-processes", async (req, res) => {
+  const q = z
+    .object({
+      stage: SaleStageEnum.optional(),
+      active: z.coerce.boolean().optional()
+    })
+    .parse(req.query);
+
+  const where: Record<string, unknown> = { sellerId: req.userId! };
+  if (q.stage) where.currentStage = q.stage;
+  if (q.active) {
+    where.currentStage = { notIn: ["ABGESCHLOSSEN", "ABGEBROCHEN"] };
+  }
+
+  const processes = await prisma.saleProcess.findMany({
+    where: where as never,
+    orderBy: [{ updatedAt: "desc" }],
+    include: {
+      listing: { select: { id: true, title: true, city: true, askingPrice: true } },
+      buyer: { select: { id: true, name: true, email: true } },
+      _count: { select: { documents: true, stageLog: true } }
+    }
+  });
+  return res.json(processes);
+});
+
+// GET /me/sale-processes/:id — Detail mit Documents + Stage-Log
+app.get("/me/sale-processes/:id", async (req, res) => {
+  const proc = await prisma.saleProcess.findFirst({
+    where: { id: req.params.id, sellerId: req.userId! },
+    include: {
+      listing: true,
+      buyer: { select: { id: true, name: true, email: true, role: true } },
+      inquiry: { select: { id: true, message: true, createdAt: true } },
+      documents: { orderBy: { createdAt: "desc" } },
+      stageLog: { orderBy: { createdAt: "desc" }, take: 50 }
+    }
+  });
+  if (!proc) return res.status(404).json({ error: "Not found" });
+  return res.json(proc);
+});
+
+// POST /me/listings/:listingId/sale-processes — manuell anlegen
+//   (z.B. Off-Market-Deal ohne Marketplace-Anfrage).
+app.post("/me/listings/:listingId/sale-processes", async (req, res) => {
+  const body = z
+    .object({
+      buyerId: z.string().min(1).max(40).nullable().optional(),
+      agreedPrice: z.number().int().min(0).nullable().optional(),
+      notes: z.string().max(4000).nullable().optional()
+    })
+    .parse(req.body ?? {});
+
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.listingId, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden oder nicht deins." });
+
+  // Optional: pruefen, ob buyerId existiert
+  if (body.buyerId) {
+    const exists = await prisma.user.findUnique({
+      where: { id: body.buyerId },
+      select: { id: true }
+    });
+    if (!exists) return res.status(400).json({ error: "buyerId existiert nicht" });
+  }
+
+  const proc = await prisma.saleProcess.create({
+    data: {
+      listingId: listing.id,
+      sellerId: req.userId!,
+      buyerId: body.buyerId ?? null,
+      agreedPrice: body.agreedPrice ?? null,
+      notes: body.notes ?? null,
+      currentStage: "ANFRAGE_AKZEPTIERT",
+      stageEnteredAt: new Date()
+    }
+  });
+  await prisma.saleStageEntry.create({
+    data: {
+      processId: proc.id,
+      stage: "ANFRAGE_AKZEPTIERT",
+      note: "Manuell angelegt (Off-Market).",
+      byUserId: req.userId!
+    }
+  });
+
+  return res.json(proc);
+});
+
+// PATCH /me/sale-processes/:id — generelle Felder aktualisieren
+//   (notes, agreedPrice, targetClosingDate, optional buyerId nachtragen)
+app.patch("/me/sale-processes/:id", async (req, res) => {
+  const body = z
+    .object({
+      notes: z.string().max(4000).nullable().optional(),
+      agreedPrice: z.number().int().min(0).nullable().optional(),
+      targetClosingDate: z.string().nullable().optional(),
+      buyerId: z.string().min(1).max(40).nullable().optional()
+    })
+    .parse(req.body);
+
+  const owned = await prisma.saleProcess.findFirst({
+    where: { id: req.params.id, sellerId: req.userId! },
+    select: { id: true, buyerId: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  if (body.buyerId && body.buyerId !== owned.buyerId) {
+    const exists = await prisma.user.findUnique({
+      where: { id: body.buyerId },
+      select: { id: true }
+    });
+    if (!exists) return res.status(400).json({ error: "buyerId existiert nicht" });
+  }
+
+  const data: Record<string, unknown> = {};
+  if (body.notes !== undefined) data.notes = body.notes;
+  if (body.agreedPrice !== undefined) data.agreedPrice = body.agreedPrice;
+  if (body.targetClosingDate !== undefined) {
+    data.targetClosingDate = body.targetClosingDate ? new Date(body.targetClosingDate) : null;
+  }
+  if (body.buyerId !== undefined) data.buyerId = body.buyerId;
+
+  const updated = await prisma.saleProcess.update({
+    where: { id: owned.id },
+    data: data as never
+  });
+  return res.json(updated);
+});
+
+// PATCH /me/sale-processes/:id/stage — Stage wechseln + Audit-Log
+app.patch("/me/sale-processes/:id/stage", async (req, res) => {
+  const body = z
+    .object({
+      stage: SaleStageEnum,
+      note: z.string().max(2000).nullable().optional()
+    })
+    .parse(req.body);
+
+  const owned = await prisma.saleProcess.findFirst({
+    where: { id: req.params.id, sellerId: req.userId! },
+    select: { id: true, currentStage: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  // Transaktion: Stage updaten + Audit-Eintrag schreiben
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.saleProcess.update({
+      where: { id: owned.id },
+      data: { currentStage: body.stage, stageEnteredAt: new Date() }
+    });
+    await tx.saleStageEntry.create({
+      data: {
+        processId: owned.id,
+        stage: body.stage,
+        note: body.note ?? null,
+        byUserId: req.userId!
+      }
+    });
+    return u;
+  });
+
+  return res.json(updated);
+});
+
+// POST /me/sale-processes/:id/documents — Dokument anhaengen oder ersetzen
+//   body: { kind, url, filename, sizeBytes }
+//   Re-Upload pro (process, kind) ueberschreibt durch upsert.
+app.post("/me/sale-processes/:id/documents", async (req, res) => {
+  const body = z
+    .object({
+      kind: SaleDocKindEnum,
+      url: z.string().url(),
+      filename: z.string().min(1).max(300),
+      sizeBytes: z.number().int().min(0)
+    })
+    .parse(req.body);
+
+  const owned = await prisma.saleProcess.findFirst({
+    where: { id: req.params.id, sellerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  const doc = await prisma.saleDocument.upsert({
+    where: { processId_kind: { processId: owned.id, kind: body.kind } },
+    create: {
+      processId: owned.id,
+      kind: body.kind,
+      url: body.url,
+      filename: body.filename,
+      sizeBytes: body.sizeBytes,
+      uploaderUserId: req.userId!
+    },
+    update: {
+      url: body.url,
+      filename: body.filename,
+      sizeBytes: body.sizeBytes,
+      uploaderUserId: req.userId!
+    }
+  });
+  return res.json(doc);
+});
+
+// DELETE /me/sale-processes/:id/documents/:kind — Dokument loeschen
+app.delete("/me/sale-processes/:id/documents/:kind", async (req, res) => {
+  const kindParse = SaleDocKindEnum.safeParse(req.params.kind);
+  if (!kindParse.success) {
+    return res.status(400).json({ error: "Unbekannte Dokumenten-Kategorie" });
+  }
+  const owned = await prisma.saleProcess.findFirst({
+    where: { id: req.params.id, sellerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  await prisma.saleDocument.deleteMany({
+    where: { processId: owned.id, kind: kindParse.data }
+  });
+  return res.json({ ok: true });
 });
 
 // =========================================================
