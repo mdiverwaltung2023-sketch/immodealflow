@@ -132,6 +132,9 @@ app.use("/me", requireAuth);
 // Marketplace-Routes brauchen einen eingeloggten User, weil wir je nach
 // Sichtbarkeit das Investor-Profil zeigen. /marketplace ist nicht öffentlich.
 app.use("/marketplace", requireAuth);
+// Admin-Routen (Phase H8): zusätzlich isAdmin-Check pro Endpoint, aber
+// requireAuth muss vorher laufen, damit req.userId gesetzt ist.
+app.use("/admin", requireAuth);
 // /import/* wird gleich pro-Endpoint gehandhabt (siehe weiter unten).
 
 const DealStatusEnum = z.enum([
