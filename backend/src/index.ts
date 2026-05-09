@@ -2780,11 +2780,13 @@ const SaleDocKindEnum = z.enum([
 // GET /me/sale-processes — Liste aller eigenen Verkaeufe
 //   ?stage=BESICHTIGUNG  -> filtert auf eine Stage
 //   ?active=true         -> nur nicht-ABGESCHLOSSEN/ABGEBROCHEN
+//   ?listingId=xxx       -> nur Prozesse eines bestimmten Listings
 app.get("/me/sale-processes", async (req, res) => {
   const q = z
     .object({
       stage: SaleStageEnum.optional(),
-      active: z.coerce.boolean().optional()
+      active: z.coerce.boolean().optional(),
+      listingId: z.string().min(1).max(40).optional()
     })
     .parse(req.query);
 
@@ -2793,6 +2795,7 @@ app.get("/me/sale-processes", async (req, res) => {
   if (q.active) {
     where.currentStage = { notIn: ["ABGESCHLOSSEN", "ABGEBROCHEN"] };
   }
+  if (q.listingId) where.listingId = q.listingId;
 
   const processes = await prisma.saleProcess.findMany({
     where: where as never,
