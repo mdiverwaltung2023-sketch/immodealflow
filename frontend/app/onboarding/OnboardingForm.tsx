@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApiFetch } from "@/lib/client-fetch";
 import { USER_ROLE_LABELS, type UserRoleT } from "@/lib/api";
+import { readStoredReferral, clearStoredReferral } from "@/components/ReferralCapture";
 
 const ROLE_DESCRIPTIONS: Record<UserRoleT, string> = {
   INVESTOR:
@@ -11,10 +12,12 @@ const ROLE_DESCRIPTIONS: Record<UserRoleT, string> = {
   SELLER:
     "Du verkaufst Objekte und möchtest Investoren mit passendem Profil (Trackrecord, Finanzierung) ansprechen.",
   BOTH:
-    "Du machst beides — als Eigentümer und als aktiver Investor."
+    "Du machst beides — als Eigentümer und als aktiver Investor.",
+  BROKER:
+    "Du bist Makler nach §34c GewO und willst sowohl Inserate platzieren als auch Investoren begleiten."
 };
 
-const ROLES: UserRoleT[] = ["INVESTOR", "SELLER", "BOTH"];
+const ROLES: UserRoleT[] = ["INVESTOR", "SELLER", "BOTH", "BROKER"];
 
 export function OnboardingForm({ initial }: { initial: { name: string; role: UserRoleT } }) {
   const router = useRouter();
@@ -24,6 +27,12 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Phase H7: Referral-ID aus localStorage (gesetzt durch ReferralCapture).
+  const [referredBy, setReferredBy] = useState<string | null>(null);
+  useEffect(() => {
+    setReferredBy(readStoredReferral());
+  }, []);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -31,6 +40,7 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
     try {
       const body: Record<string, unknown> = { role };
       if (name.trim()) body.name = name.trim();
+      if (referredBy) body.referredById = referredBy;
       const res = await apiFetch("/me/complete-onboarding", {
         method: "POST",
         body: JSON.stringify(body)
@@ -39,6 +49,8 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
         const txt = await res.text().catch(() => "");
         throw new Error(`Speichern fehlgeschlagen (${res.status}) ${txt.slice(0, 200)}`);
       }
+      // Backend hat referredById gespeichert (oder ignoriert) — Key kann weg.
+      clearStoredReferral();
       router.push("/dashboard");
       router.refresh();
     } catch (e) {
@@ -50,6 +62,16 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      {referredBy ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="font-semibold">Empfehlung erkannt</div>
+          <div className="mt-0.5 text-xs">
+            Du wurdest eingeladen. Sobald du dein Profil ausfüllst und dein
+            erstes Inserat aktivierst, bekommt der Werber 100 Coins.
+          </div>
+        </div>
+      ) : null}
+
       <div>
         <label className="text-xs text-zinc-500">Anzeigename (optional)</label>
         <input

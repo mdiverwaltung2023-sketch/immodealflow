@@ -3,12 +3,18 @@ import { CoinsViewSchema, COIN_TX_LABELS, type CoinsViewT } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { CoinSpendOptions } from "./CoinSpendOptions";
+import { ReferralLinkCard } from "./ReferralLinkCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function CoinsPage() {
-  await requireOnboardedUser();
+  const me = await requireOnboardedUser();
   const view = await apiGet("/me/coins", CoinsViewSchema);
+
+  // Anzahl bereits ausgeloester Referral-Earns aus dem Verlauf zaehlen.
+  const referralCount = view.transactions.filter(
+    (tx) => tx.kind === "REFERRAL_BROKER_ONBOARDED"
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -31,6 +37,14 @@ export default async function CoinsPage() {
       <CoinSpendOptions
         balance={view.balance}
         spendCosts={view.spendCosts}
+      />
+
+      <ReferralLinkCard
+        userId={me.id}
+        isEarlyBird={view.isEarlyBird}
+        rewardBase={view.earnAmounts.REFERRAL_BROKER_ONBOARDED}
+        multiplier={view.multiplier}
+        referralCount={referralCount}
       />
 
       <EarnTableCard view={view} />

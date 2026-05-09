@@ -2,6 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { ClerkProvider, SignedIn, SignedOut } from "@clerk/nextjs";
 import { SidebarShell } from "@/components/SidebarShell";
+import { ReferralCapture } from "@/components/ReferralCapture";
 
 export const metadata = {
   title: "Infinity Oikos — Marketplace für MFH und Gewerbe",
@@ -24,6 +25,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <html lang="de">
         <body>
+          {/* Phase H7: Referral-Capture aus ?ref=... in localStorage */}
+          <ReferralCapture />
+
           {/* Eingeloggte User: rollenabhängige Sidebar-Shell */}
           <SignedIn>
             <SidebarShell>{children}</SidebarShell>
