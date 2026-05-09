@@ -20,7 +20,7 @@ export function AuthHero({ headlineLine1, headlineLine2 }: { headlineLine1: stri
 
       {/* Top: Branding */}
       <div className="relative z-10">
-        <BrandLockup size={56} variant="light" />
+        <BrandLockup size={56} variant="gold" />
       </div>
 
       {/* Mitte: Headline + Feature-Liste */}

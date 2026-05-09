@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { BrandLogo } from "@/components/BrandLogo";
+import { BrandLogo, BrandWordmark } from "@/components/BrandLogo";
 import { PlanBadge } from "@/components/PlanBadge";
 import type { UserPlanT, UserRoleT } from "@/lib/api";
 import { VIEW_MODE_STORAGE_KEY, VIEW_MODE_EVENT, type ViewMode } from "@/components/viewMode";
@@ -235,12 +235,12 @@ export function SideNav({
     <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:shrink-0 lg:border-r lg:border-zinc-200 lg:bg-white">
       <Link
         href="/dashboard"
-        className="flex items-center gap-3 px-5 py-5 border-b border-zinc-200"
+        className="flex items-center gap-3 px-4 py-5 border-b border-zinc-200"
       >
-        <BrandLogo size={36} />
-        <div className="leading-tight">
-          <div className="text-sm font-semibold text-zinc-900">Infinity Oikos</div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+        <BrandLogo size={42} variant="warm" />
+        <div className="flex flex-col items-start leading-none">
+          <BrandWordmark width={130} variant="warm" />
+          <div className="mt-1 text-[9px] uppercase tracking-[0.2em] text-zinc-500">
             MFH · Gewerbe
           </div>
         </div>

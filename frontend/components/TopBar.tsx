@@ -25,8 +25,11 @@ export function TopBar({
       <div className="flex items-center justify-between px-4 lg:px-8 h-14 gap-3">
         {/* Logo nur auf Mobile sichtbar */}
         <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
-          <BrandLogo size={28} />
-          <span className="text-sm font-semibold text-zinc-900">Infinity Oikos</span>
+          <BrandLogo size={32} variant="warm" />
+          <span className="font-serif text-sm font-bold tracking-[0.18em] text-amber-700">
+            INFINITY{" "}
+            <span className="text-[11px] tracking-[0.3em] text-amber-600">OIKOS</span>
+          </span>
         </Link>
 
         {/* ViewModeToggle: zentriert, nur für BOTH */}
