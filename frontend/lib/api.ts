@@ -613,7 +613,10 @@ export const MarketplaceListingSchema = ListingSchema.extend({
   }),
   // Phase G4: Marketplace-Response liefert beide Flags ausgeprägt mit
   ownerVerified: z.boolean().optional(),
-  featured: z.boolean().optional()
+  featured: z.boolean().optional(),
+  // Phase H6: Coin-Sortier-Layer
+  coinHighlighted: z.boolean().optional(),
+  coinFeedBoosted: z.boolean().optional()
 });
 export type MarketplaceListingT = z.infer<typeof MarketplaceListingSchema>;
 

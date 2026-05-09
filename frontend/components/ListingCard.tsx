@@ -53,8 +53,21 @@ export function ListingCard({ listing, compact = false }: Props) {
 
   const locationStr = [listing.city, listing.district].filter(Boolean).join(" · ");
 
+  // Phase H6 — Coin-Sortier-Indikatoren:
+  //   coinHighlighted (50 Coins/7d): gelber 2px-Rand + Pill
+  //   coinFeedBoosted (100 Coins/30d): orangefarbenes Pill
+  // Stripe-Premium (`featured`) hat visuell Vorrang — bei Premium wird der
+  // Coin-Highlight-Rand unterdrueckt, das Pill bleibt aber sichtbar.
+  const showHighlightFrame = listing.coinHighlighted && !listing.featured;
+
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-lg hover:border-zinc-300">
+    <div
+      className={`group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition hover:shadow-lg ${
+        showHighlightFrame
+          ? "border-2 border-amber-400"
+          : "border border-zinc-200 hover:border-zinc-300"
+      }`}
+    >
       {/* Bild-Bereich */}
       <Link
         href={`/marketplace/${listing.id}`}
@@ -151,6 +164,24 @@ export function ListingCard({ listing, compact = false }: Props) {
         {listing.highlights?.includes("Vollvermietet") ? (
           <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 shadow">
             Vollvermietet
+          </span>
+        ) : null}
+        {listing.coinHighlighted ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow"
+            title="Coin-Highlight aktiv"
+          >
+            <span aria-hidden>✨</span>
+            Highlight
+          </span>
+        ) : null}
+        {listing.coinFeedBoosted ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-md bg-orange-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow"
+            title="Verkäufer hat einen Feed-Boost aktiv"
+          >
+            <span aria-hidden>📈</span>
+            Boost
           </span>
         ) : null}
       </div>

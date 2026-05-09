@@ -35,6 +35,9 @@ import {
   maybeMarkEarlyBird,
   listTransactions,
   listActiveSpends,
+  getHighlightedListingIds,
+  getFeedBoostedUserIds,
+  isListingHighlighted,
   EARN_AMOUNTS,
   SPEND_COSTS,
   EARLY_BIRD_LIMIT,
@@ -2286,18 +2289,35 @@ app.get("/marketplace", async (req, res) => {
         })
       : listings;
 
-  // Phase G4 — Premium-Sortierung: aktiv-featured Listings nach oben.
-  // featured = featuredUntil > now. Innerhalb der beiden Gruppen bleibt
-  // updatedAt-DESC (kommt schon aus der DB-Sortierung).
+  // Phase G4 + H6 — Sortier-Layer:
+  //   1) Stripe-Premium  (featuredUntil > now)            -> +1000
+  //   2) Coin-Feed-Boost (Owner hat aktiven SPEND_FEED_BOOST) -> +100
+  //   3) Coin-Highlight  (Listing in active highlights)   -> +10
+  //   4) Tiebreaker: updatedAt-DESC
+  //
+  // Wir laden die zwei Sets parallel (jeweils ein DB-Roundtrip).
   const nowMs = Date.now();
+  const [highlightedIds, feedBoostedOwnerIds] = await Promise.all([
+    getHighlightedListingIds(),
+    getFeedBoostedUserIds()
+  ]);
+
+  function rankScore(l: (typeof yieldFiltered)[number]): number {
+    let s = 0;
+    if (l.featuredUntil && l.featuredUntil.getTime() > nowMs) s += 1000;
+    if (feedBoostedOwnerIds.has(l.ownerId)) s += 100;
+    if (highlightedIds.has(l.id)) s += 10;
+    return s;
+  }
+
   yieldFiltered.sort((a, b) => {
-    const aF = a.featuredUntil && a.featuredUntil.getTime() > nowMs ? 1 : 0;
-    const bF = b.featuredUntil && b.featuredUntil.getTime() > nowMs ? 1 : 0;
-    if (aF !== bF) return bF - aF;
+    const sa = rankScore(a);
+    const sb = rankScore(b);
+    if (sa !== sb) return sb - sa;
     return b.updatedAt.getTime() - a.updatedAt.getTime();
   });
 
-  // Bewertungs-Summary pro Verkäufer dazuladen + Verifiziert-Flag
+  // Bewertungs-Summary pro Verkäufer dazuladen + Verifiziert-Flag + Coin-Flags
   const enriched = await Promise.all(
     yieldFiltered.slice(0, 100).map(async (l) => {
       const ownerPlan = l.owner?.plan;
@@ -2305,6 +2325,8 @@ app.get("/marketplace", async (req, res) => {
         ownerPlan === "INVESTOR_PRO" || ownerPlan === "SELLER_PRO";
       const featured =
         !!l.featuredUntil && l.featuredUntil.getTime() > nowMs;
+      const coinHighlighted = highlightedIds.has(l.id);
+      const coinFeedBoosted = feedBoostedOwnerIds.has(l.ownerId);
       const anonymized = anonymizeListing(l);
       // owner.plan im Response weglassen — Plan ist intern.
       const ownerOut = anonymized.owner
@@ -2319,6 +2341,8 @@ app.get("/marketplace", async (req, res) => {
         owner: ownerOut,
         ownerVerified,
         featured,
+        coinHighlighted,
+        coinFeedBoosted,
         sellerRating: await ratingSummaryFor(l.ownerId)
       };
     })
