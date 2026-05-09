@@ -16,9 +16,9 @@
 const LOGO_SRC = "/infinity-logo.jpg";
 
 // Anteil des Originalbilds, der angezeigt wird (von oben).
-// Original: Symbol oben, INFINITY-Mitte, EIDOS unten -> wir zeigen die
-// oberen 70 % und blenden EIDOS aus.
-const VISIBLE_FRACTION = 0.7;
+// Original: Symbol (~0-45%), INFINITY (~50-62%), EIDOS (~65-75%).
+// Mit 0.6 schneiden wir hart NACH "INFINITY" und VOR "EIDOS" ab.
+const VISIBLE_FRACTION = 0.6;
 
 export function BrandLogo({
   width = 180,
@@ -51,8 +51,9 @@ export function BrandLogo({
 }
 
 /**
- * "OIKOS"-Schriftzug — extern als HTML-Text. Gold-Verlauf via
- * background-clip:text, gut lesbar.
+ * "OIKOS"-Schriftzug — extern als HTML-Text. Indigo-Verlauf passend zur
+ * App-Farbpalette (Marketplace-Card, Buttons, Premium-Pill), damit sich
+ * der Schriftzug klar von den goldenen Tönen des Logos abhebt.
  */
 export function BrandWordmark({
   className = "",
@@ -69,7 +70,7 @@ export function BrandWordmark({
         : "text-sm tracking-[0.5em]";
   return (
     <div
-      className={`font-serif font-semibold bg-clip-text text-transparent bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 ${fontCls} ${className}`}
+      className={`font-serif font-semibold bg-clip-text text-transparent bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 ${fontCls} ${className}`}
       aria-hidden
     >
       OIKOS

@@ -26,7 +26,7 @@ export function TopBar({
         {/* Logo nur auf Mobile sichtbar */}
         <Link href="/dashboard" className="flex flex-col items-center gap-0 lg:hidden">
           <BrandLogo width={120} />
-          <span className="font-serif text-[10px] font-semibold tracking-[0.4em] bg-clip-text text-transparent bg-gradient-to-br from-amber-400 to-amber-700">
+          <span className="font-serif text-[10px] font-semibold tracking-[0.4em] bg-clip-text text-transparent bg-gradient-to-br from-indigo-600 to-violet-700">
             OIKOS
           </span>
         </Link>
