@@ -235,14 +235,12 @@ export function SideNav({
     <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:shrink-0 lg:border-r lg:border-zinc-200 lg:bg-white">
       <Link
         href="/dashboard"
-        className="flex items-center gap-3 px-4 py-5 border-b border-zinc-200"
+        className="flex flex-col items-center gap-1 px-4 py-5 border-b border-zinc-200"
       >
-        <BrandLogo size={42} variant="warm" />
-        <div className="flex flex-col items-start leading-none">
-          <BrandWordmark width={130} variant="warm" />
-          <div className="mt-1 text-[9px] uppercase tracking-[0.2em] text-zinc-500">
-            MFH · Gewerbe
-          </div>
+        <BrandLogo width={170} />
+        <BrandWordmark size="md" />
+        <div className="mt-1 text-[9px] uppercase tracking-[0.2em] text-zinc-500">
+          MFH · Gewerbe
         </div>
       </Link>
 

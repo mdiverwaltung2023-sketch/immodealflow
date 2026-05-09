@@ -24,11 +24,10 @@ export function TopBar({
     <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/85 backdrop-blur">
       <div className="flex items-center justify-between px-4 lg:px-8 h-14 gap-3">
         {/* Logo nur auf Mobile sichtbar */}
-        <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
-          <BrandLogo size={32} variant="warm" />
-          <span className="font-serif text-sm font-bold tracking-[0.18em] text-amber-700">
-            INFINITY{" "}
-            <span className="text-[11px] tracking-[0.3em] text-amber-600">OIKOS</span>
+        <Link href="/dashboard" className="flex flex-col items-center gap-0 lg:hidden">
+          <BrandLogo width={120} />
+          <span className="font-serif text-[10px] font-semibold tracking-[0.4em] bg-clip-text text-transparent bg-gradient-to-br from-amber-400 to-amber-700">
+            OIKOS
           </span>
         </Link>
 

@@ -1,200 +1,102 @@
 /**
- * Infinity-Oikos-Marke — komplett als SVG.
+ * Infinity-Oikos-Marke.
  *
- * BrandLogo:    nur das Symbol (goldener Kreis mit stilisierter Figur)
- * BrandWordmark: nur der Schriftzug "INFINITY" + "OIKOS" in Goldverlauf
- * BrandLockup:  beide zusammen, fuer Header / Sidebar / Landing.
+ * Wir nutzen das Original-Bild (das goldene Symbol + "INFINITY"-Schriftzug
+ * aus dem Markenpaket). Der untere "EIDOS"-Teil wird per CSS-Clip
+ * abgeschnitten, "OIKOS" wird extern als HTML-Text darunter gerendert
+ * (in der gleichen goldenen Optik, gut lesbar, frei skalierbar).
  *
- * Variante "gold" passt auf dunklen Hintergrund (z.B. lila Landing),
- * Variante "warm" hat etwas dunklere Bronze/Amber-Toene fuer hellen
- * Sidebar-Hintergrund — bleibt aber gold im Charakter.
+ * Das Original-Bild liegt unter /infinity-logo.jpg im Frontend-public-Ordner.
+ *
+ * - BrandLogo:    nur der obere Bildausschnitt (Symbol + "INFINITY")
+ * - BrandWordmark: nur der "OIKOS"-Schriftzug als HTML
+ * - BrandLockup:  beide Elemente kombiniert (fuer Sidebar / Sign-In)
  */
 
-type GoldVariant = "gold" | "warm";
+const LOGO_SRC = "/infinity-logo.jpg";
 
-function gradId(prefix: string, variant: GoldVariant): string {
-  return `${prefix}-${variant}`;
-}
+// Anteil des Originalbilds, der angezeigt wird (von oben).
+// Original: Symbol oben, INFINITY-Mitte, EIDOS unten -> wir zeigen die
+// oberen 70 % und blenden EIDOS aus.
+const VISIBLE_FRACTION = 0.7;
 
-function GoldDefs({ variant, idPrefix }: { variant: GoldVariant; idPrefix: string }) {
-  // Heller Goldverlauf (auf dunklem Hintergrund) vs. waermeres Bronze
-  // (auf hellem Sidebar-Hintergrund, damit es nicht "verschwindet").
-  const stops =
-    variant === "gold"
-      ? [
-          { offset: "0%", color: "#fef3c7" },
-          { offset: "45%", color: "#fbbf24" },
-          { offset: "100%", color: "#b45309" }
-        ]
-      : [
-          { offset: "0%", color: "#fbbf24" },
-          { offset: "50%", color: "#d97706" },
-          { offset: "100%", color: "#92400e" }
-        ];
-  return (
-    <defs>
-      <linearGradient
-        id={gradId(idPrefix, variant)}
-        x1="0%"
-        y1="0%"
-        x2="100%"
-        y2="100%"
-      >
-        {stops.map((s) => (
-          <stop key={s.offset} offset={s.offset} stopColor={s.color} />
-        ))}
-      </linearGradient>
-    </defs>
-  );
-}
-
-/* =========================================================
- * BrandLogo — nur das Symbol.
- * Goldener Kreis (oben rechts geoeffnet) mit stilisierter Figur
- * (Kopf + Arme + V-Beine) und einem leichten "Tropfen" rechts.
- * =======================================================*/
 export function BrandLogo({
-  size = 48,
-  className,
-  variant = "gold"
-}: {
-  size?: number;
-  className?: string;
-  variant?: GoldVariant;
-}) {
-  const id = gradId("oikos-symbol", variant);
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      role="img"
-      aria-label="Infinity Oikos"
-    >
-      <GoldDefs variant={variant} idPrefix="oikos-symbol" />
-
-      {/* Aussenkreis — C-foermig, oben rechts offen */}
-      <path
-        d="M 50,9 A 41,41 0 1,0 91,50"
-        stroke={`url(#${id})`}
-        strokeWidth="9"
-        strokeLinecap="round"
-        fill="none"
-      />
-
-      {/* Tropfen rechts oben — Akzent, der die Oeffnung schliesst */}
-      <path
-        d="M 78,18 Q 92,30 86,46 Q 74,50 68,38 Q 66,26 78,18 Z"
-        fill={`url(#${id})`}
-      />
-
-      {/* Stilisierte Figur innen — Kopf */}
-      <circle cx="42" cy="34" r="5.5" fill={`url(#${id})`} />
-
-      {/* Ausgestreckte Arme — leichter Bogen */}
-      <path
-        d="M 24,52 Q 42,38 60,52"
-        stroke={`url(#${id})`}
-        strokeWidth="6.5"
-        strokeLinecap="round"
-        fill="none"
-      />
-
-      {/* V-Beine */}
-      <path
-        d="M 42,46 L 32,76 M 42,46 L 56,76"
-        stroke={`url(#${id})`}
-        strokeWidth="6.5"
-        strokeLinecap="round"
-        fill="none"
-      />
-    </svg>
-  );
-}
-
-/* =========================================================
- * BrandWordmark — Schriftzug "INFINITY" / "OIKOS"
- * im Goldverlauf, antiqua/serif Look.
- * =======================================================*/
-export function BrandWordmark({
   width = 180,
-  className,
-  variant = "gold"
+  className = "",
+  rounded = false
 }: {
   width?: number;
   className?: string;
-  variant?: GoldVariant;
+  rounded?: boolean;
 }) {
-  const id = gradId("oikos-word", variant);
+  // Box-Dimensionen: Quadratisches Bild × VISIBLE_FRACTION = Hoehe.
+  const height = Math.round(width * VISIBLE_FRACTION);
   return (
-    <svg
-      width={width}
-      viewBox="0 0 220 70"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
+    <div
+      className={`relative shrink-0 overflow-hidden ${rounded ? "rounded-lg" : ""} ${className}`}
+      style={{ width, height }}
       role="img"
-      aria-label="Infinity Oikos"
+      aria-label="Infinity Oikos Logo"
     >
-      <GoldDefs variant={variant} idPrefix="oikos-word" />
-
-      {/* INFINITY — gross */}
-      <text
-        x="110"
-        y="38"
-        textAnchor="middle"
-        fontFamily="'Cinzel','Trajan Pro','Cormorant Garamond',Georgia,serif"
-        fontWeight="700"
-        fontSize="30"
-        letterSpacing="4.2"
-        fill={`url(#${id})`}
-      >
-        INFINITY
-      </text>
-
-      {/* OIKOS — klein, weit gesperrt, gut lesbar */}
-      <text
-        x="110"
-        y="60"
-        textAnchor="middle"
-        fontFamily="'Cinzel','Trajan Pro','Cormorant Garamond',Georgia,serif"
-        fontWeight="600"
-        fontSize="15"
-        letterSpacing="9"
-        fill={`url(#${id})`}
-      >
-        OIKOS
-      </text>
-    </svg>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={LOGO_SRC}
+        alt=""
+        className="absolute inset-0 w-full h-auto select-none pointer-events-none"
+        style={{ width }}
+        draggable={false}
+      />
+    </div>
   );
 }
 
-/* =========================================================
- * BrandLockup — Symbol + Schriftzug nebeneinander
- * (fuer Sidebar oben links) oder gestapelt (fuer Sign-In).
- * =======================================================*/
-export function BrandLockup({
-  size = 44,
-  variant = "warm",
-  layout = "row"
+/**
+ * "OIKOS"-Schriftzug — extern als HTML-Text. Gold-Verlauf via
+ * background-clip:text, gut lesbar.
+ */
+export function BrandWordmark({
+  className = "",
+  size = "md"
 }: {
-  size?: number;
-  variant?: GoldVariant;
-  layout?: "row" | "stack";
+  className?: string;
+  size?: "sm" | "md" | "lg";
 }) {
-  if (layout === "stack") {
-    return (
-      <div className="flex flex-col items-center gap-2">
-        <BrandLogo size={size * 1.6} variant={variant} />
-        <BrandWordmark width={size * 5} variant={variant} />
-      </div>
-    );
-  }
+  const fontCls =
+    size === "lg"
+      ? "text-2xl tracking-[0.55em]"
+      : size === "sm"
+        ? "text-xs tracking-[0.4em]"
+        : "text-sm tracking-[0.5em]";
   return (
-    <div className="flex items-center gap-3">
-      <BrandLogo size={size} variant={variant} />
-      <BrandWordmark width={size * 3.2} variant={variant} />
+    <div
+      className={`font-serif font-semibold bg-clip-text text-transparent bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 ${fontCls} ${className}`}
+      aria-hidden
+    >
+      OIKOS
+    </div>
+  );
+}
+
+/**
+ * Symbol + "INFINITY" (aus Bild) + "OIKOS" (Text) — gestapelt.
+ * Standard-Variante fuer alles. Layout:
+ *
+ *    [    SYMBOL     ]
+ *    [   INFINITY    ]   <-- aus Bildausschnitt
+ *    [    OIKOS      ]   <-- HTML-Text
+ */
+export function BrandLockup({
+  width = 160,
+  className = ""
+}: {
+  width?: number;
+  className?: string;
+}) {
+  const wordmarkSize = width >= 220 ? "lg" : width >= 140 ? "md" : "sm";
+  return (
+    <div className={`flex flex-col items-center ${className}`}>
+      <BrandLogo width={width} />
+      <BrandWordmark size={wordmarkSize} className="mt-1" />
     </div>
   );
 }
