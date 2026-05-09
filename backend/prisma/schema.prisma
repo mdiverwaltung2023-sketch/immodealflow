@@ -57,6 +57,46 @@ enum CoinTxKind {
   ADMIN_ADJUSTMENT
 }
 
+// Phase J1 — Verkaufsabwicklung: Stationen vom akzeptierten Lead bis
+// zur Eigentumsumschreibung. ABGEBROCHEN ist der Off-Track-Endzustand
+// (z.B. Finanzierung geplatzt) — Verkäufer kann dann einen neuen
+// SaleProcess für dasselbe Listing starten.
+enum SaleStage {
+  ANFRAGE_AKZEPTIERT
+  BESICHTIGUNG
+  VERHANDLUNG
+  RESERVIERUNG_LOI
+  NOTARENTWURF
+  NOTARTERMIN
+  BEURKUNDET
+  AUFLASSUNGSVORMERKUNG
+  KAUFPREISZAHLUNG
+  UEBERGABE
+  EIGENTUMSUMSCHREIBUNG
+  ABGESCHLOSSEN
+  ABGEBROCHEN
+}
+
+// Phase J1 — Dokumenten-Kategorien rund um den Immobilienverkauf.
+// Pro Process+Kind genau ein Dokument (Re-Upload ueberschreibt).
+// "SONSTIGES" ist der Catch-all fuer alles was nicht passt.
+enum SaleDocKind {
+  GRUNDBUCH
+  ENERGIEAUSWEIS
+  FLURKARTE
+  WOHNFLAECHENBERECHNUNG
+  KAUFVERTRAG_ENTWURF
+  KAUFVERTRAG_BEURKUNDET
+  VORFAELLIGKEITSSCHREIBEN
+  AUFLASSUNGSVORMERKUNG
+  UEBERGABEPROTOKOLL
+  TEILUNGSERKLAERUNG
+  EIGENTUEMERVERSAMMLUNG_PROTOKOLL
+  MIETVERTRAEGE
+  MAKLERVERTRAG
+  SONSTIGES
+}
+
 enum AssetType {
   MFH
   COMMERCIAL
@@ -190,6 +230,10 @@ model User {
   ratingsReceived   Rating[]  @relation("RatingsReceived")
   coinTransactions  CoinTransaction[]
   coinSpends        CoinSpend[]
+  saleProcessesAsSeller SaleProcess[]    @relation("SellerProcesses")
+  saleProcessesAsBuyer  SaleProcess[]    @relation("BuyerProcesses")
+  saleStageEntries      SaleStageEntry[] @relation("StageBy")
+  uploadedSaleDocs      SaleDocument[]   @relation("DocUploads")
 
   @@index([referredById])
 }
@@ -374,8 +418,9 @@ model Listing {
   // 99 EUR) auf now + 30 Tage gesetzt.
   featuredUntil DateTime?
 
-  images    ListingImage[]
-  inquiries Inquiry[]
+  images        ListingImage[]
+  inquiries     Inquiry[]
+  saleProcesses SaleProcess[]
 
   @@index([ownerId])
   @@index([status])
@@ -420,6 +465,7 @@ model Inquiry {
   respondedAt DateTime?    // Zeitpunkt des accept/reject
 
   ratings     Rating[]
+  saleProcess SaleProcess?
 
   // Doppelte PENDING-Inquiries vom selben Investor werden im Backend verhindert,
   // nicht via DB-Constraint — sonst könnte er nach REJECTED nicht erneut anfragen.
@@ -455,6 +501,83 @@ model Rating {
   @@unique([inquiryId, direction], name: "uniq_rating_per_direction")
   @@index([toUserId])
   @@index([fromUserId])
+}
+
+// Phase J1 — Verkaufsabwicklung.
+// Pro Listing kann es mehrere SaleProcesses geben (einer aktiv,
+// alte abgebrochen). currentStage steuert den Fortschritt;
+// jeder Wechsel wird in SaleStageEntry geloggt (Audit-Timeline).
+// inquiryId ist optional — Verkäufer kann auch ohne Marketplace-Anfrage
+// einen externen Verkauf abwickeln (Off-Market-Deal).
+model SaleProcess {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  inquiryId String?  @unique
+  inquiry   Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+
+  sellerId  String
+  seller    User     @relation("SellerProcesses", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  buyerId   String?
+  buyer     User?    @relation("BuyerProcesses", fields: [buyerId], references: [id], onDelete: SetNull)
+
+  currentStage   SaleStage @default(ANFRAGE_AKZEPTIERT)
+  stageEnteredAt DateTime  @default(now())
+
+  notes              String?
+  targetClosingDate  DateTime?
+  agreedPrice        Int?     // EUR — kann von Listing.askingPrice abweichen
+
+  documents SaleDocument[]
+  stageLog  SaleStageEntry[]
+
+  @@index([sellerId, currentStage])
+  @@index([listingId, currentStage])
+  @@index([buyerId])
+}
+
+// Audit-Log: jede Stage-Aenderung wird hier festgehalten.
+// Damit kann der Verkäufer eine Timeline anzeigen.
+model SaleStageEntry {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  processId String
+  process   SaleProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  stage     SaleStage
+  note      String?
+
+  byUserId  String?
+  by        User?    @relation("StageBy", fields: [byUserId], references: [id], onDelete: SetNull)
+
+  @@index([processId, createdAt])
+}
+
+// Hochgeladene Dokumente zu einem SaleProcess. Pro (process, kind)
+// genau eine Datei — Re-Upload überschreibt im Backend-Code.
+model SaleDocument {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  processId String
+  process   SaleProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  kind      SaleDocKind
+  url       String       // Vercel-Blob-URL
+  filename  String       // Original-Dateiname
+  sizeBytes Int
+
+  uploaderUserId String?
+  uploader       User?  @relation("DocUploads", fields: [uploaderUserId], references: [id], onDelete: SetNull)
+
+  @@unique([processId, kind])
+  @@index([processId])
 }
 
 model Property {
