@@ -40,6 +40,21 @@ enum UserRole {
   INVESTOR
   SELLER
   BOTH
+  BROKER
+}
+
+// Phase H1 — Coin-System: alle Earn-/Spend-Kinds.
+// Earn-Kinds haben positive amounts, SPEND_-Kinds negative amounts.
+enum CoinTxKind {
+  PROFILE_COMPLETED
+  LISTING_ACTIVATED
+  SELLER_CONTACTED
+  DAILY_LOGIN
+  REFERRAL_BROKER_ONBOARDED
+  SPEND_LISTING_HIGHLIGHT
+  SPEND_PROFILE_BOOST
+  SPEND_FEED_BOOST
+  ADMIN_ADJUSTMENT
 }
 
 enum AssetType {
@@ -153,6 +168,19 @@ model User {
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
 
+  // --- Coin-System (Phase H1) ---
+  // coinsBalance ist denormalisiert; Quelle der Wahrheit ist sum(CoinTransaction.amount).
+  // Die earn/spend-Helpers in lib/coins.ts halten beide synchron in einer DB-Transaktion.
+  coinsBalance Int     @default(0)
+  // Erste 100 BROKER-User bekommen +50 % auf alle Earn-Events (dauerhaft).
+  isEarlyBird  Boolean @default(false)
+  // Admin-Flag für /admin/coins-Dashboard. Default false; manuell via SQL setzen.
+  isAdmin      Boolean @default(false)
+  // Self-Referral: User wurde von einem anderen User geworben.
+  referredById String?
+  referredBy   User?   @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals    User[]  @relation("UserReferrals")
+
   properties        Property[]
   investorProfile   InvestorProfile?
   trackrecordItems  TrackrecordItem[]
@@ -160,6 +188,61 @@ model User {
   inquiriesSent     Inquiry[] @relation("InvestorInquiries")
   ratingsGiven      Rating[]  @relation("RatingsGiven")
   ratingsReceived   Rating[]  @relation("RatingsReceived")
+  coinTransactions  CoinTransaction[]
+  coinSpends        CoinSpend[]
+
+  @@index([referredById])
+}
+
+// Phase H1 — Coin-Buchung (Earn oder Spend).
+// Idempotenz via @@unique(userId, kind, refId): zweimaliger Versuch
+// für dieselbe Quelle (z.B. dasselbe Listing aktivieren) wird stillschweigend
+// ignoriert. refId-Konventionen:
+//   PROFILE_COMPLETED         -> "self"
+//   LISTING_ACTIVATED         -> Listing.id
+//   SELLER_CONTACTED          -> Inquiry.id
+//   DAILY_LOGIN               -> "YYYY-MM-DD" (UTC)
+//   REFERRAL_BROKER_ONBOARDED -> referred User.id
+//   SPEND_*                   -> CoinSpend.id (Backreferenz, optional)
+//   ADMIN_ADJUSTMENT          -> freier Audit-String
+model CoinTransaction {
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind      CoinTxKind
+  amount    Int        // positiv = Earn, negativ = Spend
+  refId     String?    // s. Konventionen oben
+
+  // Optional: kurzer Audit-Hinweis (z.B. "early-bird +50%")
+  note      String?
+
+  @@unique([userId, kind, refId], name: "uniq_coin_tx_idempotent")
+  @@index([userId, createdAt])
+  @@index([kind, createdAt])
+}
+
+// Phase H1 — Aktive Coin-Spend (zeitlich befristete Sichtbarkeits-Buchung).
+// Wird beim Spend angelegt; Sortier-/Render-Layer fragen
+// "validUntil > now()" gegen kind und ggf. targetId ab.
+model CoinSpend {
+  id         String     @id @default(cuid())
+  createdAt  DateTime   @default(now())
+
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Nur SPEND_*-Kinds erlaubt (im Backend per Zod erzwungen).
+  kind       CoinTxKind
+  // Bei SPEND_LISTING_HIGHLIGHT: Listing.id (sonst null).
+  targetId   String?
+  validUntil DateTime
+
+  @@index([userId, validUntil])
+  @@index([kind, validUntil])
+  @@index([targetId, validUntil])
 }
 
 model InvestorProfile {
