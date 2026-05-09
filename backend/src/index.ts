@@ -812,9 +812,10 @@ app.get("/me", async (req, res) => {
     legacyCount,
     plan: user.plan,
     planValidUntil: user.planValidUntil,
-    // --- Coin-System (Phase H3) ---
+    // --- Coin-System (Phase H3 + H8) ---
     coinsBalance,
-    isEarlyBird: user.isEarlyBird
+    isEarlyBird: user.isEarlyBird,
+    isAdmin: user.isAdmin
   });
 });
 
@@ -2804,6 +2805,231 @@ async function handleStripeEvent(event: Stripe.Event) {
       return;
   }
 }
+
+// =========================================================
+// Coin-Admin (Phase H8) — Dashboard-Endpoints
+// =========================================================
+// Alle Routes prueft eine Inline-Middleware via User.isAdmin. Das Flag
+// wird manuell per SQL gesetzt (siehe deploy/42_coin-system-h8-admin.bat).
+// Bewusst keine Cascade-Aktion: Nicht-Admins bekommen 403 statt 404, damit
+// das Verhalten klar ist.
+
+async function ensureAdmin(req: express.Request, res: express.Response): Promise<boolean> {
+  const u = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: { isAdmin: true }
+  });
+  if (!u?.isAdmin) {
+    res.status(403).json({ error: "Admin only" });
+    return false;
+  }
+  return true;
+}
+
+// GET /admin/coins/overview — Aggregate (Top-10, Sums per Kind, Counts)
+app.get("/admin/coins/overview", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+
+  const [
+    totalUsers,
+    earlyBirdsActive,
+    sumBalance,
+    topEarners,
+    topSpenders,
+    sumsByKind,
+    activeSpendsCount
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { isEarlyBird: true } }),
+    prisma.user.aggregate({ _sum: { coinsBalance: true } }),
+    prisma.user.findMany({
+      orderBy: { coinsBalance: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        coinsBalance: true,
+        isEarlyBird: true
+      }
+    }),
+    prisma.coinTransaction.groupBy({
+      by: ["userId"],
+      where: { amount: { lt: 0 } },
+      _sum: { amount: true },
+      orderBy: { _sum: { amount: "asc" } },
+      take: 10
+    }),
+    prisma.coinTransaction.groupBy({
+      by: ["kind"],
+      _sum: { amount: true },
+      _count: { _all: true }
+    }),
+    prisma.coinSpend.count({ where: { validUntil: { gt: new Date() } } })
+  ]);
+
+  // userIds aus topSpenders aufloesen (groupBy gibt nur userIds)
+  const spenderIds = topSpenders.map((s) => s.userId);
+  const spenderUsers = spenderIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: spenderIds } },
+        select: { id: true, name: true, email: true, role: true, coinsBalance: true }
+      })
+    : [];
+  const spenderMap = new Map(spenderUsers.map((u) => [u.id, u]));
+  const topSpendersEnriched = topSpenders.map((s) => ({
+    user: spenderMap.get(s.userId) ?? null,
+    spent: Math.abs(s._sum.amount ?? 0)
+  }));
+
+  return res.json({
+    totalUsers,
+    earlyBirdsActive,
+    earlyBirdLimit: EARLY_BIRD_LIMIT,
+    coinsInCirculation: sumBalance._sum.coinsBalance ?? 0,
+    avgBalance: totalUsers > 0
+      ? Math.round((sumBalance._sum.coinsBalance ?? 0) / totalUsers)
+      : 0,
+    activeSpendsCount,
+    topEarners,
+    topSpenders: topSpendersEnriched,
+    sumsByKind: sumsByKind.map((row) => ({
+      kind: row.kind,
+      total: row._sum.amount ?? 0,
+      count: row._count._all
+    }))
+  });
+});
+
+// GET /admin/coins/transactions — Filterbar (userId, kind, from, to)
+app.get("/admin/coins/transactions", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+
+  const q = z
+    .object({
+      userId: z.string().optional(),
+      kind: z.string().optional(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+      limit: z.coerce.number().int().min(1).max(500).default(100)
+    })
+    .parse(req.query);
+
+  const where: Record<string, unknown> = {};
+  if (q.userId) where.userId = q.userId;
+  if (q.kind) where.kind = q.kind;
+  if (q.from || q.to) {
+    const range: Record<string, Date> = {};
+    if (q.from) range.gte = new Date(q.from);
+    if (q.to) range.lte = new Date(q.to);
+    where.createdAt = range;
+  }
+
+  const transactions = await prisma.coinTransaction.findMany({
+    where: where as never,
+    orderBy: { createdAt: "desc" },
+    take: q.limit,
+    include: {
+      user: { select: { id: true, name: true, email: true, role: true } }
+    }
+  });
+  return res.json({ transactions, limit: q.limit });
+});
+
+// GET /admin/coins/active-spends — Liste aller laufenden Spends
+app.get("/admin/coins/active-spends", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+
+  const spends = await prisma.coinSpend.findMany({
+    where: { validUntil: { gt: new Date() } },
+    orderBy: { validUntil: "asc" },
+    take: 200,
+    include: {
+      user: { select: { id: true, name: true, email: true, role: true } }
+    }
+  });
+
+  // Bei LISTING_HIGHLIGHT: Listing-Title nachladen (best effort)
+  const listingIds = Array.from(
+    new Set(
+      spends
+        .filter((s) => s.kind === "SPEND_LISTING_HIGHLIGHT" && s.targetId)
+        .map((s) => s.targetId as string)
+    )
+  );
+  const listings = listingIds.length
+    ? await prisma.listing.findMany({
+        where: { id: { in: listingIds } },
+        select: { id: true, title: true, city: true }
+      })
+    : [];
+  const listingMap = new Map(listings.map((l) => [l.id, l]));
+
+  const enriched = spends.map((s) => ({
+    ...s,
+    listing:
+      s.kind === "SPEND_LISTING_HIGHLIGHT" && s.targetId
+        ? listingMap.get(s.targetId) ?? null
+        : null
+  }));
+  return res.json(enriched);
+});
+
+// POST /admin/coins/adjust — Manuelle Korrektur (kind = ADMIN_ADJUSTMENT)
+//   body: { userId, amount (signed int), note }
+//   refId wird mit Timestamp erzeugt -> jeder Aufruf ist eine separate Buchung.
+app.post("/admin/coins/adjust", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+
+  const body = z
+    .object({
+      userId: z.string().min(1),
+      amount: z.number().int().refine((n) => n !== 0, "amount darf nicht 0 sein"),
+      note: z.string().min(3).max(200)
+    })
+    .parse(req.body);
+
+  const target = await prisma.user.findUnique({
+    where: { id: body.userId },
+    select: { id: true, coinsBalance: true }
+  });
+  if (!target) return res.status(404).json({ error: "User nicht gefunden" });
+
+  // Bei negativem Adjust: Mindestsaldo 0 erzwingen.
+  if (body.amount < 0 && target.coinsBalance + body.amount < 0) {
+    return res.status(400).json({
+      error: "negative_balance_blocked",
+      message: `Saldo ${target.coinsBalance} würde negativ. Korrigiere den Betrag.`
+    });
+  }
+
+  const refId = `adj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.coinTransaction.create({
+      data: {
+        userId: body.userId,
+        kind: "ADMIN_ADJUSTMENT",
+        amount: body.amount,
+        refId,
+        note: `[admin:${req.userId}] ${body.note}`
+      }
+    });
+    return tx.user.update({
+      where: { id: body.userId },
+      data: { coinsBalance: { increment: body.amount } },
+      select: { id: true, coinsBalance: true }
+    });
+  });
+
+  return res.json({
+    ok: true,
+    userId: updated.id,
+    newBalance: updated.coinsBalance,
+    refId
+  });
+});
 
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {

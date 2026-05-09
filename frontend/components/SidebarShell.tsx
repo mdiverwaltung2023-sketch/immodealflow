@@ -16,10 +16,11 @@ export async function SidebarShell({ children }: { children: ReactNode }) {
   const me = await apiGet("/me", MeSchema).catch(() => null);
   const userRole: UserRoleT = me?.role ?? "BOTH";
   const plan: UserPlanT = me?.plan ?? "FREE";
+  const isAdmin = me?.isAdmin === true;
 
   return (
     <div className="flex min-h-screen bg-zinc-50">
-      <SideNav userRole={userRole} plan={plan} />
+      <SideNav userRole={userRole} plan={plan} isAdmin={isAdmin} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar userRole={userRole} plan={plan} />
         <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">

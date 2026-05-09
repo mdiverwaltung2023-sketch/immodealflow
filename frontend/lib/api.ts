@@ -232,7 +232,9 @@ export const MeSchema = z.object({
   planValidUntil: z.string().nullable().optional(),
   // Phase H3: Coin-System
   coinsBalance: z.number().optional(),
-  isEarlyBird: z.boolean().optional()
+  isEarlyBird: z.boolean().optional(),
+  // Phase H8: Admin-Flag
+  isAdmin: z.boolean().optional()
 });
 
 export type Me = z.infer<typeof MeSchema>;
@@ -328,6 +330,66 @@ export const SpendResultSchema = z.object({
   kind: SpendKindEnum
 });
 export type SpendResultT = z.infer<typeof SpendResultSchema>;
+
+// --- Admin (Phase H8) ------------------------------------------
+
+const AdminUserMiniSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  email: z.string().optional(),
+  role: UserRoleEnum,
+  coinsBalance: z.number().optional(),
+  isEarlyBird: z.boolean().optional()
+});
+
+export const AdminCoinsOverviewSchema = z.object({
+  totalUsers: z.number(),
+  earlyBirdsActive: z.number(),
+  earlyBirdLimit: z.number(),
+  coinsInCirculation: z.number(),
+  avgBalance: z.number(),
+  activeSpendsCount: z.number(),
+  topEarners: z.array(AdminUserMiniSchema),
+  topSpenders: z.array(
+    z.object({
+      user: AdminUserMiniSchema.nullable(),
+      spent: z.number()
+    })
+  ),
+  sumsByKind: z.array(
+    z.object({
+      kind: CoinTxKindEnum,
+      total: z.number(),
+      count: z.number()
+    })
+  )
+});
+export type AdminCoinsOverviewT = z.infer<typeof AdminCoinsOverviewSchema>;
+
+export const AdminCoinsTransactionsSchema = z.object({
+  transactions: z.array(
+    CoinTransactionSchema.extend({
+      user: AdminUserMiniSchema
+    })
+  ),
+  limit: z.number()
+});
+export type AdminCoinsTransactionsT = z.infer<typeof AdminCoinsTransactionsSchema>;
+
+export const AdminCoinsActiveSpendsSchema = z.array(
+  CoinSpendSchema.extend({
+    user: AdminUserMiniSchema,
+    listing: z
+      .object({
+        id: z.string(),
+        title: z.string(),
+        city: z.string()
+      })
+      .nullable()
+      .optional()
+  })
+);
+export type AdminCoinsActiveSpendsT = z.infer<typeof AdminCoinsActiveSpendsSchema>;
 
 // --- Investor-Profil + Trackrecord (Push B) ----------------------
 

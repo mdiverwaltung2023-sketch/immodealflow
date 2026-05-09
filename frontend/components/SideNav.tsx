@@ -16,7 +16,7 @@ type Item = {
 };
 
 type Section = {
-  id: "overview" | "investor" | "seller" | "account";
+  id: "overview" | "investor" | "seller" | "account" | "admin";
   title: string;
   items: Item[];
 };
@@ -112,6 +112,11 @@ const IcCoin = (
     <path d="M9 9.5h4.5a2 2 0 010 4H9.5a2 2 0 000 4H14" />
   </Icon>
 );
+const IcShield = (
+  <Icon>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </Icon>
+);
 
 /* ---------- Sektionen ---------- */
 
@@ -152,6 +157,12 @@ const SECTION_ACCOUNT: Section = {
   ]
 };
 
+const SECTION_ADMIN: Section = {
+  id: "admin",
+  title: "Admin",
+  items: [{ href: "/admin/coins", label: "Coin-Dashboard", icon: IcShield }]
+};
+
 /**
  * Sektionen je nach (Rolle × ViewMode):
  * - INVESTOR -> Übersicht + Investor + Konto
@@ -160,14 +171,16 @@ const SECTION_ACCOUNT: Section = {
  * - BOTH + viewMode "INVESTOR" -> Übersicht + Investor + Konto
  * - BOTH + viewMode "SELLER"   -> Übersicht + Verkäufer + Konto
  */
-function getVisibleSections(role: UserRoleT, mode: ViewMode): Section[] {
+function getVisibleSections(role: UserRoleT, mode: ViewMode, isAdmin: boolean): Section[] {
+  let base: Section[];
   if (role === "INVESTOR" || (role === "BOTH" && mode === "INVESTOR")) {
-    return [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
+    base = [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
+  } else if (role === "SELLER" || (role === "BOTH" && mode === "SELLER")) {
+    base = [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+  } else {
+    base = [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_SELLER, SECTION_ACCOUNT];
   }
-  if (role === "SELLER" || (role === "BOTH" && mode === "SELLER")) {
-    return [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
-  }
-  return [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_SELLER, SECTION_ACCOUNT];
+  return isAdmin ? [...base, SECTION_ADMIN] : base;
 }
 
 function isActive(pathname: string, item: Item): boolean {
@@ -175,7 +188,15 @@ function isActive(pathname: string, item: Item): boolean {
   return pathname === item.href || pathname.startsWith(item.href + "/");
 }
 
-export function SideNav({ userRole, plan }: { userRole: UserRoleT; plan: UserPlanT }) {
+export function SideNav({
+  userRole,
+  plan,
+  isAdmin = false
+}: {
+  userRole: UserRoleT;
+  plan: UserPlanT;
+  isAdmin?: boolean;
+}) {
   const pathname = usePathname() || "/";
   const [viewMode, setViewMode] = useState<ViewMode>("BOTH");
   const [hydrated, setHydrated] = useState(false);
@@ -208,7 +229,7 @@ export function SideNav({ userRole, plan }: { userRole: UserRoleT; plan: UserPla
 
   // Vor Hydration: nutze die Server-Default-Variante (BOTH-View) damit kein
   // Layout-Shift entsteht, der schlimmer wäre als die kurze Anzeige aller Items.
-  const sections = getVisibleSections(userRole, hydrated ? viewMode : "BOTH");
+  const sections = getVisibleSections(userRole, hydrated ? viewMode : "BOTH", isAdmin);
 
   return (
     <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:shrink-0 lg:border-r lg:border-zinc-200 lg:bg-white">
