@@ -26,6 +26,13 @@ import {
   paywallBody,
   type PlanT
 } from "./lib/billing.js";
+import {
+  earn,
+  todayUtcKey,
+  isInvestorProfileCompleted,
+  tryTriggerReferral,
+  maybeMarkEarlyBird
+} from "./lib/coins.js";
 
 // --- Stripe-Client (lazy, optional) ---
 // Wenn STRIPE_SECRET_KEY fehlt, laufen Billing-Endpoints im Stub-Modus
@@ -771,6 +778,18 @@ app.post("/properties/:id/recompute-bid-limit", async (req, res) => {
 app.get("/me", async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId! } });
   if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Phase H3 — DAILY_LOGIN-Hook. Idempotent ueber UTC-Tagesschluessel,
+  // also ein Coin/Tag, egal wie oft GET /me aufgerufen wird. Fehler werden
+  // verschluckt, damit /me nicht wegen Coin-Buchung 500t.
+  let coinsBalance = user.coinsBalance;
+  try {
+    const result = await earn(user.id, "DAILY_LOGIN", todayUtcKey());
+    if (result.ok) coinsBalance = result.newBalance;
+  } catch {
+    // bewusst leise — DAILY_LOGIN ist nice-to-have
+  }
+
   const legacyCount = await prisma.property.count({ where: { ownerId: null } });
   return res.json({
     id: user.id,
@@ -781,11 +800,14 @@ app.get("/me", async (req, res) => {
     onboardingCompletedAt: user.onboardingCompletedAt,
     legacyCount,
     plan: user.plan,
-    planValidUntil: user.planValidUntil
+    planValidUntil: user.planValidUntil,
+    // --- Coin-System (Phase H3) ---
+    coinsBalance,
+    isEarlyBird: user.isEarlyBird
   });
 });
 
-const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH"]);
+const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH", "BROKER"]);
 
 // PATCH /me — Felder updaten (z. B. Name, Rolle)
 app.patch("/me", async (req, res) => {
@@ -810,21 +832,56 @@ app.patch("/me", async (req, res) => {
 });
 
 // POST /me/complete-onboarding — schließt das Onboarding ab. Optional
-// werden gleich Rolle und Name gesetzt.
+// werden gleich Rolle und Name gesetzt. Phase H3: optional referredById
+// fuer den Referral-Flow (Frontend liest ?ref=... aus dem Onboarding-Link
+// und reicht es weiter).
 app.post("/me/complete-onboarding", async (req, res) => {
   const body = z
     .object({
       role: UserRoleEnum.optional(),
-      name: z.string().min(1).max(120).optional()
+      name: z.string().min(1).max(120).optional(),
+      referredById: z.string().min(1).max(40).nullable().optional()
     })
     .parse(req.body ?? {});
+
+  // Self-Referral verhindern (manipulierter ?ref-Link).
+  const safeReferredById =
+    body.referredById && body.referredById !== req.userId!
+      ? body.referredById
+      : null;
+
+  // Existenz des Werbers pruefen — bei ungueltigem Wert einfach ignorieren,
+  // statt den Onboarding-Flow zu killen.
+  let referredByValid: string | null = null;
+  if (safeReferredById) {
+    const ref = await prisma.user.findUnique({
+      where: { id: safeReferredById },
+      select: { id: true }
+    });
+    referredByValid = ref?.id ?? null;
+  }
+
   const user = await prisma.user.update({
     where: { id: req.userId! },
     data: {
-      ...body,
+      ...(body.role !== undefined ? { role: body.role } : {}),
+      ...(body.name !== undefined ? { name: body.name } : {}),
+      // referredById nur setzen, wenn noch nicht gesetzt (kein "umwerben"
+      // bestehender User durch erneutes Onboarding).
+      ...(referredByValid ? { referredById: referredByValid } : {}),
       onboardingCompletedAt: new Date()
     }
   });
+
+  // Phase H3 — Early-Bird-Flag fuer die ersten 100 BROKER-User.
+  if (user.role === "BROKER") {
+    try {
+      await maybeMarkEarlyBird(user.id, user.role);
+    } catch {
+      /* leise */
+    }
+  }
+
   return res.json({
     id: user.id,
     clerkId: user.clerkId,
@@ -977,6 +1034,22 @@ app.patch("/me/profile", async (req, res) => {
     update: body,
     create: { userId, ...body }
   });
+
+  // Phase H3 — PROFILE_COMPLETED-Hook. Idempotent ueber refId="self",
+  // also wird der Coin nur einmal vergeben. Wenn das Profil ein zweites
+  // Mal alle Pflichtfelder erreicht (nach zwischenzeitlicher Loeschung),
+  // gibts keinen weiteren Earn — das ist gewollt (Anti-Farming).
+  try {
+    if (await isInvestorProfileCompleted(userId)) {
+      await earn(userId, "PROFILE_COMPLETED", "self");
+      // Referral-Trigger: vielleicht erfuellt der User jetzt beide
+      // Bedingungen (Profile + Listing).
+      await tryTriggerReferral(userId);
+    }
+  } catch {
+    // Coin-Buchung soll PATCH /me/profile nicht killen
+  }
+
   const trackrecord = await prisma.trackrecordItem.findMany({
     where: { userId },
     orderBy: [{ year: "desc" }, { createdAt: "desc" }]
@@ -1428,6 +1501,19 @@ app.post("/me/listings", async (req, res) => {
     data: data as never,
     include: { images: { orderBy: { sortOrder: "asc" } } }
   });
+
+  // Phase H3 — LISTING_ACTIVATED-Hook (selten relevant, weil neue Listings
+  // i.d.R. als DRAFT angelegt werden, aber falls jemand direkt ACTIVE
+  // einreicht, vergeben wir den Coin sofort).
+  if (listing.status === "ACTIVE") {
+    try {
+      await earn(listing.ownerId, "LISTING_ACTIVATED", listing.id);
+      await tryTriggerReferral(listing.ownerId);
+    } catch {
+      /* leise */
+    }
+  }
+
   return res.json(listing);
 });
 
@@ -1486,6 +1572,20 @@ app.patch("/me/listings/:id", async (req, res) => {
     data: data as never,
     include: { images: { orderBy: { sortOrder: "asc" } } }
   });
+
+  // Phase H3 — LISTING_ACTIVATED-Hook beim Status-Wechsel zu ACTIVE.
+  // Idempotent ueber refId=listing.id (siehe coins.ts), also wird derselbe
+  // Coin pro Listing nur einmal vergeben — egal wie oft jemand
+  // ACTIVE -> DRAFT -> ACTIVE toggelt. Anti-Farming nach Spec.
+  if (body.status === "ACTIVE" && owned.status !== "ACTIVE") {
+    try {
+      await earn(updated.ownerId, "LISTING_ACTIVATED", updated.id);
+      await tryTriggerReferral(updated.ownerId);
+    } catch {
+      /* leise */
+    }
+  }
+
   return res.json(updated);
 });
 
@@ -1905,6 +2005,16 @@ app.patch("/me/inquiries/:id/respond", async (req, res) => {
       where: { id: inquiry.listing.id },
       data: { status: "IN_NEGOTIATION" }
     });
+  }
+
+  // Phase H3 — SELLER_CONTACTED-Hook fuer den Investor (Anfrager).
+  // Triggert sobald der Verkaeufer antwortet, egal ob ACCEPTED oder REJECTED —
+  // die Logik aus dem MVP-Konzept ist "Verkaeufer hat geantwortet, Investor
+  // kommt mit echtem Lead in Kontakt". Idempotent ueber inquiryId.
+  try {
+    await earn(inquiry.investorId, "SELLER_CONTACTED", inquiry.id);
+  } catch {
+    /* leise */
   }
 
   return res.json(updated);

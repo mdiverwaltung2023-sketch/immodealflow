@@ -407,3 +407,92 @@ export function todayUtcKey(d: Date = new Date()): string {
   const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+// =========================================================
+// Domain-Helpers (Coin-Trigger-Bedingungen)
+// =========================================================
+
+/**
+ * Pflichtfelder fuer "Profil vollstaendig" (PROFILE_COMPLETED-Trigger).
+ * 8 Items, Threshold = >= 7 (87.5%, knapp ueber 80%).
+ */
+export const PROFILE_COMPLETION_THRESHOLD = 7;
+export const PROFILE_COMPLETION_TOTAL = 8;
+
+/**
+ * Score 0..PROFILE_COMPLETION_TOTAL fuer das InvestorProfile + User.name.
+ * Liest beide Datensaetze aus der DB.
+ */
+export async function computeInvestorProfileScore(userId: string): Promise<number> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, investorProfile: true }
+  });
+  if (!user) return 0;
+  const p = user.investorProfile;
+  let score = 0;
+  if (user.name && user.name.trim().length > 0) score++;
+  if (!p) return score;
+  if (p.bio && p.bio.trim().length >= 20) score++;
+  if (p.equity != null && p.equity > 0) score++;
+  if (p.monthlyIncome != null && p.monthlyIncome > 0) score++;
+  if (p.investmentExperienceYears > 0) score++;
+  if (p.preferredAssetTypes && p.preferredAssetTypes.length > 0) score++;
+  if (p.preferredRegions && p.preferredRegions.length > 0) score++;
+  if (
+    (p.minTicketSize != null && p.minTicketSize > 0) ||
+    (p.maxTicketSize != null && p.maxTicketSize > 0)
+  ) {
+    score++;
+  }
+  return score;
+}
+
+/** Convenience: Profile-Completion-Bool fuer Trigger-Logik. */
+export async function isInvestorProfileCompleted(userId: string): Promise<boolean> {
+  const score = await computeInvestorProfileScore(userId);
+  return score >= PROFILE_COMPLETION_THRESHOLD;
+}
+
+/** Hat der User mindestens ein ACTIVE-Listing? */
+export async function hasAnyActiveListing(userId: string): Promise<boolean> {
+  const cnt = await prisma.listing.count({
+    where: { ownerId: userId, status: "ACTIVE" }
+  });
+  return cnt > 0;
+}
+
+/**
+ * Referral-Earn fuer den Werber, wenn der geworbene User die Bedingungen erfuellt:
+ *   - User.referredById gesetzt
+ *   - Profil vollstaendig (>= PROFILE_COMPLETION_THRESHOLD)
+ *   - mindestens ein ACTIVE-Listing
+ *
+ * Idempotent ueber refId = referredUserId. Nach dem ersten erfolgreichen
+ * Trigger schlaegt jeder Folge-Aufruf via P2002 in earn() fehl und gibt
+ * { ok: false, reason: "already_earned" } zurueck.
+ *
+ * Aufruf-Stellen:
+ *   - nach PROFILE_COMPLETED-earn (PATCH /me/profile)
+ *   - nach LISTING_ACTIVATED-earn (POST/PATCH /me/listings)
+ */
+export async function tryTriggerReferral(referredUserId: string): Promise<EarnResult | null> {
+  const u = await prisma.user.findUnique({
+    where: { id: referredUserId },
+    select: { referredById: true }
+  });
+  if (!u?.referredById) return null;
+
+  const [profileOk, listingOk] = await Promise.all([
+    isInvestorProfileCompleted(referredUserId),
+    hasAnyActiveListing(referredUserId)
+  ]);
+  if (!profileOk || !listingOk) return null;
+
+  return earn(
+    u.referredById,
+    "REFERRAL_BROKER_ONBOARDED",
+    referredUserId,
+    "referral activated"
+  );
+}
