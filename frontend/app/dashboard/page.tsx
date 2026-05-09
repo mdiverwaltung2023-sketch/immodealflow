@@ -81,7 +81,7 @@ export default async function DashboardPage() {
             Willkommen zurück{me.name ? `, ${me.name.split(" ")[0]}` : ""}.
           </div>
           <div className="mt-1 text-sm text-zinc-500">
-            Marketplace für MFH und Gewerbe — Verkäufer sehen dein Investor-Profil.
+            Marketplace für Investoren und Verkäufer — Verkäufer sehen dein Investor-Profil.
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -105,7 +105,7 @@ export default async function DashboardPage() {
         <QuickAction
           href="/listings/new"
           title="Listing anlegen"
-          subtitle="MFH oder Gewerbe inserieren"
+          subtitle="Immobilie inserieren"
           accent="indigo"
           icon={
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">

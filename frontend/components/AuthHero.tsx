@@ -50,7 +50,7 @@ export function AuthHero({ headlineLine1, headlineLine2 }: { headlineLine1: stri
 
       {/* Bottom: Copyright */}
       <div className="relative z-10 text-xs text-indigo-300">
-        © 2026 Infinity Oikos · Marketplace für MFH und Gewerbe
+        © 2026 Infinity Oikos · Marketplace für Investoren und Verkäufer
       </div>
     </div>
   );

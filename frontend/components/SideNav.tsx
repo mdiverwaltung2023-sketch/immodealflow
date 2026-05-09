@@ -239,9 +239,6 @@ export function SideNav({
       >
         <BrandLogo width={170} />
         <BrandWordmark size="md" />
-        <div className="mt-1 text-[9px] uppercase tracking-[0.2em] text-zinc-500">
-          MFH · Gewerbe
-        </div>
       </Link>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">

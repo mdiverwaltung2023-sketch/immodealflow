@@ -27,7 +27,7 @@ export async function SidebarShell({ children }: { children: ReactNode }) {
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
         <footer className="border-t border-zinc-200 bg-white px-4 py-4 lg:px-8 text-xs text-zinc-500">
-          Infinity Oikos · Marketplace für MFH und Gewerbe ·{" "}
+          Infinity Oikos · Marketplace für Investoren und Verkäufer ·{" "}
           <a href="mailto:info@infinityoikos.com" className="underline hover:text-zinc-700">
             info@infinityoikos.com
           </a>

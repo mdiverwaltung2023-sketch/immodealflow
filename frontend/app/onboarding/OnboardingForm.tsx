@@ -8,7 +8,7 @@ import { readStoredReferral, clearStoredReferral } from "@/components/ReferralCa
 
 const ROLE_DESCRIPTIONS: Record<UserRoleT, string> = {
   INVESTOR:
-    "Du analysierst Objekte, kaufst MFH/Gewerbe und willst eine Pipeline plus Bietlimits für Versteigerungen.",
+    "Du analysierst Objekte, kaufst Immobilien und willst eine Pipeline plus Bietlimits für Versteigerungen.",
   SELLER:
     "Du verkaufst Objekte und möchtest Investoren mit passendem Profil (Trackrecord, Finanzierung) ansprechen.",
   BOTH:

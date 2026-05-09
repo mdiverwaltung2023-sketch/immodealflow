@@ -90,7 +90,7 @@ export function MarketplaceHero({ initial, totalCount }: Props) {
               Marketplace
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white lg:text-3xl">
-              MFH und Gewerbe finden, die zu deinem Profil passen.
+              Immobilien finden, die zu deinem Profil passen.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-indigo-100">
               {totalCount.toLocaleString("de-DE")} aktive Inserate. Verkäufer sehen dein

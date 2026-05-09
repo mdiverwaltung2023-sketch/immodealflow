@@ -5,7 +5,7 @@ import { SidebarShell } from "@/components/SidebarShell";
 import { ReferralCapture } from "@/components/ReferralCapture";
 
 export const metadata = {
-  title: "Infinity Oikos — Marketplace für MFH und Gewerbe",
+  title: "Infinity Oikos — Marketplace für Investoren und Verkäufer",
   description:
     "Two-Sided Marketplace für Mehrfamilienhäuser und Gewerbe-Immobilien. Verkäufer sehen das Investor-Profil — Bonität, Trackrecord, Finanzierungsstatus."
 };

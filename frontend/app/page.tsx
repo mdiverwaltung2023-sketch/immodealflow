@@ -11,7 +11,7 @@ export default async function Home() {
 
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-      <AuthHero headlineLine1="Marketplace für MFH" headlineLine2="und Gewerbe." />
+      <AuthHero headlineLine1="Marketplace für" headlineLine2="Investoren und Verkäufer." />
 
       <div className="flex items-center justify-center bg-zinc-50 p-6 lg:p-10">
         <div className="w-full max-w-md space-y-8">
