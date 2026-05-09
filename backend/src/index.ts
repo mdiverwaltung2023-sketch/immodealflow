@@ -1932,6 +1932,32 @@ app.delete("/me/inquiries/:id", async (req, res) => {
   return res.json(updated);
 });
 
+// GET /me/inquiries-received — alle Anfragen auf eigenen Listings,
+// aggregiert (Verkäufer-Dashboard). Filter ?status=PENDING|ACCEPTED|...
+app.get("/me/inquiries-received", async (req, res) => {
+  const q = z
+    .object({
+      status: z.enum(["PENDING", "ACCEPTED", "REJECTED", "WITHDRAWN"]).optional()
+    })
+    .parse(req.query);
+
+  const where: Record<string, unknown> = {
+    listing: { is: { ownerId: req.userId! } }
+  };
+  if (q.status) where.status = q.status;
+
+  const inquiries = await prisma.inquiry.findMany({
+    where: where as never,
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 200,
+    include: {
+      listing: { select: { id: true, title: true, city: true } },
+      investor: { select: { id: true, name: true } }
+    }
+  });
+  return res.json(inquiries);
+});
+
 // GET /me/listings/:id/inquiries — Anfragen auf eigenem Listing (Verkäufer-Sicht)
 app.get("/me/listings/:id/inquiries", async (req, res) => {
   const owned = await prisma.listing.findFirst({

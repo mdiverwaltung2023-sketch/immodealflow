@@ -181,6 +181,7 @@ export const PropertyListItemSchema = PropertySchema.extend({
   offer: OfferSchema.nullable().optional(),
   auction: AuctionInfoSchema.nullable().optional()
 });
+export type PropertyListItemT = z.infer<typeof PropertyListItemSchema>;
 
 export const PropertyDetailSchema = PropertySchema.extend({
   analyses: z.array(AnalysisSchema).optional(),
@@ -1017,6 +1018,29 @@ export const ListingInquiriesResponseSchema = z.object({
   listingStatus: ListingStatusEnum,
   inquiries: z.array(SellerInquirySchema)
 });
+
+// --- Verkäufer-Dashboard: alle Anfragen auf eigenen Listings (Phase J5)
+export const InquiryReceivedSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  listingId: z.string(),
+  investorId: z.string(),
+  status: InquiryStatusEnum,
+  message: z.string(),
+  response: z.string().nullable().optional(),
+  respondedAt: z.string().nullable().optional(),
+  listing: z.object({
+    id: z.string(),
+    title: z.string(),
+    city: z.string()
+  }),
+  investor: z.object({
+    id: z.string(),
+    name: z.string().nullable().optional()
+  })
+});
+export type InquiryReceivedT = z.infer<typeof InquiryReceivedSchema>;
 
 // --- Verkaufsabwicklung — Detail (Phase J) ---------------------
 // Detail-Schema steht hier unten, weil es ListingSchema referenziert,
