@@ -28,10 +28,18 @@ import {
 } from "./lib/billing.js";
 import {
   earn,
+  spend,
   todayUtcKey,
   isInvestorProfileCompleted,
   tryTriggerReferral,
-  maybeMarkEarlyBird
+  maybeMarkEarlyBird,
+  listTransactions,
+  listActiveSpends,
+  EARN_AMOUNTS,
+  SPEND_COSTS,
+  EARLY_BIRD_LIMIT,
+  EARLY_BIRD_MULTIPLIER,
+  type SpendKind
 } from "./lib/coins.js";
 
 // --- Stripe-Client (lazy, optional) ---
@@ -2552,6 +2560,119 @@ app.post("/me/listings/:id/checkout-feature", async (req, res) => {
   });
 
   return res.json({ url: session.url });
+});
+
+// =========================================================
+// Coin-System (Phase H4) — Read + Spend Endpoints
+// =========================================================
+
+// GET /me/coins — Balance, History, aktive Spends + Tarife fuer die UI.
+app.get("/me/coins", async (req, res) => {
+  const userId = req.userId!;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { coinsBalance: true, isEarlyBird: true, role: true }
+  });
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const [transactions, activeSpends] = await Promise.all([
+    listTransactions(userId, 50),
+    listActiveSpends(userId)
+  ]);
+
+  return res.json({
+    balance: user.coinsBalance,
+    isEarlyBird: user.isEarlyBird,
+    role: user.role,
+    multiplier: user.isEarlyBird ? EARLY_BIRD_MULTIPLIER : 1,
+    transactions,
+    activeSpends,
+    // Tarife fuer Frontend-Anzeige
+    earnAmounts: EARN_AMOUNTS,
+    spendCosts: SPEND_COSTS,
+    earlyBirdLimit: EARLY_BIRD_LIMIT
+  });
+});
+
+// POST /me/coins/spend — Coins fuer eine Sichtbarkeits-Aktion ausgeben.
+//   body: { kind: SPEND_LISTING_HIGHLIGHT | SPEND_PROFILE_BOOST |
+//                 SPEND_FEED_BOOST,
+//           targetId?: string  (Pflicht bei SPEND_LISTING_HIGHLIGHT,
+//                               muss eigenes Listing sein) }
+const SpendKindEnum = z.enum([
+  "SPEND_LISTING_HIGHLIGHT",
+  "SPEND_PROFILE_BOOST",
+  "SPEND_FEED_BOOST"
+]);
+
+app.post("/me/coins/spend", async (req, res) => {
+  const body = z
+    .object({
+      kind: SpendKindEnum,
+      targetId: z.string().min(1).max(40).optional()
+    })
+    .parse(req.body);
+
+  const userId = req.userId!;
+  const kind = body.kind as SpendKind;
+
+  // Listing-Highlight braucht eine eigene Listing-ID — pruefen, ob der
+  // User Eigentuemer des Listings ist (sonst koennte jemand fremde Listings
+  // mit seinen eigenen Coins highlighten).
+  if (kind === "SPEND_LISTING_HIGHLIGHT") {
+    if (!body.targetId) {
+      return res.status(400).json({
+        error: "targetId (Listing-ID) ist Pflicht fuer SPEND_LISTING_HIGHLIGHT"
+      });
+    }
+    const owned = await prisma.listing.findFirst({
+      where: { id: body.targetId, ownerId: userId },
+      select: { id: true, status: true }
+    });
+    if (!owned) {
+      return res.status(404).json({
+        error: "Listing nicht gefunden oder nicht deins."
+      });
+    }
+    if (owned.status !== "ACTIVE") {
+      return res.status(400).json({
+        error: "Nur ACTIVE-Inserate koennen ge-highlightet werden."
+      });
+    }
+  } else if (body.targetId) {
+    // PROFILE_BOOST und FEED_BOOST kennen kein targetId — silently ignorieren,
+    // statt einen Fehler zu werfen, fuer maximale Frontend-Toleranz.
+  }
+
+  const result = await spend(
+    userId,
+    kind,
+    kind === "SPEND_LISTING_HIGHLIGHT" ? body.targetId ?? null : null
+  );
+
+  if (!result.ok) {
+    if (result.reason === "insufficient_balance") {
+      return res.status(402).json({
+        error: "insufficient_coins",
+        message: `Du hast ${result.balance} Coins, brauchst aber ${result.cost}.`,
+        balance: result.balance,
+        cost: result.cost
+      });
+    }
+    if (result.reason === "user_not_found") {
+      return res.status(404).json({ error: "User not found" });
+    }
+    return res.status(400).json({ error: "spend failed" });
+  }
+
+  return res.json({
+    ok: true,
+    spent: result.spent,
+    newBalance: result.newBalance,
+    validUntil: result.validUntil,
+    spendId: result.spendId,
+    kind
+  });
 });
 
 // =========================================================
