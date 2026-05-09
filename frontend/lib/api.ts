@@ -391,6 +391,173 @@ export const AdminCoinsActiveSpendsSchema = z.array(
 );
 export type AdminCoinsActiveSpendsT = z.infer<typeof AdminCoinsActiveSpendsSchema>;
 
+// --- Verkaufsabwicklung (Phase J) ------------------------------
+
+export const SaleStageEnum = z.enum([
+  "ANFRAGE_AKZEPTIERT",
+  "BESICHTIGUNG",
+  "VERHANDLUNG",
+  "RESERVIERUNG_LOI",
+  "NOTARENTWURF",
+  "NOTARTERMIN",
+  "BEURKUNDET",
+  "AUFLASSUNGSVORMERKUNG",
+  "KAUFPREISZAHLUNG",
+  "UEBERGABE",
+  "EIGENTUMSUMSCHREIBUNG",
+  "ABGESCHLOSSEN",
+  "ABGEBROCHEN"
+]);
+export type SaleStageT = z.infer<typeof SaleStageEnum>;
+
+export const SALE_STAGE_LABELS: Record<SaleStageT, string> = {
+  ANFRAGE_AKZEPTIERT: "Anfrage akzeptiert",
+  BESICHTIGUNG: "Besichtigung",
+  VERHANDLUNG: "Verhandlung",
+  RESERVIERUNG_LOI: "Reservierung / LOI",
+  NOTARENTWURF: "Notarentwurf",
+  NOTARTERMIN: "Notartermin",
+  BEURKUNDET: "Beurkundet",
+  AUFLASSUNGSVORMERKUNG: "Auflassungsvormerkung",
+  KAUFPREISZAHLUNG: "Kaufpreiszahlung",
+  UEBERGABE: "Übergabe",
+  EIGENTUMSUMSCHREIBUNG: "Eigentumsumschreibung",
+  ABGESCHLOSSEN: "Abgeschlossen",
+  ABGEBROCHEN: "Abgebrochen"
+};
+
+// Reihenfolge des Standard-Pfads (ohne ABGEBROCHEN — das ist Off-Track).
+export const SALE_STAGE_ORDER: SaleStageT[] = [
+  "ANFRAGE_AKZEPTIERT",
+  "BESICHTIGUNG",
+  "VERHANDLUNG",
+  "RESERVIERUNG_LOI",
+  "NOTARENTWURF",
+  "NOTARTERMIN",
+  "BEURKUNDET",
+  "AUFLASSUNGSVORMERKUNG",
+  "KAUFPREISZAHLUNG",
+  "UEBERGABE",
+  "EIGENTUMSUMSCHREIBUNG",
+  "ABGESCHLOSSEN"
+];
+
+export const SaleDocKindEnum = z.enum([
+  "GRUNDBUCH",
+  "ENERGIEAUSWEIS",
+  "FLURKARTE",
+  "WOHNFLAECHENBERECHNUNG",
+  "KAUFVERTRAG_ENTWURF",
+  "KAUFVERTRAG_BEURKUNDET",
+  "VORFAELLIGKEITSSCHREIBEN",
+  "AUFLASSUNGSVORMERKUNG",
+  "UEBERGABEPROTOKOLL",
+  "TEILUNGSERKLAERUNG",
+  "EIGENTUEMERVERSAMMLUNG_PROTOKOLL",
+  "MIETVERTRAEGE",
+  "MAKLERVERTRAG",
+  "SONSTIGES"
+]);
+export type SaleDocKindT = z.infer<typeof SaleDocKindEnum>;
+
+export const SALE_DOC_LABELS: Record<SaleDocKindT, string> = {
+  GRUNDBUCH: "Grundbuchauszug",
+  ENERGIEAUSWEIS: "Energieausweis",
+  FLURKARTE: "Flurkarte / Lageplan",
+  WOHNFLAECHENBERECHNUNG: "Wohnflächenberechnung",
+  KAUFVERTRAG_ENTWURF: "Kaufvertrag (Entwurf)",
+  KAUFVERTRAG_BEURKUNDET: "Kaufvertrag (beurkundet)",
+  VORFAELLIGKEITSSCHREIBEN: "Vorfälligkeitsschreiben",
+  AUFLASSUNGSVORMERKUNG: "Auflassungsvormerkung",
+  UEBERGABEPROTOKOLL: "Übergabeprotokoll",
+  TEILUNGSERKLAERUNG: "Teilungserklärung",
+  EIGENTUEMERVERSAMMLUNG_PROTOKOLL: "Eigentümerversammlungs-Protokoll",
+  MIETVERTRAEGE: "Mietverträge",
+  MAKLERVERTRAG: "Maklervertrag",
+  SONSTIGES: "Sonstiges"
+};
+
+export const SALE_DOC_ORDER: SaleDocKindT[] = [
+  "GRUNDBUCH",
+  "ENERGIEAUSWEIS",
+  "FLURKARTE",
+  "WOHNFLAECHENBERECHNUNG",
+  "TEILUNGSERKLAERUNG",
+  "EIGENTUEMERVERSAMMLUNG_PROTOKOLL",
+  "MIETVERTRAEGE",
+  "MAKLERVERTRAG",
+  "KAUFVERTRAG_ENTWURF",
+  "KAUFVERTRAG_BEURKUNDET",
+  "AUFLASSUNGSVORMERKUNG",
+  "VORFAELLIGKEITSSCHREIBEN",
+  "UEBERGABEPROTOKOLL",
+  "SONSTIGES"
+];
+
+export const SaleDocumentSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  processId: z.string(),
+  kind: SaleDocKindEnum,
+  url: z.string(),
+  filename: z.string(),
+  sizeBytes: z.number(),
+  uploaderUserId: z.string().nullable().optional()
+});
+export type SaleDocumentT = z.infer<typeof SaleDocumentSchema>;
+
+export const SaleStageEntrySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  processId: z.string(),
+  stage: SaleStageEnum,
+  note: z.string().nullable().optional(),
+  byUserId: z.string().nullable().optional()
+});
+export type SaleStageEntryT = z.infer<typeof SaleStageEntrySchema>;
+
+const SaleListingMiniSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  city: z.string(),
+  askingPrice: z.number()
+});
+
+const SaleBuyerMiniSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    role: UserRoleEnum.optional()
+  })
+  .nullable();
+
+// Listen-Element (Übersichtsseite) — schlank
+export const SaleProcessListItemSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  listingId: z.string(),
+  inquiryId: z.string().nullable().optional(),
+  sellerId: z.string(),
+  buyerId: z.string().nullable().optional(),
+  currentStage: SaleStageEnum,
+  stageEnteredAt: z.string(),
+  notes: z.string().nullable().optional(),
+  targetClosingDate: z.string().nullable().optional(),
+  agreedPrice: z.number().nullable().optional(),
+  listing: SaleListingMiniSchema,
+  buyer: SaleBuyerMiniSchema,
+  _count: z.object({
+    documents: z.number(),
+    stageLog: z.number()
+  })
+});
+export type SaleProcessListItemT = z.infer<typeof SaleProcessListItemSchema>;
+
+// Detail-Schema -> ganz unten, weil es ListingSchema referenziert
+// (Forward-Reference auf Zod-Schema, das weiter unten definiert ist).
+
 // --- Investor-Profil + Trackrecord (Push B) ----------------------
 
 export const AssetTypeEnum = z.enum([
@@ -850,6 +1017,45 @@ export const ListingInquiriesResponseSchema = z.object({
   listingStatus: ListingStatusEnum,
   inquiries: z.array(SellerInquirySchema)
 });
+
+// --- Verkaufsabwicklung — Detail (Phase J) ---------------------
+// Detail-Schema steht hier unten, weil es ListingSchema referenziert,
+// das weiter oben definiert ist. Forward-Refs in Zod evaluieren sofort
+// bei der Object-Erzeugung, nicht erst beim Parse.
+export const SaleProcessDetailSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  listingId: z.string(),
+  inquiryId: z.string().nullable().optional(),
+  sellerId: z.string(),
+  buyerId: z.string().nullable().optional(),
+  currentStage: SaleStageEnum,
+  stageEnteredAt: z.string(),
+  notes: z.string().nullable().optional(),
+  targetClosingDate: z.string().nullable().optional(),
+  agreedPrice: z.number().nullable().optional(),
+  listing: ListingSchema,
+  buyer: z
+    .object({
+      id: z.string(),
+      name: z.string().nullable().optional(),
+      email: z.string().nullable().optional(),
+      role: UserRoleEnum.optional()
+    })
+    .nullable(),
+  inquiry: z
+    .object({
+      id: z.string(),
+      message: z.string(),
+      createdAt: z.string()
+    })
+    .nullable()
+    .optional(),
+  documents: z.array(SaleDocumentSchema),
+  stageLog: z.array(SaleStageEntrySchema)
+});
+export type SaleProcessDetailT = z.infer<typeof SaleProcessDetailSchema>;
 
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.
