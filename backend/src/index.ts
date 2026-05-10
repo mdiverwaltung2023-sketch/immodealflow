@@ -18,7 +18,10 @@ import {
   marketComparisonForProperty,
   analyzeListingMarket,
   evaluateBuyerOffer,
-  type ListingMarketInput
+  evaluateRentalApplicant,
+  type ListingMarketInput,
+  type RentalUnitInput,
+  type RentalApplicantInput
 } from "./lib/claude.js";
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 import { requireAuth } from "./lib/auth.js";
@@ -3312,6 +3315,428 @@ app.post("/me/listings/:id/offer-evals", async (req, res) => {
   });
 
   return res.json(saved);
+});
+
+// =========================================================
+// Vermietungsplattform (Phase L3) — RentalUnit, RentalApplication
+// und KI-Bewerber-Bewertung. Alle ownership-gefiltert.
+// =========================================================
+
+const RentalStatusEnum = z.enum([
+  "DRAFT",
+  "AVAILABLE",
+  "RESERVED",
+  "RENTED",
+  "ARCHIVED"
+]);
+
+const ApplicationStatusEnum = z.enum([
+  "NEW",
+  "REVIEWING",
+  "VIEWING",
+  "ACCEPTED",
+  "REJECTED",
+  "WITHDRAWN"
+]);
+
+// ----- RentalUnit Zod-Schemas -----
+
+const RentalUnitCreateSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(8000).optional(),
+  city: z.string().min(1).max(120),
+  district: z.string().max(120).nullable().optional(),
+  postalCode: z.string().max(20).nullable().optional(),
+  fullAddress: z.string().max(300).nullable().optional(),
+  rooms: z.number().min(0.5).max(50),
+  livingArea: z.number().min(1).max(10000),
+  floor: z.string().max(50).nullable().optional(),
+  rentCold: z.number().int().min(0),
+  utilities: z.number().int().min(0).nullable().optional(),
+  totalRent: z.number().int().min(0).nullable().optional(),
+  deposit: z.number().int().min(0).nullable().optional(),
+  energyClass: EnergyClassEnum.nullable().optional(),
+  energyConsumption: z.number().min(0).nullable().optional(),
+  energyCarrier: EnergyCarrierEnum.nullable().optional(),
+  heatingType: z.string().max(100).nullable().optional(),
+  status: RentalStatusEnum.optional(),
+  availableFrom: z.string().nullable().optional(),
+  fixedTerm: z.boolean().optional(),
+  fixedTermMonths: z.number().int().min(1).max(360).nullable().optional(),
+  features: z.array(z.string().min(1).max(80)).max(40).optional()
+});
+
+const RentalUnitPatchSchema = RentalUnitCreateSchema.partial();
+
+// ----- Application Zod-Schemas -----
+
+const RentalApplicationCreateSchema = z.object({
+  applicantName: z.string().min(1).max(200),
+  email: z.string().email().max(200).nullable().optional(),
+  phone: z.string().max(60).nullable().optional(),
+  monthlyNetIncome: z.number().int().min(0).nullable().optional(),
+  employmentType: z.string().max(120).nullable().optional(),
+  employmentDuration: z.string().max(120).nullable().optional(),
+  schufaScore: z.string().max(60).nullable().optional(),
+  householdSize: z.number().int().min(1).max(20).nullable().optional(),
+  hasPets: z.boolean().optional(),
+  petDetails: z.string().max(300).nullable().optional(),
+  smoker: z.boolean().optional(),
+  desiredMoveInDate: z.string().nullable().optional(),
+  intendedDuration: z.string().max(200).nullable().optional(),
+  notes: z.string().max(4000).nullable().optional(),
+  status: ApplicationStatusEnum.optional()
+});
+
+const RentalApplicationPatchSchema = RentalApplicationCreateSchema.partial();
+
+// ----- Helpers -----
+
+function rentalUnitToInput(u: {
+  title: string;
+  description: string;
+  city: string;
+  district: string | null;
+  rooms: number;
+  livingArea: number;
+  rentCold: number;
+  utilities: number | null;
+  totalRent: number | null;
+  deposit: number | null;
+  features: string[];
+  fixedTerm: boolean;
+  fixedTermMonths: number | null;
+}): RentalUnitInput {
+  return {
+    title: u.title,
+    description: u.description,
+    city: u.city,
+    district: u.district,
+    rooms: u.rooms,
+    livingArea: u.livingArea,
+    rentCold: u.rentCold,
+    utilities: u.utilities,
+    totalRent: u.totalRent,
+    deposit: u.deposit,
+    features: u.features ?? [],
+    fixedTerm: u.fixedTerm,
+    fixedTermMonths: u.fixedTermMonths
+  };
+}
+
+function rentalApplicationToInput(a: {
+  applicantName: string;
+  monthlyNetIncome: number | null;
+  employmentType: string | null;
+  employmentDuration: string | null;
+  schufaScore: string | null;
+  householdSize: number | null;
+  hasPets: boolean;
+  petDetails: string | null;
+  smoker: boolean;
+  desiredMoveInDate: Date | null;
+  intendedDuration: string | null;
+  notes: string | null;
+}): RentalApplicantInput {
+  return {
+    applicantName: a.applicantName,
+    monthlyNetIncome: a.monthlyNetIncome,
+    employmentType: a.employmentType,
+    employmentDuration: a.employmentDuration,
+    schufaScore: a.schufaScore,
+    householdSize: a.householdSize,
+    hasPets: a.hasPets,
+    petDetails: a.petDetails,
+    smoker: a.smoker,
+    desiredMoveInDate: a.desiredMoveInDate
+      ? a.desiredMoveInDate.toISOString().slice(0, 10)
+      : null,
+    intendedDuration: a.intendedDuration,
+    notes: a.notes
+  };
+}
+
+// =========================================================
+// RentalUnit-Endpoints
+// =========================================================
+
+// GET /me/rental-units — Liste eigener Mietobjekte
+app.get("/me/rental-units", async (req, res) => {
+  const q = z
+    .object({ status: RentalStatusEnum.optional() })
+    .parse(req.query);
+  const units = await prisma.rentalUnit.findMany({
+    where: {
+      ownerId: req.userId!,
+      ...(q.status ? { status: q.status } : {})
+    },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      images: { orderBy: { sortOrder: "asc" } },
+      _count: { select: { applications: true } }
+    }
+  });
+  return res.json(units);
+});
+
+// POST /me/rental-units — neues Mietobjekt (DRAFT)
+app.post("/me/rental-units", async (req, res) => {
+  const body = RentalUnitCreateSchema.parse(req.body);
+  const { availableFrom, features, ...rest } = body;
+  const unit = await prisma.rentalUnit.create({
+    data: {
+      ownerId: req.userId!,
+      ...rest,
+      description: rest.description ?? "",
+      availableFrom: availableFrom ? new Date(availableFrom) : null,
+      features: features ?? [],
+      status: rest.status ?? "DRAFT"
+    } as never,
+    include: { images: { orderBy: { sortOrder: "asc" } } }
+  });
+  return res.json(unit);
+});
+
+// GET /me/rental-units/:id — Detail
+app.get("/me/rental-units/:id", async (req, res) => {
+  const unit = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    include: {
+      images: { orderBy: { sortOrder: "asc" } }
+    }
+  });
+  if (!unit) return res.status(404).json({ error: "Not found" });
+  return res.json(unit);
+});
+
+// PATCH /me/rental-units/:id — Felder updaten
+app.patch("/me/rental-units/:id", async (req, res) => {
+  const body = RentalUnitPatchSchema.parse(req.body);
+  const owned = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  const { availableFrom, ...rest } = body;
+  const data: Record<string, unknown> = { ...rest };
+  if (availableFrom !== undefined) {
+    data.availableFrom = availableFrom ? new Date(availableFrom) : null;
+  }
+  const updated = await prisma.rentalUnit.update({
+    where: { id: owned.id },
+    data: data as never,
+    include: { images: { orderBy: { sortOrder: "asc" } } }
+  });
+  return res.json(updated);
+});
+
+// DELETE /me/rental-units/:id
+app.delete("/me/rental-units/:id", async (req, res) => {
+  const owned = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  await prisma.rentalUnit.delete({ where: { id: owned.id } });
+  return res.json({ ok: true });
+});
+
+// POST /me/rental-units/:id/images — Bild registrieren (URL kommt vom Frontend-Upload)
+app.post("/me/rental-units/:id/images", async (req, res) => {
+  const body = z
+    .object({
+      url: z.string().url(),
+      alt: z.string().max(200).nullable().optional(),
+      sortOrder: z.number().int().min(0).max(1000).optional()
+    })
+    .parse(req.body);
+
+  const owned = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  const img = await prisma.rentalUnitImage.create({
+    data: {
+      unitId: owned.id,
+      url: body.url,
+      alt: body.alt ?? null,
+      sortOrder: body.sortOrder ?? 0
+    }
+  });
+  return res.json(img);
+});
+
+// DELETE /me/rental-units/:unitId/images/:imageId
+app.delete("/me/rental-units/:unitId/images/:imageId", async (req, res) => {
+  const owned = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.unitId, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  await prisma.rentalUnitImage.deleteMany({
+    where: { id: req.params.imageId, unitId: owned.id }
+  });
+  return res.json({ ok: true });
+});
+
+// =========================================================
+// RentalApplication-Endpoints
+// =========================================================
+
+// GET /me/rental-units/:unitId/applications — alle Bewerber fuer ein Objekt
+app.get("/me/rental-units/:unitId/applications", async (req, res) => {
+  const owned = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.unitId, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  const apps = await prisma.rentalApplication.findMany({
+    where: { unitId: owned.id },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    include: {
+      evaluations: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          createdAt: true,
+          rating: true,
+          recommendViewing: true,
+          summary: true
+        }
+      }
+    }
+  });
+  return res.json(apps);
+});
+
+// POST /me/rental-units/:unitId/applications — neuen Bewerber anlegen
+app.post("/me/rental-units/:unitId/applications", async (req, res) => {
+  const body = RentalApplicationCreateSchema.parse(req.body);
+  const owned = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.unitId, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  const { desiredMoveInDate, ...rest } = body;
+  const app2 = await prisma.rentalApplication.create({
+    data: {
+      unitId: owned.id,
+      ...rest,
+      desiredMoveInDate: desiredMoveInDate ? new Date(desiredMoveInDate) : null,
+      status: rest.status ?? "NEW"
+    } as never
+  });
+  return res.json(app2);
+});
+
+// Helper: ist die Application im Besitz des aktuellen Users?
+async function ownedApplication(applicationId: string, userId: string) {
+  return prisma.rentalApplication.findFirst({
+    where: { id: applicationId, unit: { ownerId: userId } },
+    include: { unit: true, evaluations: { orderBy: { createdAt: "desc" } } }
+  });
+}
+
+// GET /me/rental-applications/:id — Detail mit Evaluations-History
+app.get("/me/rental-applications/:id", async (req, res) => {
+  const app2 = await ownedApplication(req.params.id, req.userId!);
+  if (!app2) return res.status(404).json({ error: "Not found" });
+  return res.json(app2);
+});
+
+// PATCH /me/rental-applications/:id
+app.patch("/me/rental-applications/:id", async (req, res) => {
+  const body = RentalApplicationPatchSchema.parse(req.body);
+  const owned = await ownedApplication(req.params.id, req.userId!);
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  const { desiredMoveInDate, ...rest } = body;
+  const data: Record<string, unknown> = { ...rest };
+  if (desiredMoveInDate !== undefined) {
+    data.desiredMoveInDate = desiredMoveInDate ? new Date(desiredMoveInDate) : null;
+  }
+  const updated = await prisma.rentalApplication.update({
+    where: { id: owned.id },
+    data: data as never
+  });
+  return res.json(updated);
+});
+
+// DELETE /me/rental-applications/:id
+app.delete("/me/rental-applications/:id", async (req, res) => {
+  const owned = await ownedApplication(req.params.id, req.userId!);
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  await prisma.rentalApplication.delete({ where: { id: owned.id } });
+  return res.json({ ok: true });
+});
+
+// =========================================================
+// KI-Bewertung
+// =========================================================
+
+// POST /me/rental-applications/:id/evaluate — Claude-Bewertung anstossen
+app.post("/me/rental-applications/:id/evaluate", async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "ANTHROPIC_API_KEY nicht konfiguriert." });
+  }
+
+  const owned = await prisma.rentalApplication.findFirst({
+    where: { id: req.params.id, unit: { ownerId: req.userId! } },
+    include: { unit: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  let result;
+  try {
+    result = await evaluateRentalApplicant({
+      unit: rentalUnitToInput(owned.unit as never),
+      applicant: rentalApplicationToInput(owned as never)
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
+    return res.status(502).json({ error: `KI-Aufruf fehlgeschlagen: ${msg}` });
+  }
+
+  const saved = await prisma.applicantEvaluation.create({
+    data: {
+      applicationId: owned.id,
+      rating: result.rating,
+      summary: result.summary,
+      strengths: result.strengths,
+      risks: result.risks,
+      openQuestions: result.openQuestions,
+      financialStability: result.financialStability,
+      sizeFit: result.sizeFit,
+      expectedDuration: result.expectedDuration,
+      reliability: result.reliability,
+      communication: result.communication,
+      recommendViewing: result.recommendViewing,
+      requestDocuments: result.requestDocuments ?? null,
+      suggestFollowUp: result.suggestFollowUp ?? null,
+      rationale: result.rationale,
+      rawJson: result.rawJson as never,
+      model: result.model
+    }
+  });
+  return res.json(saved);
+});
+
+// GET /me/rental-applications/:id/evaluations — History
+app.get("/me/rental-applications/:id/evaluations", async (req, res) => {
+  const owned = await ownedApplication(req.params.id, req.userId!);
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  const items = await prisma.applicantEvaluation.findMany({
+    where: { applicationId: owned.id },
+    orderBy: { createdAt: "desc" },
+    take: 20
+  });
+  return res.json(items);
 });
 
 // =========================================================
