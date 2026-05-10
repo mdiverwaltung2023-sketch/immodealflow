@@ -181,7 +181,7 @@ export default async function TenantLandingPage() {
           title="Häufige Fragen."
           items={[
             {
-              q: "Was bedeutet „AGG-konform" konkret?",
+              q: 'Was bedeutet „AGG-konform" konkret?',
               a: "Wir erheben keine Angaben zu Familienstand, Herkunft, Religion, Geschlecht, Alter oder Behinderung. Vermieter sehen nur wirtschaftliche und organisatorische Daten — exakt das, was sie tatsächlich für die Vermietungs-Entscheidung brauchen."
             },
             {

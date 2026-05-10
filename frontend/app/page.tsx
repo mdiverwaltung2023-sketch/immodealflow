@@ -111,6 +111,14 @@ export default async function Home() {
               <span>✓ Monatlich kündbar</span>
               <span>✓ AGG-konform</span>
             </div>
+            <div className="mt-3">
+              <Link
+                href="/verkaufen"
+                className="text-xs font-semibold text-indigo-700 hover:text-indigo-800"
+              >
+                Du verkaufst eine Immobilie? Selbst, hybrid oder Makler? →
+              </Link>
+            </div>
           </div>
 
           <div className="flex items-center">

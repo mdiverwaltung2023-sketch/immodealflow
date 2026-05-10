@@ -266,6 +266,9 @@ export function MarketingFooter() {
           <Link href="/pricing" className="hover:text-indigo-700">
             Tarife
           </Link>
+          <Link href="/verkaufen" className="hover:text-indigo-700">
+            Verkaufen?
+          </Link>
           <Link href="/mieten" className="hover:text-indigo-700">
             Für Mieter
           </Link>
@@ -286,6 +289,12 @@ export function MarketingNav() {
           Infinity <span className="text-indigo-600">Oikos</span>
         </Link>
         <div className="flex items-center gap-2 text-xs">
+          <Link
+            href="/verkaufen"
+            className="hidden rounded-lg px-3 py-1.5 text-zinc-600 hover:text-indigo-700 sm:inline"
+          >
+            Verkaufen?
+          </Link>
           <Link
             href="/mieten"
             className="hidden rounded-lg px-3 py-1.5 text-zinc-600 hover:text-indigo-700 sm:inline"
