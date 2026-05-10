@@ -754,3 +754,279 @@ Schätze typische Spannen für diese Lage und bewerte das Angebot.`,
 
   return { ...data, model };
 }
+
+// ============================================================
+// Use-Case 7: KI-Bewertung eines Mietbewerbers (Phase L2)
+// ============================================================
+//
+// WICHTIG: Anti-Diskriminierungs-Architektur.
+// Der System-Prompt verbietet ausdruecklich die Bewertung sensibler
+// Merkmale. Das Tool-Schema enthaelt nur organisatorisch/wirtschaftliche
+// Felder — Claude kann gar nicht antworten "ich finde Person X
+// ungeeignet wegen Y", wo Y ein geschuetztes Merkmal waere.
+//
+// Wir geben Claude AUCH KEINE sensiblen Merkmale ueber das Schema
+// (das Datenmodell RentalApplication erfasst sie gar nicht).
+
+export type RentalUnitInput = {
+  title: string;
+  city: string;
+  district?: string | null;
+  rooms: number;
+  livingArea: number;
+  rentCold: number;
+  utilities?: number | null;
+  totalRent?: number | null;
+  deposit?: number | null;
+  features?: string[];
+  fixedTerm?: boolean;
+  fixedTermMonths?: number | null;
+  description?: string | null;
+};
+
+export type RentalApplicantInput = {
+  applicantName: string;
+  /** Haushaltsnetto pro Monat in EUR */
+  monthlyNetIncome?: number | null;
+  employmentType?: string | null;
+  employmentDuration?: string | null;
+  schufaScore?: string | null;
+  householdSize?: number | null;
+  hasPets?: boolean;
+  petDetails?: string | null;
+  smoker?: boolean;
+  desiredMoveInDate?: string | null;
+  intendedDuration?: string | null;
+  notes?: string | null;
+};
+
+export type RentalApplicantEvalResult = {
+  rating: "SEHR_PASSEND" | "PASSEND" | "BEDINGT_PASSEND" | "EHER_UNPASSEND";
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  openQuestions: string[];
+  financialStability: string;
+  sizeFit: string;
+  expectedDuration: string;
+  reliability: string;
+  communication: string;
+  recommendViewing: boolean;
+  requestDocuments?: string;
+  suggestFollowUp?: string;
+  rationale: string;
+};
+
+const RENTAL_EVAL_SYSTEM = [
+  "Du bist ein KI-gestuetzter Vermietungsassistent fuer den deutschen Immobilienmarkt.",
+  "Deine Aufgabe: Analysiere Mietbewerber neutral, fair und professionell anhand",
+  "objektiver Kriterien und unterstuetze Vermieter bei der Auswahl passender Interessenten.",
+  "",
+  "VERBINDLICHE REGELN — diese duerfen unter keinen Umstaenden verletzt werden:",
+  "1. KEINE DISKRIMINIERUNG. Bewerte NICHT aufgrund von:",
+  "   - ethnischer Herkunft, Nationalitaet, Hautfarbe, Sprache",
+  "   - Religion, Weltanschauung, politischer Ueberzeugung",
+  "   - Geschlecht, sexueller Orientierung, Geschlechtsidentitaet",
+  "   - Alter (ausgenommen rein wirtschaftliche Implikationen)",
+  "   - Behinderung",
+  "   - Familienstand, Schwangerschaft, Kinder",
+  "2. Fokus AUSSCHLIESSLICH auf objektive, organisatorische und",
+  "   wirtschaftliche Faktoren: Einkommen vs. Miete, SCHUFA, Beschaeftigungsart",
+  "   und -dauer, Haushaltsgroesse vs. Wohnungsgroesse, gewuenschte Mietdauer,",
+  "   Vollstaendigkeit der Angaben, Plausibilitaet.",
+  "3. Niemals endgueltige Entscheidungen treffen — die Einschaetzung dient",
+  "   nur als organisatorische Unterstuetzung und ersetzt keine persoenliche",
+  "   Entscheidung des Vermieters.",
+  "4. Immer neutral und sachlich formulieren. Keine wertende Sprache,",
+  "   keine Spekulationen ueber Persoenlichkeit.",
+  "5. Antworte ausschliesslich auf Deutsch."
+].join(" ");
+
+function rentalUnitBriefing(u: RentalUnitInput): string {
+  const lines: string[] = [];
+  lines.push(`Titel: ${u.title}`);
+  lines.push(`Lage: ${[u.city, u.district].filter(Boolean).join(" / ")}`);
+  lines.push(`Zimmer: ${u.rooms}`);
+  lines.push(`Wohnflaeche: ${u.livingArea} m²`);
+  lines.push(`Kaltmiete: ${u.rentCold} EUR/Mon.`);
+  if (u.utilities != null) lines.push(`Nebenkosten: ${u.utilities} EUR/Mon.`);
+  if (u.totalRent != null) lines.push(`Warmmiete (gesamt): ${u.totalRent} EUR/Mon.`);
+  if (u.deposit != null) lines.push(`Kaution: ${u.deposit} EUR`);
+  if (u.fixedTerm) {
+    lines.push(`Befristet: ja${u.fixedTermMonths ? ` (${u.fixedTermMonths} Monate)` : ""}`);
+  }
+  if (u.features && u.features.length > 0) {
+    lines.push(`Ausstattung: ${u.features.join(", ")}`);
+  }
+  if (u.description) {
+    lines.push("");
+    lines.push(`Objekt-Beschreibung:\n${u.description.slice(0, 800)}`);
+  }
+  return lines.join("\n");
+}
+
+function applicantBriefing(a: RentalApplicantInput): string {
+  const lines: string[] = [];
+  lines.push(`Name (selbst angegeben): ${a.applicantName}`);
+  if (a.monthlyNetIncome != null) {
+    lines.push(`Haushaltsnetto pro Monat: ${a.monthlyNetIncome} EUR`);
+  }
+  if (a.employmentType) lines.push(`Beschaeftigungsart: ${a.employmentType}`);
+  if (a.employmentDuration) {
+    lines.push(`Beschaeftigungsdauer: ${a.employmentDuration}`);
+  }
+  if (a.schufaScore) lines.push(`SCHUFA: ${a.schufaScore}`);
+  if (a.householdSize != null) lines.push(`Haushaltsgroesse: ${a.householdSize} Personen`);
+  if (a.hasPets) lines.push(`Haustiere: ja${a.petDetails ? ` (${a.petDetails})` : ""}`);
+  else lines.push(`Haustiere: nein`);
+  lines.push(`Raucher: ${a.smoker ? "ja" : "nein"}`);
+  if (a.desiredMoveInDate) {
+    lines.push(`Gewuenschtes Einzugsdatum: ${a.desiredMoveInDate}`);
+  }
+  if (a.intendedDuration) {
+    lines.push(`Geplante Mietdauer: ${a.intendedDuration}`);
+  }
+  if (a.notes) {
+    lines.push("");
+    lines.push(`Notizen / freier Text:\n${a.notes.slice(0, 1000)}`);
+  }
+  return lines.join("\n");
+}
+
+export async function evaluateRentalApplicant(input: {
+  unit: RentalUnitInput;
+  applicant: RentalApplicantInput;
+}): Promise<RentalApplicantEvalResult & { model: string; rawJson: unknown }> {
+  const { data, model } = await callWithTool<RentalApplicantEvalResult>({
+    systemPrompt: RENTAL_EVAL_SYSTEM,
+    userMessage: [
+      "PROPERTY_DATA:",
+      rentalUnitBriefing(input.unit),
+      "",
+      "APPLICANT_DATA:",
+      applicantBriefing(input.applicant),
+      "",
+      "Bewerte den Bewerber strikt anhand der oben genannten organisatorischen",
+      "und wirtschaftlichen Faktoren. Sensible Merkmale tauchen in den Daten",
+      "bewusst nicht auf — falls du sie aus dem Namen oder Notizen ableiten",
+      "koenntest, IGNORIERE sie ausdruecklich.",
+      "",
+      "Erstelle:",
+      "1. rating: SEHR_PASSEND / PASSEND / BEDINGT_PASSEND / EHER_UNPASSEND",
+      "2. summary: 2-4 Saetze, neutrale Bewerber-Zusammenfassung",
+      "3. strengths: max 5 Stichpunkte",
+      "4. risks: max 5 Stichpunkte (Risiken aus Vermietersicht — nur wirtschaftlich/organisatorisch)",
+      "5. openQuestions: max 5 Stichpunkte (was sollte der Vermieter klaeren?)",
+      "6. fuenf Faktor-Bewertungen (jeweils 1-2 Saetze):",
+      "   - financialStability (Einkommen vs. Miete, SCHUFA, Beschaeftigungs-Stabilitaet)",
+      "   - sizeFit (Haushaltsgroesse passt zur Wohnungsgroesse?)",
+      "   - expectedDuration (langfristige Mietdauer wahrscheinlich?)",
+      "   - reliability (Vollstaendigkeit der Angaben, Plausibilitaet)",
+      "   - communication (Klarheit, Strukturiertheit der gemachten Angaben)",
+      "7. Handlungsempfehlungen:",
+      "   - recommendViewing (Besichtigung empfehlen? boolean)",
+      "   - requestDocuments (welche Unterlagen sinnvoll? leer wenn nichts noetig)",
+      "   - suggestFollowUp (welche Rueckfrage? leer wenn nicht noetig)",
+      "8. rationale: 1-3 Saetze sachliche Begruendung des ratings"
+    ].join("\n"),
+    toolName: "evaluate_rental_applicant",
+    toolDescription:
+      "Bewertet einen Mietbewerber strikt anhand objektiver, nicht-diskriminierender Kriterien (Phase L2 — Vermietungsassistent).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        rating: {
+          type: "string",
+          enum: ["SEHR_PASSEND", "PASSEND", "BEDINGT_PASSEND", "EHER_UNPASSEND"],
+          description: "Gesamteinschaetzung — passt der Bewerber organisatorisch zur Wohnung?"
+        },
+        summary: {
+          type: "string",
+          description: "Neutrale Bewerber-Zusammenfassung in 2-4 Saetzen"
+        },
+        strengths: {
+          type: "array",
+          maxItems: 5,
+          items: { type: "string" },
+          description: "Staerken des Bewerbers (max 5)"
+        },
+        risks: {
+          type: "array",
+          maxItems: 5,
+          items: { type: "string" },
+          description: "Moegliche Risiken aus Vermieter-Sicht (max 5, nur wirtschaftlich/organisatorisch)"
+        },
+        openQuestions: {
+          type: "array",
+          maxItems: 5,
+          items: { type: "string" },
+          description: "Offene Fragen, die der Vermieter klaeren sollte (max 5)"
+        },
+        financialStability: {
+          type: "string",
+          description: "Einschaetzung der finanziellen Stabilitaet (1-2 Saetze)"
+        },
+        sizeFit: {
+          type: "string",
+          description: "Passung Haushaltsgroesse vs. Wohnungsgroesse (1-2 Saetze)"
+        },
+        expectedDuration: {
+          type: "string",
+          description: "Wahrscheinlichkeit langfristiger Mietdauer (1-2 Saetze)"
+        },
+        reliability: {
+          type: "string",
+          description: "Organisatorische Zuverlaessigkeit / Vollstaendigkeit der Angaben (1-2 Saetze)"
+        },
+        communication: {
+          type: "string",
+          description: "Kommunikationsqualitaet anhand der gemachten Angaben (1-2 Saetze)"
+        },
+        recommendViewing: {
+          type: "boolean",
+          description: "Wird eine Besichtigung empfohlen?"
+        },
+        requestDocuments: {
+          type: "string",
+          description: "Welche Unterlagen sollte der Vermieter ggf. anfordern? Leerer String wenn nichts Zusaetzliches noetig."
+        },
+        suggestFollowUp: {
+          type: "string",
+          description: "Konkrete Rueckfrage(n), falls sinnvoll. Leerer String wenn nicht noetig."
+        },
+        rationale: {
+          type: "string",
+          description: "Kurze sachliche Begruendung des ratings (1-3 Saetze)"
+        }
+      },
+      required: [
+        "rating",
+        "summary",
+        "strengths",
+        "risks",
+        "openQuestions",
+        "financialStability",
+        "sizeFit",
+        "expectedDuration",
+        "reliability",
+        "communication",
+        "recommendViewing",
+        "rationale"
+      ]
+    },
+    maxTokens: 1500,
+    temperature: 0.2
+  });
+
+  return {
+    ...data,
+    requestDocuments: data.requestDocuments && data.requestDocuments.trim() !== ""
+      ? data.requestDocuments
+      : undefined,
+    suggestFollowUp: data.suggestFollowUp && data.suggestFollowUp.trim() !== ""
+      ? data.suggestFollowUp
+      : undefined,
+    model,
+    rawJson: data
+  };
+}
