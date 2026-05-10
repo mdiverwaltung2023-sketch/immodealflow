@@ -15,7 +15,10 @@ import {
   extractPropertyFromText,
   extractAuctionFromText,
   extractAuctionListFromText,
-  marketComparisonForProperty
+  marketComparisonForProperty,
+  analyzeListingMarket,
+  evaluateBuyerOffer,
+  type ListingMarketInput
 } from "./lib/claude.js";
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 import { requireAuth } from "./lib/auth.js";
@@ -3031,6 +3034,284 @@ app.delete("/me/sale-processes/:id/documents/:kind", async (req, res) => {
     where: { processId: owned.id, kind: kindParse.data }
   });
   return res.json({ ok: true });
+});
+
+// =========================================================
+// KI-Marktanalyse + Angebotsbewertung (Phase K3)
+// =========================================================
+
+/** Mapping: Listing-Datensatz aus DB -> ListingMarketInput fuer Claude. */
+function listingToMarketInput(l: {
+  title: string;
+  description: string;
+  propertyType: string;
+  askingPrice: number;
+  totalArea: number;
+  totalRent: number | null;
+  city: string;
+  district: string | null;
+  postalCode: string | null;
+  yearBuilt: number | null;
+  lastRenovation: number | null;
+  condition: string | null;
+  livingArea: number | null;
+  commercialArea: number | null;
+  landArea: number | null;
+  floors: number | null;
+  residentialUnits: number | null;
+  commercialUnits: number | null;
+  energyClass: string | null;
+  energyConsumption: number | null;
+  energyCarrier: string | null;
+  heatingType: string | null;
+  actualRent: number | null;
+  vacancyRate: number | null;
+  waltMonths: number | null;
+  rentIndexed: boolean | null;
+  rentEscalation: boolean | null;
+  modernizationBacklog: number | null;
+  gegCompliant: boolean | null;
+  commissionRate: number | null;
+  commissionFree: boolean | null;
+  features: string[];
+  highlights: string[];
+  tenantSectors: string[];
+  anchorTenant: string | null;
+}): ListingMarketInput {
+  return {
+    title: l.title,
+    description: l.description,
+    propertyType: l.propertyType,
+    askingPrice: l.askingPrice,
+    totalArea: l.totalArea,
+    totalRent: l.totalRent,
+    city: l.city,
+    district: l.district,
+    postalCode: l.postalCode,
+    yearBuilt: l.yearBuilt,
+    lastRenovation: l.lastRenovation,
+    condition: l.condition,
+    livingArea: l.livingArea,
+    commercialArea: l.commercialArea,
+    landArea: l.landArea,
+    floors: l.floors,
+    residentialUnits: l.residentialUnits,
+    commercialUnits: l.commercialUnits,
+    energyClass: l.energyClass,
+    energyConsumption: l.energyConsumption,
+    energyCarrier: l.energyCarrier,
+    heatingType: l.heatingType,
+    actualRent: l.actualRent,
+    vacancyRate: l.vacancyRate,
+    waltMonths: l.waltMonths,
+    rentIndexed: l.rentIndexed,
+    rentEscalation: l.rentEscalation,
+    modernizationBacklog: l.modernizationBacklog,
+    gegCompliant: l.gegCompliant,
+    commissionRate: l.commissionRate,
+    commissionFree: l.commissionFree,
+    features: l.features ?? [],
+    highlights: l.highlights ?? [],
+    tenantSectors: l.tenantSectors ?? [],
+    anchorTenant: l.anchorTenant
+  };
+}
+
+// GET /me/listings/:id/market-analysis — letzte gespeicherte Analyse
+app.get("/me/listings/:id/market-analysis", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Not found" });
+
+  const analysis = await prisma.marketAnalysis.findUnique({
+    where: { listingId: listing.id }
+  });
+  if (!analysis) return res.status(404).json({ error: "Noch keine Analyse" });
+  return res.json(analysis);
+});
+
+// POST /me/listings/:id/market-analysis — neue Analyse erzeugen (Upsert).
+//   ?force=true ueberschreibt eine kuerzlich erzeugte Analyse trotzdem.
+//   Sonst: wenn juenger als 1 Stunde -> cached zurueckgeben.
+app.post("/me/listings/:id/market-analysis", async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "ANTHROPIC_API_KEY nicht konfiguriert." });
+  }
+  const force = String(req.query.force ?? "") === "true";
+
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden" });
+
+  // Cache-Check: 1h Schutz vor versehentlichen Re-Runs
+  if (!force) {
+    const existing = await prisma.marketAnalysis.findUnique({
+      where: { listingId: listing.id }
+    });
+    if (existing && Date.now() - existing.updatedAt.getTime() < 60 * 60 * 1000) {
+      return res.json({ ...existing, cached: true });
+    }
+  }
+
+  let result;
+  try {
+    result = await analyzeListingMarket(listingToMarketInput(listing as never));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
+    return res.status(502).json({ error: `KI-Aufruf fehlgeschlagen: ${msg}` });
+  }
+
+  const saved = await prisma.marketAnalysis.upsert({
+    where: { listingId: listing.id },
+    create: {
+      listingId: listing.id,
+      priceConservative: result.priceConservative,
+      priceFair: result.priceFair,
+      pricePremium: result.pricePremium,
+      salesSpeed: result.salesSpeed,
+      demand: result.demand,
+      buyerSegments: result.buyerSegments,
+      recommendedAskingPrice: result.recommendedAskingPrice,
+      negotiationRange: result.negotiationRange,
+      marketingStrategy: result.marketingStrategy,
+      risks: result.risks,
+      summary: result.summary,
+      rawJson: result.rawJson as never,
+      model: result.model
+    },
+    update: {
+      priceConservative: result.priceConservative,
+      priceFair: result.priceFair,
+      pricePremium: result.pricePremium,
+      salesSpeed: result.salesSpeed,
+      demand: result.demand,
+      buyerSegments: result.buyerSegments,
+      recommendedAskingPrice: result.recommendedAskingPrice,
+      negotiationRange: result.negotiationRange,
+      marketingStrategy: result.marketingStrategy,
+      risks: result.risks,
+      summary: result.summary,
+      rawJson: result.rawJson as never,
+      model: result.model
+    }
+  });
+
+  return res.json({ ...saved, cached: false });
+});
+
+// DELETE /me/listings/:id/market-analysis — Reset (z.B. nach Listing-Edit)
+app.delete("/me/listings/:id/market-analysis", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Not found" });
+  await prisma.marketAnalysis.deleteMany({ where: { listingId: listing.id } });
+  return res.json({ ok: true });
+});
+
+// GET /me/listings/:id/offer-evals — History aller Bewertungen (max 50)
+app.get("/me/listings/:id/offer-evals", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Not found" });
+
+  const items = await prisma.offerEvaluation.findMany({
+    where: { listingId: listing.id },
+    orderBy: { createdAt: "desc" },
+    take: 50
+  });
+  return res.json(items);
+});
+
+// POST /me/listings/:id/offer-evals — neues Angebot bewerten lassen
+//   body: { offerAmount, offerNote?, inquiryId? }
+app.post("/me/listings/:id/offer-evals", async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "ANTHROPIC_API_KEY nicht konfiguriert." });
+  }
+  const body = z
+    .object({
+      offerAmount: z.number().int().min(1),
+      offerNote: z.string().max(2000).nullable().optional(),
+      inquiryId: z.string().min(1).max(40).nullable().optional()
+    })
+    .parse(req.body);
+
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden" });
+
+  // Optional: bestehende MarketAnalysis als Kontext fuer Claude
+  const existing = await prisma.marketAnalysis.findUnique({
+    where: { listingId: listing.id },
+    select: {
+      priceConservative: true,
+      priceFair: true,
+      pricePremium: true,
+      recommendedAskingPrice: true
+    }
+  });
+
+  // Optional: Inquiry-ID nur akzeptieren, wenn sie zum Listing gehoert
+  let validInquiryId: string | null = null;
+  if (body.inquiryId) {
+    const inq = await prisma.inquiry.findFirst({
+      where: { id: body.inquiryId, listingId: listing.id },
+      select: { id: true }
+    });
+    validInquiryId = inq?.id ?? null;
+  }
+
+  let result;
+  try {
+    result = await evaluateBuyerOffer({
+      listing: listingToMarketInput(listing as never),
+      offerAmount: body.offerAmount,
+      offerNote: body.offerNote ?? null,
+      existingAnalysis:
+        existing &&
+        existing.priceConservative != null &&
+        existing.priceFair != null &&
+        existing.pricePremium != null &&
+        existing.recommendedAskingPrice != null
+          ? {
+              priceConservative: existing.priceConservative,
+              priceFair: existing.priceFair,
+              pricePremium: existing.pricePremium,
+              recommendedAskingPrice: existing.recommendedAskingPrice
+            }
+          : null
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
+    return res.status(502).json({ error: `KI-Aufruf fehlgeschlagen: ${msg}` });
+  }
+
+  const saved = await prisma.offerEvaluation.create({
+    data: {
+      listingId: listing.id,
+      inquiryId: validInquiryId,
+      offerAmount: body.offerAmount,
+      offerNote: body.offerNote ?? null,
+      attractiveness: result.attractiveness,
+      successProbability: result.successProbability,
+      recommendation: result.recommendation,
+      counterOffer: result.counterOffer ?? null,
+      negotiationHints: result.negotiationHints,
+      strategicAdvice: result.strategicAdvice,
+      rawJson: result.rawJson as never,
+      model: result.model
+    }
+  });
+
+  return res.json(saved);
 });
 
 // =========================================================
