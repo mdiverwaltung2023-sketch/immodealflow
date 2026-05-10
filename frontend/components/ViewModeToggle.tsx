@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { UserRoleT } from "@/lib/api";
 import {
   VIEW_MODE_EVENT,
@@ -17,11 +17,11 @@ import {
  * (BOTH, BROKER). Reine Rollen sehen den Toggle gar nicht.
  *
  * Phase L7 — kein "Beides"-Modus mehr; saubere Single-View-Wahl
- * zwischen den für die Rolle erlaubten Sichten. BOTH bekommt
- * Investor / Verkäufer / Mieter, BROKER alle vier.
+ * zwischen den für die Rolle erlaubten Sichten. BOTH und BROKER
+ * bekommen alle 4 (Investor / Verkäufer / Vermieter / Mieter).
  */
 export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
-  const allowed = getAllowedModes(userRole);
+  const allowed = useMemo(() => getAllowedModes(userRole), [userRole]);
   const [mode, setMode] = useState<ViewMode>(defaultModeForRole(userRole));
   const [hydrated, setHydrated] = useState(false);
 

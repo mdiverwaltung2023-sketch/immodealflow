@@ -1114,6 +1114,66 @@ app.delete("/me/trackrecord/:id", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// --- Mieter-Profil (Phase L8) -----------------------------------
+
+// GET /me/tenant-profile — eigenes Mieter-Profil (legt es bei Bedarf leer an)
+app.get("/me/tenant-profile", async (req, res) => {
+  const userId = req.userId!;
+  let profile = await prisma.tenantProfile.findUnique({ where: { userId } });
+  if (!profile) {
+    profile = await prisma.tenantProfile.create({ data: { userId } });
+  }
+  return res.json(profile);
+});
+
+// PATCH /me/tenant-profile — Felder updaten (alle optional)
+const TenantProfilePatchSchema = z.object({
+  aboutText: z.string().max(2000).nullable().optional(),
+
+  employmentType: z.string().max(120).nullable().optional(),
+  employmentDuration: z.string().max(120).nullable().optional(),
+  employer: z.string().max(200).nullable().optional(),
+  monthlyNetIncome: z.number().int().min(0).max(1000000).nullable().optional(),
+  additionalIncome: z.number().int().min(0).max(1000000).nullable().optional(),
+  schufaScore: z.string().max(80).nullable().optional(),
+  hasSchufaCert: z.boolean().optional(),
+
+  householdSize: z.number().int().min(1).max(20).nullable().optional(),
+  hasPets: z.boolean().optional(),
+  petDetails: z.string().max(300).nullable().optional(),
+  smoker: z.boolean().optional(),
+
+  desiredCity: z.string().max(120).nullable().optional(),
+  desiredAreaMin: z.number().min(0).max(2000).nullable().optional(),
+  desiredRoomsMin: z.number().min(0).max(20).nullable().optional(),
+  desiredRentMax: z.number().int().min(0).max(100000).nullable().optional(),
+  desiredMoveInDate: z.string().nullable().optional(),
+  intendedDuration: z.string().max(200).nullable().optional(),
+  openForFurnished: z.boolean().optional(),
+  needsBarrierFree: z.boolean().optional(),
+  needsParking: z.boolean().optional(),
+
+  visibility: ProfileVisibilityEnum.optional()
+});
+
+app.patch("/me/tenant-profile", async (req, res) => {
+  const body = TenantProfilePatchSchema.parse(req.body);
+  const userId = req.userId!;
+
+  const { desiredMoveInDate, ...rest } = body;
+  const data: Record<string, unknown> = { ...rest };
+  if (desiredMoveInDate !== undefined) {
+    data.desiredMoveInDate = desiredMoveInDate ? new Date(desiredMoveInDate) : null;
+  }
+
+  const profile = await prisma.tenantProfile.upsert({
+    where: { userId },
+    update: data,
+    create: { userId, ...data }
+  });
+  return res.json(profile);
+});
+
 // --- Verkäufer-Listings (Push C) --------------------------------
 
 const ListingStatusEnum = z.enum([

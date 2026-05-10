@@ -656,6 +656,43 @@ export const InvestorProfileSchema = z.object({
 });
 export type InvestorProfileT = z.infer<typeof InvestorProfileSchema>;
 
+// --- Mieter-Profil (Phase L8) -----------------------------------
+// Strikt AGG-konform — keine sensiblen Merkmale.
+export const TenantProfileSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  userId: z.string(),
+
+  aboutText: z.string().nullable().optional(),
+
+  employmentType: z.string().nullable().optional(),
+  employmentDuration: z.string().nullable().optional(),
+  employer: z.string().nullable().optional(),
+  monthlyNetIncome: z.number().nullable().optional(),
+  additionalIncome: z.number().nullable().optional(),
+  schufaScore: z.string().nullable().optional(),
+  hasSchufaCert: z.boolean(),
+
+  householdSize: z.number().nullable().optional(),
+  hasPets: z.boolean(),
+  petDetails: z.string().nullable().optional(),
+  smoker: z.boolean(),
+
+  desiredCity: z.string().nullable().optional(),
+  desiredAreaMin: z.number().nullable().optional(),
+  desiredRoomsMin: z.number().nullable().optional(),
+  desiredRentMax: z.number().nullable().optional(),
+  desiredMoveInDate: z.string().nullable().optional(),
+  intendedDuration: z.string().nullable().optional(),
+  openForFurnished: z.boolean(),
+  needsBarrierFree: z.boolean(),
+  needsParking: z.boolean(),
+
+  visibility: ProfileVisibilityEnum
+});
+export type TenantProfileT = z.infer<typeof TenantProfileSchema>;
+
 // --- Listings + Marketplace (Push C) ----------------------------
 
 export const ListingStatusEnum = z.enum([

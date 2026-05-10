@@ -297,6 +297,7 @@ model User {
   uploadedSaleDocs      SaleDocument[]   @relation("DocUploads")
   rentalUnits           RentalUnit[]
   rentalApplicationsSent RentalApplication[] @relation("RentalApplicationsSent")
+  tenantProfile         TenantProfile?
 
   @@index([referredById])
 }
@@ -399,6 +400,52 @@ model TrackrecordItem {
   verifiedBy  String?         // optionale Verifikation, z. B. Notar-Aktenzeichen
 
   @@index([userId, year])
+}
+
+// Phase L8 — Mieter-Profil. Strikt AGG-konform:
+// keine sensiblen Merkmale (Herkunft, Religion, Familienstand, Geschlecht,
+// Behinderung, Alter etc.). Felder sind organisatorisch + wirtschaftlich
+// und werden vom Mieter selbst gepflegt — er bestimmt, was er teilt.
+model TenantProfile {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Selbstvorstellung (Freitext, optional — der Mieter darf hier
+  // selbst entscheiden, was er sagt; AGG schützt vor erzwungenen
+  // sensiblen Angaben)
+  aboutText  String?
+
+  // Wirtschaftliche Eckdaten
+  employmentType     String?   // "Festanstellung", "Selbstständig", "Beamter"
+  employmentDuration String?   // z.B. "seit 3 Jahren"
+  employer           String?   // optional
+  monthlyNetIncome   Int?      // EUR
+  additionalIncome   Int?      // EUR (z.B. Kapitaleinkünfte, Unterhalt)
+  schufaScore        String?   // Freitext "Score 95" / "saubere Auskunft"
+  hasSchufaCert      Boolean   @default(false) // Selbstauskunft liegt vor
+
+  // Haushalt — bewusst neutral
+  householdSize Int?   // Anzahl Personen, ohne Familienstand-Bezug
+  hasPets       Boolean @default(false)
+  petDetails    String?
+  smoker        Boolean @default(false)
+
+  // Wunschkriterien
+  desiredCity        String?   // z.B. "Berlin"
+  desiredAreaMin     Float?    // m²
+  desiredRoomsMin    Float?    // Zimmer
+  desiredRentMax     Int?      // EUR Kaltmiete max
+  desiredMoveInDate  DateTime?
+  intendedDuration   String?   // "langfristig", "1-2 Jahre"
+  openForFurnished   Boolean   @default(false)
+  needsBarrierFree   Boolean   @default(false)
+  needsParking       Boolean   @default(false)
+
+  visibility ProfileVisibility @default(PRIVATE)
 }
 
 // Verkäufer-Listing — Marketplace-Inserat (separat von Property = Investor-Watchlist).

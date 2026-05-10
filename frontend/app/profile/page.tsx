@@ -1,14 +1,22 @@
-import { BillingStateSchema, InvestorProfileSchema, RatingsReceivedResponseSchema } from "@/lib/api";
+import {
+  BillingStateSchema,
+  InvestorProfileSchema,
+  RatingsReceivedResponseSchema,
+  TenantProfileSchema
+} from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { StarSummary } from "@/components/StarRating";
 import { ProfileEditor } from "./ProfileEditor";
+import { TenantProfileEditor } from "./TenantProfileEditor";
+import { ProfileSwitcher } from "./ProfileSwitcher";
 import { BillingCard } from "./BillingCard";
 
 export default async function ProfilePage() {
   const me = await requireOnboardedUser();
-  const [profile, ratings, billing] = await Promise.all([
+  const [investorProfile, tenantProfile, ratings, billing] = await Promise.all([
     apiGet("/me/profile", InvestorProfileSchema),
+    apiGet("/me/tenant-profile", TenantProfileSchema),
     apiGet("/me/ratings/received", RatingsReceivedResponseSchema),
     apiGet("/me/billing", BillingStateSchema).catch(() => ({
       plan: "FREE" as const,
@@ -23,8 +31,9 @@ export default async function ProfilePage() {
       <div>
         <div className="text-2xl font-semibold text-zinc-900">Mein Profil</div>
         <div className="mt-1 text-sm text-zinc-500">
-          Investor-Profil und Trackrecord. Verkäufer sehen diese Daten nur, wenn deine
-          Sichtbarkeit das erlaubt — und je nach Stufe erst nach einer Anfrage.
+          Investor-Profil und Mieter-Profil — getrennt verwaltbar. Welcher
+          Block sichtbar ist, hängt von deiner aktiven Sicht oben (Topbar)
+          ab. Multi-Rollen können beide Profile pflegen.
         </div>
       </div>
 
@@ -72,7 +81,17 @@ export default async function ProfilePage() {
         )}
       </Card>
 
-      <ProfileEditor initial={profile} userName={me.name ?? null} userRole={me.role} />
+      <ProfileSwitcher
+        userRole={me.role}
+        investorEditor={
+          <ProfileEditor
+            initial={investorProfile}
+            userName={me.name ?? null}
+            userRole={me.role}
+          />
+        }
+        tenantEditor={<TenantProfileEditor initial={tenantProfile} />}
+      />
     </div>
   );
 }
