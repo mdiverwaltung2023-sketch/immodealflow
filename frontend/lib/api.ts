@@ -1225,6 +1225,37 @@ export const RentalUnitSchema = z.object({
   fixedTerm: z.boolean(),
   fixedTermMonths: z.number().nullable().optional(),
   features: z.array(z.string()),
+
+  // Phase L5.1 — erweiterte Felder
+  yearBuilt: z.number().nullable().optional(),
+  lastRenovation: z.number().nullable().optional(),
+  totalUnits: z.number().nullable().optional(),
+  bathrooms: z.number().nullable().optional(),
+  separateGuestWc: z.boolean().optional().default(false),
+  balcony: z.boolean().optional().default(false),
+  balconyArea: z.number().nullable().optional(),
+  terrace: z.boolean().optional().default(false),
+  terraceArea: z.number().nullable().optional(),
+  garden: z.boolean().optional().default(false),
+  gardenShared: z.boolean().optional().default(false),
+  cellar: z.boolean().optional().default(false),
+  attic: z.boolean().optional().default(false),
+  elevator: z.boolean().optional().default(false),
+  barrierFree: z.boolean().optional().default(false),
+  furnished: z.boolean().optional().default(false),
+  partlyFurnished: z.boolean().optional().default(false),
+  kitchenIncluded: z.boolean().optional().default(false),
+  kitchenBuyOut: z.number().nullable().optional(),
+  parkingType: z.string().nullable().optional(),
+  parkingCost: z.number().nullable().optional(),
+  petsAllowed: z.boolean().nullable().optional(),
+  petsNote: z.string().nullable().optional(),
+  internetAvailable: z.boolean().nullable().optional(),
+  internetSpeed: z.string().nullable().optional(),
+  minRentDurationMonths: z.number().nullable().optional(),
+  depositMonths: z.number().nullable().optional(),
+  conditions: z.string().nullable().optional(),
+
   images: z.array(RentalUnitImageSchema)
 });
 export type RentalUnitT = z.infer<typeof RentalUnitSchema>;

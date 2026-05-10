@@ -8,6 +8,7 @@ import {
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
+import { RentalUnitForm } from "@/components/RentalUnitForm";
 import { ApplicationsSection } from "./ApplicationsSection";
 
 export const dynamic = "force-dynamic";
@@ -113,6 +114,10 @@ export default async function RentalDetailPage({
           latestEvalSummary: a.evaluations[0]?.summary ?? null
         }))}
       />
+
+      <Card title="Inserat bearbeiten">
+        <RentalUnitForm initial={unit} mode="edit" />
+      </Card>
     </div>
   );
 }

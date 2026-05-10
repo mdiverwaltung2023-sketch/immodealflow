@@ -3363,7 +3363,37 @@ const RentalUnitCreateSchema = z.object({
   availableFrom: z.string().nullable().optional(),
   fixedTerm: z.boolean().optional(),
   fixedTermMonths: z.number().int().min(1).max(360).nullable().optional(),
-  features: z.array(z.string().min(1).max(80)).max(40).optional()
+  features: z.array(z.string().min(1).max(80)).max(40).optional(),
+
+  // Phase L5.1 — erweiterte Felder
+  yearBuilt: z.number().int().min(1800).max(2100).nullable().optional(),
+  lastRenovation: z.number().int().min(1800).max(2100).nullable().optional(),
+  totalUnits: z.number().int().min(1).max(2000).nullable().optional(),
+  bathrooms: z.number().int().min(0).max(20).nullable().optional(),
+  separateGuestWc: z.boolean().optional(),
+  balcony: z.boolean().optional(),
+  balconyArea: z.number().min(0).max(500).nullable().optional(),
+  terrace: z.boolean().optional(),
+  terraceArea: z.number().min(0).max(500).nullable().optional(),
+  garden: z.boolean().optional(),
+  gardenShared: z.boolean().optional(),
+  cellar: z.boolean().optional(),
+  attic: z.boolean().optional(),
+  elevator: z.boolean().optional(),
+  barrierFree: z.boolean().optional(),
+  furnished: z.boolean().optional(),
+  partlyFurnished: z.boolean().optional(),
+  kitchenIncluded: z.boolean().optional(),
+  kitchenBuyOut: z.number().int().min(0).max(100000).nullable().optional(),
+  parkingType: z.string().max(20).nullable().optional(),
+  parkingCost: z.number().int().min(0).max(2000).nullable().optional(),
+  petsAllowed: z.boolean().nullable().optional(),
+  petsNote: z.string().max(300).nullable().optional(),
+  internetAvailable: z.boolean().nullable().optional(),
+  internetSpeed: z.string().max(80).nullable().optional(),
+  minRentDurationMonths: z.number().int().min(0).max(360).nullable().optional(),
+  depositMonths: z.number().min(0).max(6).nullable().optional(),
+  conditions: z.string().max(2000).nullable().optional()
 });
 
 const RentalUnitPatchSchema = RentalUnitCreateSchema.partial();
