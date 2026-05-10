@@ -138,6 +138,9 @@ app.use("/me", requireAuth);
 // Marketplace-Routes brauchen einen eingeloggten User, weil wir je nach
 // Sichtbarkeit das Investor-Profil zeigen. /marketplace ist nicht öffentlich.
 app.use("/marketplace", requireAuth);
+// Mietbörse (Phase L6): auch eingeloggt-only, damit Bewerbungen einer
+// User-ID zugeordnet werden können.
+app.use("/rental-marketplace", requireAuth);
 // Admin-Routen (Phase H8): zusätzlich isAdmin-Check pro Endpoint, aber
 // requireAuth muss vorher laufen, damit req.userId gesetzt ist.
 app.use("/admin", requireAuth);
@@ -3767,6 +3770,173 @@ app.get("/me/rental-applications/:id/evaluations", async (req, res) => {
     take: 20
   });
   return res.json(items);
+});
+
+// =========================================================
+// Oeffentliche Mietboerse (Phase L6)
+// Nur AVAILABLE-Mietobjekte. fullAddress wird nicht ausgespielt
+// (Vermieter-Privatsphaere). Bewerber sieht Stadt, Stadtteil, PLZ.
+// =========================================================
+
+function anonymizeRentalUnit<T extends { fullAddress?: string | null }>(u: T) {
+  // fullAddress raus — wird nur dem Vermieter selbst gezeigt.
+  const { fullAddress: _ignore, ...rest } = u as T & { fullAddress?: string | null };
+  return rest;
+}
+
+// GET /rental-marketplace — alle aktuell vermietbaren Objekte
+app.get("/rental-marketplace", async (req, res) => {
+  const q = z
+    .object({
+      city: z.string().optional(),
+      roomsMin: z.coerce.number().min(0).optional(),
+      rentMax: z.coerce.number().int().min(0).optional(),
+      areaMin: z.coerce.number().min(0).optional(),
+      furnished: z.coerce.boolean().optional(),
+      petsAllowed: z.coerce.boolean().optional(),
+      barrierFree: z.coerce.boolean().optional()
+    })
+    .parse(req.query);
+
+  const where: Record<string, unknown> = { status: "AVAILABLE" };
+  if (q.city) where.city = { contains: q.city, mode: "insensitive" as const };
+  if (q.roomsMin != null) where.rooms = { gte: q.roomsMin };
+  if (q.rentMax != null) where.rentCold = { lte: q.rentMax };
+  if (q.areaMin != null) where.livingArea = { gte: q.areaMin };
+  if (q.furnished) where.furnished = true;
+  if (q.petsAllowed) where.petsAllowed = true;
+  if (q.barrierFree) where.barrierFree = true;
+
+  const units = await prisma.rentalUnit.findMany({
+    where: where as never,
+    orderBy: { updatedAt: "desc" },
+    take: 100,
+    include: {
+      images: { orderBy: { sortOrder: "asc" }, take: 5 },
+      owner: { select: { id: true, name: true } }
+    }
+  });
+  const anonymized = units.map(anonymizeRentalUnit);
+  return res.json(anonymized);
+});
+
+// GET /rental-marketplace/:id — Detail einer Mietboersen-Position
+//   Inkl. "myApplication", falls der eingeloggte User schon beworben ist.
+app.get("/rental-marketplace/:id", async (req, res) => {
+  const unit = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.id, status: "AVAILABLE" },
+    include: {
+      images: { orderBy: { sortOrder: "asc" } },
+      owner: { select: { id: true, name: true } }
+    }
+  });
+  if (!unit) return res.status(404).json({ error: "Not found" });
+
+  const myApplication = await prisma.rentalApplication.findFirst({
+    where: { unitId: unit.id, applicantUserId: req.userId! },
+    select: { id: true, status: true, createdAt: true }
+  });
+
+  return res.json({ ...anonymizeRentalUnit(unit), myApplication });
+});
+
+// POST /rental-marketplace/:unitId/apply — der eingeloggte User bewirbt
+//   sich selbst (Selbstbewerbungs-Form). Body siehe Schema unten.
+//
+// Der Vermieter sieht die neue Bewerbung in seinem /rentals/:unitId-Tab
+// und kann KI-Bewertung anfordern.
+//
+// Anti-Doppel-Bewerbung: pro (unit, applicantUserId) nur eine aktive
+// Bewerbung. Status-Reset auf NEW bei erneuter Submission, damit
+// Vermieter es noch sieht.
+const RentalApplyBodySchema = z.object({
+  applicantName: z.string().min(1).max(200),
+  email: z.string().email().max(200).nullable().optional(),
+  phone: z.string().max(60).nullable().optional(),
+  monthlyNetIncome: z.number().int().min(0).max(1000000).nullable().optional(),
+  employmentType: z.string().max(120).nullable().optional(),
+  employmentDuration: z.string().max(120).nullable().optional(),
+  schufaScore: z.string().max(60).nullable().optional(),
+  householdSize: z.number().int().min(1).max(20).nullable().optional(),
+  hasPets: z.boolean().optional(),
+  petDetails: z.string().max(300).nullable().optional(),
+  smoker: z.boolean().optional(),
+  desiredMoveInDate: z.string().nullable().optional(),
+  intendedDuration: z.string().max(200).nullable().optional(),
+  notes: z.string().max(4000).nullable().optional()
+});
+
+app.post("/rental-marketplace/:unitId/apply", async (req, res) => {
+  const body = RentalApplyBodySchema.parse(req.body);
+
+  const unit = await prisma.rentalUnit.findFirst({
+    where: { id: req.params.unitId, status: "AVAILABLE" },
+    select: { id: true, ownerId: true }
+  });
+  if (!unit) return res.status(404).json({ error: "Mietobjekt nicht verfügbar" });
+
+  // Self-bewerbung blockieren (Vermieter darf sich nicht selbst bewerben)
+  if (unit.ownerId === req.userId!) {
+    return res
+      .status(400)
+      .json({ error: "Du kannst dich nicht auf dein eigenes Mietobjekt bewerben." });
+  }
+
+  const existing = await prisma.rentalApplication.findFirst({
+    where: {
+      unitId: unit.id,
+      applicantUserId: req.userId!
+    }
+  });
+
+  const { desiredMoveInDate, ...rest } = body;
+  const data: Record<string, unknown> = {
+    ...rest,
+    desiredMoveInDate: desiredMoveInDate ? new Date(desiredMoveInDate) : null,
+    applicantUserId: req.userId!
+  };
+
+  let saved;
+  if (existing) {
+    // Re-Submit: Daten aktualisieren, Status zurueck auf NEW
+    saved = await prisma.rentalApplication.update({
+      where: { id: existing.id },
+      data: { ...data, status: "NEW" } as never
+    });
+  } else {
+    saved = await prisma.rentalApplication.create({
+      data: { ...data, unitId: unit.id, status: "NEW" } as never
+    });
+  }
+  return res.json(saved);
+});
+
+// GET /me/applications-sent — eigene gestellte Bewerbungen
+app.get("/me/applications-sent", async (req, res) => {
+  const apps = await prisma.rentalApplication.findMany({
+    where: { applicantUserId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: {
+      unit: {
+        select: {
+          id: true,
+          title: true,
+          city: true,
+          district: true,
+          rooms: true,
+          livingArea: true,
+          rentCold: true,
+          status: true,
+          images: {
+            orderBy: { sortOrder: "asc" },
+            take: 1,
+            select: { url: true }
+          }
+        }
+      }
+    }
+  });
+  return res.json(apps);
 });
 
 // =========================================================

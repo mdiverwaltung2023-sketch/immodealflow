@@ -295,6 +295,7 @@ model User {
   saleStageEntries      SaleStageEntry[] @relation("StageBy")
   uploadedSaleDocs      SaleDocument[]   @relation("DocUploads")
   rentalUnits           RentalUnit[]
+  rentalApplicationsSent RentalApplication[] @relation("RentalApplicationsSent")
 
   @@index([referredById])
 }
@@ -810,6 +811,12 @@ model RentalApplication {
 
   unitId    String
   unit      RentalUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  // Wenn der Bewerber selbst eingeloggt war (Selbstbewerbung ueber
+  // Mietboerse), verknuepfen wir ihn als User. Bei manuellem
+  // Vermieter-Eintrag bleibt das Feld null.
+  applicantUserId String?
+  applicantUser   User?   @relation("RentalApplicationsSent", fields: [applicantUserId], references: [id], onDelete: SetNull)
 
   // Kontakt (Pflichtfeld: Name, sonst optional)
   applicantName String
