@@ -16,7 +16,7 @@ type Item = {
 };
 
 type Section = {
-  id: "overview" | "investor" | "seller" | "account" | "admin";
+  id: "overview" | "investor" | "seller" | "landlord" | "account" | "admin";
   title: string;
   items: Item[];
 };
@@ -158,8 +158,16 @@ const SECTION_SELLER: Section = {
   items: [
     { href: "/listings", label: "Meine Inserate", icon: IcList },
     { href: "/listings/new", label: "Inserat anlegen", icon: IcPlus },
-    { href: "/sales", label: "Verkaufsabwicklung", icon: IcBriefcase },
-    { href: "/rentals", label: "Vermietung", icon: IcKey }
+    { href: "/sales", label: "Verkaufsabwicklung", icon: IcBriefcase }
+  ]
+};
+
+const SECTION_LANDLORD: Section = {
+  id: "landlord",
+  title: "Als Vermieter (vermieten)",
+  items: [
+    { href: "/rentals", label: "Mietobjekte", icon: IcKey },
+    { href: "/rentals/new", label: "Mietobjekt anlegen", icon: IcPlus }
   ]
 };
 
@@ -189,13 +197,35 @@ const SECTION_ADMIN: Section = {
  */
 function getVisibleSections(role: UserRoleT, mode: ViewMode, isAdmin: boolean): Section[] {
   let base: Section[];
-  if (role === "INVESTOR" || (role === "BOTH" && mode === "INVESTOR")) {
+
+  // Reine Rollen — keine Mode-Auswahl noetig
+  if (role === "INVESTOR") {
     base = [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
-  } else if (role === "SELLER" || (role === "BOTH" && mode === "SELLER")) {
+  } else if (role === "SELLER") {
     base = [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+  } else if (role === "LANDLORD") {
+    base = [SECTION_OVERVIEW, SECTION_LANDLORD, SECTION_ACCOUNT];
   } else {
-    base = [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_SELLER, SECTION_ACCOUNT];
+    // BOTH oder BROKER — Mode entscheidet, was sichtbar ist.
+    // BROKER hat Zugriff auf alles (Investor + Verkaeufer + Vermieter).
+    if (mode === "INVESTOR") {
+      base = [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
+    } else if (mode === "SELLER") {
+      base = [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+    } else if (mode === "LANDLORD") {
+      base = [SECTION_OVERVIEW, SECTION_LANDLORD, SECTION_ACCOUNT];
+    } else {
+      // mode === "BOTH" -> alles zeigen
+      base = [
+        SECTION_OVERVIEW,
+        SECTION_INVESTOR,
+        SECTION_SELLER,
+        SECTION_LANDLORD,
+        SECTION_ACCOUNT
+      ];
+    }
   }
+
   return isAdmin ? [...base, SECTION_ADMIN] : base;
 }
 
@@ -217,16 +247,22 @@ export function SideNav({
   const [viewMode, setViewMode] = useState<ViewMode>("BOTH");
   const [hydrated, setHydrated] = useState(false);
 
-  // ViewMode aus localStorage initialisieren + auf Toggle-Events hören
+  // ViewMode aus localStorage initialisieren + auf Toggle-Events hören.
+  // Wechselbar nur fuer BOTH oder BROKER (haben Zugriff auf mehrere Sektionen).
   useEffect(() => {
     setHydrated(true);
-    if (userRole !== "BOTH") {
-      // Reine Investoren/Verkäufer haben keinen Modus zum Wechseln
+    if (userRole !== "BOTH" && userRole !== "BROKER") {
+      // Reine Investoren / Verkaeufer / Vermieter haben keinen Modus
       return;
     }
     try {
       const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-      if (saved === "INVESTOR" || saved === "SELLER" || saved === "BOTH") {
+      if (
+        saved === "INVESTOR" ||
+        saved === "SELLER" ||
+        saved === "BOTH" ||
+        saved === "LANDLORD"
+      ) {
         setViewMode(saved);
       }
     } catch {
@@ -235,7 +271,12 @@ export function SideNav({
 
     function onChange(e: Event) {
       const detail = (e as CustomEvent<ViewMode>).detail;
-      if (detail === "INVESTOR" || detail === "SELLER" || detail === "BOTH") {
+      if (
+        detail === "INVESTOR" ||
+        detail === "SELLER" ||
+        detail === "BOTH" ||
+        detail === "LANDLORD"
+      ) {
         setViewMode(detail);
       }
     }

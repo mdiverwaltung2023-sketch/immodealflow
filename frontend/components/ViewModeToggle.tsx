@@ -10,11 +10,12 @@ import {
   type ViewMode
 } from "@/components/viewMode";
 
-const OPTIONS: ViewMode[] = ["BOTH", "INVESTOR", "SELLER"];
+const OPTIONS: ViewMode[] = ["BOTH", "INVESTOR", "SELLER", "LANDLORD"];
 
 /**
- * Segmented-Control oben in der TopBar — nur sichtbar für Nutzer mit
- * Rolle "BOTH". Wechselt die Sidebar-Sektionen, persistiert in localStorage.
+ * Segmented-Control oben in der TopBar — sichtbar für Nutzer mit
+ * Rolle "BOTH" oder "BROKER" (alle anderen haben eine feste Sicht).
+ * Wechselt die Sidebar-Sektionen, persistiert in localStorage.
  */
 export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
   const [mode, setMode] = useState<ViewMode>("BOTH");
@@ -26,7 +27,12 @@ export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
 
     function onChange(e: Event) {
       const next = (e as CustomEvent<ViewMode>).detail;
-      if (next === "INVESTOR" || next === "SELLER" || next === "BOTH") {
+      if (
+        next === "INVESTOR" ||
+        next === "SELLER" ||
+        next === "BOTH" ||
+        next === "LANDLORD"
+      ) {
         setMode(next);
       }
     }
@@ -34,7 +40,7 @@ export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
     return () => window.removeEventListener(VIEW_MODE_EVENT, onChange);
   }, []);
 
-  if (userRole !== "BOTH") return null;
+  if (userRole !== "BOTH" && userRole !== "BROKER") return null;
 
   function pick(next: ViewMode) {
     setMode(next);

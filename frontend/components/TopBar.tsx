@@ -57,12 +57,24 @@ export function TopBar({
 
 function RoleBadge({ role }: { role: UserRoleT }) {
   const label =
-    role === "INVESTOR" ? "Investor" : role === "SELLER" ? "Verkäufer" : "Investor + Verkäufer";
+    role === "INVESTOR"
+      ? "Investor"
+      : role === "SELLER"
+      ? "Verkäufer"
+      : role === "LANDLORD"
+      ? "Vermieter"
+      : role === "BROKER"
+      ? "Makler"
+      : "Investor + Verkäufer";
   const tone =
     role === "INVESTOR"
       ? "bg-indigo-50 text-indigo-700 border-indigo-200"
       : role === "SELLER"
       ? "bg-amber-50 text-amber-800 border-amber-200"
+      : role === "LANDLORD"
+      ? "bg-rose-50 text-rose-700 border-rose-200"
+      : role === "BROKER"
+      ? "bg-violet-50 text-violet-700 border-violet-200"
       : "bg-emerald-50 text-emerald-700 border-emerald-200";
   return (
     <span

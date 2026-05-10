@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { InvestorView } from "./InvestorView";
 import { SellerView } from "./SellerView";
+import { LandlordView } from "./LandlordView";
 import {
   VIEW_MODE_STORAGE_KEY,
   VIEW_MODE_EVENT,
@@ -53,7 +54,12 @@ export function DashboardSwitcher({
     if (role !== "BOTH" && role !== "BROKER") return;
     try {
       const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-      if (saved === "INVESTOR" || saved === "SELLER" || saved === "BOTH") {
+      if (
+        saved === "INVESTOR" ||
+        saved === "SELLER" ||
+        saved === "BOTH" ||
+        saved === "LANDLORD"
+      ) {
         setViewMode(saved);
       }
     } catch {
@@ -61,7 +67,12 @@ export function DashboardSwitcher({
     }
     function onChange(e: Event) {
       const detail = (e as CustomEvent<ViewMode>).detail;
-      if (detail === "INVESTOR" || detail === "SELLER" || detail === "BOTH") {
+      if (
+        detail === "INVESTOR" ||
+        detail === "SELLER" ||
+        detail === "BOTH" ||
+        detail === "LANDLORD"
+      ) {
         setViewMode(detail);
       }
     }
@@ -69,12 +80,15 @@ export function DashboardSwitcher({
     return () => window.removeEventListener(VIEW_MODE_EVENT, onChange);
   }, [role]);
 
-  // Vor Hydration: nutze Default — Investor-View, damit die Server-Render-
-  // Hydration nicht hin-und-her flickert.
+  // Vor Hydration: Default Investor-View, damit Hydration nicht flickert.
+  const showLandlord =
+    role === "LANDLORD" ||
+    ((role === "BOTH" || role === "BROKER") && hydrated && viewMode === "LANDLORD");
   const showSeller =
     role === "SELLER" ||
     ((role === "BOTH" || role === "BROKER") && hydrated && viewMode === "SELLER");
 
+  if (showLandlord) return <LandlordView />;
   if (showSeller) {
     return (
       <SellerView

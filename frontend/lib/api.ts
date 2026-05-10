@@ -191,14 +191,21 @@ export const PropertyDetailSchema = PropertySchema.extend({
   auction: AuctionInfoSchema.nullable().optional()
 });
 
-export const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH", "BROKER"]);
+export const UserRoleEnum = z.enum([
+  "INVESTOR",
+  "SELLER",
+  "BOTH",
+  "BROKER",
+  "LANDLORD"
+]);
 export type UserRoleT = z.infer<typeof UserRoleEnum>;
 
 export const USER_ROLE_LABELS: Record<UserRoleT, string> = {
   INVESTOR: "Investor",
   SELLER: "Verkäufer",
   BOTH: "Beides",
-  BROKER: "Makler"
+  BROKER: "Makler",
+  LANDLORD: "Vermieter"
 };
 
 // --- Subscription / Billing (Phase G1+G2) -----------------------

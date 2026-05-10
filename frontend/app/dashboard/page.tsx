@@ -58,7 +58,9 @@ export default async function DashboardPage() {
               ? "Deine Verkäufer-Sicht — Inserate, Anfragen, Verkaufs-Pipeline."
               : me.role === "INVESTOR"
                 ? "Deine Investor-Sicht — Watchlist, Marketplace, ZVG."
-                : "Doppelrolle — über den Sidebar-Toggle wechselst du zwischen Investor- und Verkäufer-Sicht."}
+                : me.role === "LANDLORD"
+                  ? "Deine Vermieter-Sicht — Mietobjekte, Bewerbungen, KI-Bewertung."
+                  : "Mehrere Rollen — über den TopBar-Toggle wechselst du zwischen Investor-, Verkäufer- und Vermieter-Sicht."}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
