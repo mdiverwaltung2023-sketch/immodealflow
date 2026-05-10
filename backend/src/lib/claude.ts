@@ -315,6 +315,362 @@ export async function extractAuctionListFromText(
 }
 
 // ============================================================
+// Use-Case 5: KI-Marktanalyse fuer ein Listing (Phase K — TEIL 1)
+// ============================================================
+
+/**
+ * Strukturiertes Listing-Datenpaket fuer die KI. Wir packen alle
+ * relevanten Felder rein, damit Claude eine fundierte Einschaetzung
+ * abgeben kann. Der Prompt orientiert sich an Marcos Original-Vorgabe
+ * (Verkaeufer-Sicht, datenbasiert, keine absoluten Wahrheiten).
+ */
+export type ListingMarketInput = {
+  title: string;
+  description?: string | null;
+  propertyType: string;
+  askingPrice: number;
+  totalArea: number;
+  totalRent?: number | null;
+  city: string;
+  district?: string | null;
+  postalCode?: string | null;
+
+  yearBuilt?: number | null;
+  lastRenovation?: number | null;
+  condition?: string | null;
+  livingArea?: number | null;
+  commercialArea?: number | null;
+  landArea?: number | null;
+  floors?: number | null;
+
+  residentialUnits?: number | null;
+  commercialUnits?: number | null;
+
+  energyClass?: string | null;
+  energyConsumption?: number | null;
+  energyCarrier?: string | null;
+  heatingType?: string | null;
+
+  actualRent?: number | null;
+  vacancyRate?: number | null;
+  waltMonths?: number | null;
+  rentIndexed?: boolean | null;
+  rentEscalation?: boolean | null;
+
+  modernizationBacklog?: number | null;
+  gegCompliant?: boolean | null;
+
+  commissionRate?: number | null;
+  commissionFree?: boolean | null;
+
+  features?: string[];
+  highlights?: string[];
+  tenantSectors?: string[];
+  anchorTenant?: string | null;
+};
+
+export type MarketAnalysisResult = {
+  priceConservative: number;
+  priceFair: number;
+  pricePremium: number;
+  salesSpeed: "FAST" | "NORMAL" | "DIFFICULT";
+  demand: "HIGH" | "MEDIUM" | "LOW";
+  buyerSegments: string[];
+  recommendedAskingPrice: number;
+  negotiationRange: string;
+  marketingStrategy: string;
+  risks: string[];
+  summary: string;
+};
+
+const MARKET_ANALYSIS_SYSTEM = [
+  "Du bist ein KI-gestuetzter Immobilienanalyst und Verkaufsberater fuer den deutschen Immobilienmarkt.",
+  "Ziel: Erstelle aus den Immobiliendaten eine realistische Preiseinschaetzung, Verkaufsstrategien,",
+  "Kaeuferzielgruppen und konkrete Handlungsempfehlungen fuer den Verkaeufer.",
+  "WICHTIG: Keine absoluten Wahrheiten. Immer als datenbasierte Einschaetzung formulieren.",
+  "Verstaendlich und professionell. Fokus auf Verkaeufersicht. Antworte ausschliesslich auf Deutsch."
+].join(" ");
+
+function listingDataAsBriefing(l: ListingMarketInput): string {
+  const lines: string[] = [];
+  lines.push(`Titel: ${l.title}`);
+  lines.push(`Typ: ${l.propertyType}`);
+  lines.push(`Lage: ${[l.city, l.district, l.postalCode].filter(Boolean).join(" / ")}`);
+  lines.push(`Kaufpreis (inseriert): ${l.askingPrice} EUR`);
+  lines.push(`Gesamtflaeche: ${l.totalArea} m²`);
+  if (l.totalRent != null) lines.push(`Soll-Miete pro Monat: ${l.totalRent} EUR`);
+  if (l.actualRent != null) lines.push(`Ist-Miete pro Monat: ${l.actualRent} EUR`);
+  if (l.vacancyRate != null) lines.push(`Leerstand: ${(l.vacancyRate * 100).toFixed(1)} %`);
+  if (l.waltMonths != null) lines.push(`WALT (gewichtete Restmietdauer): ${l.waltMonths} Monate`);
+  if (l.rentIndexed) lines.push(`Indexmiete: ja`);
+  if (l.rentEscalation) lines.push(`Staffelmiete: ja`);
+  if (l.yearBuilt) lines.push(`Baujahr: ${l.yearBuilt}`);
+  if (l.lastRenovation) lines.push(`Letzte Sanierung: ${l.lastRenovation}`);
+  if (l.condition) lines.push(`Zustand: ${l.condition}`);
+  if (l.livingArea != null) lines.push(`Wohnflaeche: ${l.livingArea} m²`);
+  if (l.commercialArea != null) lines.push(`Gewerbeflaeche: ${l.commercialArea} m²`);
+  if (l.landArea != null) lines.push(`Grundstuecksflaeche: ${l.landArea} m²`);
+  if (l.floors != null) lines.push(`Etagen: ${l.floors}`);
+  if (l.residentialUnits != null) lines.push(`Wohneinheiten: ${l.residentialUnits}`);
+  if (l.commercialUnits != null) lines.push(`Gewerbeeinheiten: ${l.commercialUnits}`);
+  if (l.energyClass) lines.push(`Energieklasse: ${l.energyClass}`);
+  if (l.energyConsumption != null) lines.push(`Endenergie: ${l.energyConsumption} kWh/m²a`);
+  if (l.energyCarrier) lines.push(`Energietraeger: ${l.energyCarrier}`);
+  if (l.heatingType) lines.push(`Heizung: ${l.heatingType}`);
+  if (l.modernizationBacklog != null && l.modernizationBacklog > 0) {
+    lines.push(`Modernisierungsstau: ${l.modernizationBacklog} EUR`);
+  }
+  if (l.gegCompliant === true) lines.push(`GEG-konform: ja`);
+  if (l.gegCompliant === false) lines.push(`GEG-konform: nein`);
+  if (l.anchorTenant) lines.push(`Hauptmieter: ${l.anchorTenant}`);
+  if (l.tenantSectors && l.tenantSectors.length > 0) {
+    lines.push(`Mieter-Branchen: ${l.tenantSectors.join(", ")}`);
+  }
+  if (l.commissionFree === true) lines.push(`Provisionsfrei: ja`);
+  else if (l.commissionRate != null) lines.push(`Provision: ${l.commissionRate} %`);
+  if (l.features && l.features.length > 0) {
+    lines.push(`Ausstattung: ${l.features.join(", ")}`);
+  }
+  if (l.highlights && l.highlights.length > 0) {
+    lines.push(`Highlights: ${l.highlights.join(", ")}`);
+  }
+  if (l.description) {
+    lines.push("");
+    lines.push(`Beschreibung:\n${l.description.slice(0, 1500)}`);
+  }
+  return lines.join("\n");
+}
+
+export async function analyzeListingMarket(
+  listing: ListingMarketInput
+): Promise<MarketAnalysisResult & { model: string; rawJson: unknown }> {
+  const briefing = listingDataAsBriefing(listing);
+  const { data, model } = await callWithTool<MarketAnalysisResult>({
+    systemPrompt: MARKET_ANALYSIS_SYSTEM,
+    userMessage: [
+      "PROPERTY_DATA:",
+      briefing,
+      "",
+      "Erstelle:",
+      "1. Marktpreis-Spanne (priceConservative / priceFair / pricePremium in EUR)",
+      "2. Verkaufsgeschwindigkeit (salesSpeed: FAST/NORMAL/DIFFICULT)",
+      "3. Nachfrageeinschaetzung (demand: HIGH/MEDIUM/LOW)",
+      "4. Kaeufer-Zielgruppen (buyerSegments — beliebige Mischungen wie 'Eigennutzer', 'Kapitalanleger', 'Familien', 'Senioren', 'Single-Haushalte', 'Bautraeger', max 6 Eintraege)",
+      "5. Verkaufsstrategie: empfohlener Angebotspreis (recommendedAskingPrice in EUR), Verhandlungsspielraum (negotiationRange als Text), Vermarktungsstrategie (marketingStrategy als 1-3 Saetze)",
+      "6. Risiken (risks): max 6 Stichpunkte zu Preis-, Lage-, Zustand- oder Marktproblemen",
+      "7. Zusammenfassung (summary): max 5 Saetze, klar und verkaufsorientiert"
+    ].join("\n"),
+    toolName: "analyze_listing_market",
+    toolDescription:
+      "Liefert eine strukturierte Marktanalyse fuer ein Verkaufs-Inserat (TEIL 1 der KI-Bewertung).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        priceConservative: {
+          type: "number",
+          description: "Konservative Preisspanne — was sicher zu erzielen ist (EUR, ganze Zahl)"
+        },
+        priceFair: {
+          type: "number",
+          description: "Marktgerechter Preis (EUR, ganze Zahl)"
+        },
+        pricePremium: {
+          type: "number",
+          description: "Premium-/Wunschpreis bei optimaler Vermarktung (EUR, ganze Zahl)"
+        },
+        salesSpeed: {
+          type: "string",
+          enum: ["FAST", "NORMAL", "DIFFICULT"],
+          description: "Erwartete Verkaufsgeschwindigkeit"
+        },
+        demand: {
+          type: "string",
+          enum: ["HIGH", "MEDIUM", "LOW"],
+          description: "Geschaetzte Nachfrage in der Lage/Klasse"
+        },
+        buyerSegments: {
+          type: "array",
+          maxItems: 6,
+          items: { type: "string" },
+          description: "Wahrscheinliche Kaeufer-Zielgruppen (deutsche Begriffe)"
+        },
+        recommendedAskingPrice: {
+          type: "number",
+          description: "Empfohlener Angebotspreis fuer die Vermarktung (EUR, ganze Zahl)"
+        },
+        negotiationRange: {
+          type: "string",
+          description: "Beschreibung des Verhandlungsspielraums (z. B. 'ca. 5-8 % nach unten realistisch')"
+        },
+        marketingStrategy: {
+          type: "string",
+          description: "Empfohlene Vermarktungsstrategie in 1-3 Saetzen"
+        },
+        risks: {
+          type: "array",
+          maxItems: 6,
+          items: { type: "string" },
+          description: "Konkrete Preis-, Lage-, Zustands- oder Marktrisiken"
+        },
+        summary: {
+          type: "string",
+          description: "Zusammenfassung in maximal 5 Saetzen, verkaeuferorientiert"
+        }
+      },
+      required: [
+        "priceConservative",
+        "priceFair",
+        "pricePremium",
+        "salesSpeed",
+        "demand",
+        "buyerSegments",
+        "recommendedAskingPrice",
+        "negotiationRange",
+        "marketingStrategy",
+        "risks",
+        "summary"
+      ]
+    },
+    maxTokens: 1600,
+    temperature: 0.3
+  });
+
+  return {
+    ...data,
+    priceConservative: Math.round(data.priceConservative),
+    priceFair: Math.round(data.priceFair),
+    pricePremium: Math.round(data.pricePremium),
+    recommendedAskingPrice: Math.round(data.recommendedAskingPrice),
+    model,
+    rawJson: data
+  };
+}
+
+// ============================================================
+// Use-Case 6: KI-Bewertung eines Kaeufer-Angebots (Phase K — TEIL 2)
+// ============================================================
+
+export type OfferEvaluationResult = {
+  attractiveness: "SEHR_ATTRAKTIV" | "MARKTGERECHT" | "NIEDRIG" | "UNREALISTISCH";
+  successProbability: number; // 0..1
+  recommendation: "AKZEPTIEREN" | "GEGENANGEBOT" | "ABLEHNEN";
+  counterOffer?: number; // EUR
+  negotiationHints: string;
+  strategicAdvice: string;
+};
+
+const OFFER_EVAL_SYSTEM = [
+  "Du bist ein KI-gestuetzter Immobilienanalyst und Verkaufsberater fuer den deutschen Immobilienmarkt.",
+  "Bewerte einen konkreten Kaeufer-Preisvorschlag fuer ein Verkaufs-Inserat.",
+  "WICHTIG: Keine absoluten Wahrheiten oder rechtlich belastbaren Aussagen.",
+  "Immer als datenbasierte Einschaetzung formulieren. Antworte ausschliesslich auf Deutsch.",
+  "Fokus auf Verkaeufersicht — was ist strategisch klug?"
+].join(" ");
+
+export async function evaluateBuyerOffer(input: {
+  listing: ListingMarketInput;
+  offerAmount: number;
+  offerNote?: string | null;
+  /**
+   * Optional: bisherige MarketAnalysis-Werte als zusaetzlicher Kontext,
+   * damit Claude konsistent bewertet (z. B. counterOffer im Rahmen der
+   * empfohlenen Spanne).
+   */
+  existingAnalysis?: Pick<
+    MarketAnalysisResult,
+    "priceConservative" | "priceFair" | "pricePremium" | "recommendedAskingPrice"
+  > | null;
+}): Promise<OfferEvaluationResult & { model: string; rawJson: unknown }> {
+  const briefing = listingDataAsBriefing(input.listing);
+  const analysisLines: string[] = [];
+  if (input.existingAnalysis) {
+    analysisLines.push("Bestehende KI-Marktanalyse:");
+    analysisLines.push(`- Konservativ: ${input.existingAnalysis.priceConservative} EUR`);
+    analysisLines.push(`- Marktgerecht: ${input.existingAnalysis.priceFair} EUR`);
+    analysisLines.push(`- Premium: ${input.existingAnalysis.pricePremium} EUR`);
+    analysisLines.push(
+      `- Empfohlener Angebotspreis: ${input.existingAnalysis.recommendedAskingPrice} EUR`
+    );
+  }
+
+  const { data, model } = await callWithTool<OfferEvaluationResult>({
+    systemPrompt: OFFER_EVAL_SYSTEM,
+    userMessage: [
+      "PROPERTY_DATA:",
+      briefing,
+      "",
+      ...(analysisLines.length > 0 ? [...analysisLines, ""] : []),
+      `BUYER_OFFER (Kaeufer-Preisvorschlag): ${input.offerAmount} EUR`,
+      input.offerNote ? `BUYER_NOTE: ${input.offerNote}` : "",
+      "",
+      "Analysiere:",
+      "1. Wie attraktiv ist das Angebot? (attractiveness: SEHR_ATTRAKTIV/MARKTGERECHT/NIEDRIG/UNREALISTISCH)",
+      "2. Wahrscheinlichkeit eines erfolgreichen Verkaufs zu diesem Preis (successProbability als Wert zwischen 0 und 1)",
+      "3. Einschaetzung (recommendation: AKZEPTIEREN/GEGENANGEBOT/ABLEHNEN)",
+      "4. Konkrete Handlungsempfehlung: counterOffer (moeglicher Gegenpreis in EUR, falls sinnvoll), negotiationHints (Verhandlungshinweise), strategicAdvice (uebergeordnete strategische Empfehlung)"
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    toolName: "evaluate_buyer_offer",
+    toolDescription:
+      "Bewertet einen konkreten Kaeufer-Preisvorschlag aus Verkaeufer-Sicht (TEIL 2 der KI-Bewertung).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        attractiveness: {
+          type: "string",
+          enum: ["SEHR_ATTRAKTIV", "MARKTGERECHT", "NIEDRIG", "UNREALISTISCH"],
+          description: "Wie attraktiv ist das Angebot fuer den Verkaeufer?"
+        },
+        successProbability: {
+          type: "number",
+          minimum: 0,
+          maximum: 1,
+          description: "Geschaetzte Wahrscheinlichkeit, dass der Verkauf zu diesem Preis erfolgreich abgeschlossen werden kann (0 bis 1)"
+        },
+        recommendation: {
+          type: "string",
+          enum: ["AKZEPTIEREN", "GEGENANGEBOT", "ABLEHNEN"],
+          description: "Konkrete Handlungsempfehlung"
+        },
+        counterOffer: {
+          type: "number",
+          description: "Optional: konkreter Gegenpreis-Vorschlag in EUR (nur wenn recommendation = GEGENANGEBOT). 0 oder weglassen wenn nicht relevant."
+        },
+        negotiationHints: {
+          type: "string",
+          description: "Verhandlungshinweise — konkrete Argumente und Punkte fuer das naechste Gespraech (max. 4 Saetze)"
+        },
+        strategicAdvice: {
+          type: "string",
+          description: "Strategische Empfehlung — was bedeutet das Angebot im Gesamtkontext (max. 3 Saetze)"
+        }
+      },
+      required: [
+        "attractiveness",
+        "successProbability",
+        "recommendation",
+        "negotiationHints",
+        "strategicAdvice"
+      ]
+    },
+    maxTokens: 1000,
+    temperature: 0.25
+  });
+
+  return {
+    ...data,
+    successProbability: Math.max(0, Math.min(1, Number(data.successProbability) || 0)),
+    counterOffer:
+      data.counterOffer && data.counterOffer > 0
+        ? Math.round(data.counterOffer)
+        : undefined,
+    model,
+    rawJson: data
+  };
+}
+
+// ============================================================
 // Use-Case 3: Marktvergleich für eine Lage
 // ============================================================
 
