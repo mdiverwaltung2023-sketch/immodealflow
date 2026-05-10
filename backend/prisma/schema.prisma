@@ -448,6 +448,66 @@ model TenantProfile {
   visibility ProfileVisibility @default(PRIVATE)
 }
 
+// Phase L11.3 — Makler-Vermittlungs-Lead.
+// Wenn der KI-Verkaufsberater einem Eigentuemer den Makler-Pfad
+// empfiehlt, kann er ueber eine Lead-Form Adresse + Kontakt
+// hinterlassen. Marco (selber Makler) bedient die Leads im
+// Admin-Bereich.
+//
+// Bewusst ohne FK auf User: Lead darf anonym (ohne Sign-up)
+// erfasst werden — der Eigentuemer soll keine Huerde haben.
+enum BrokerLeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+model BrokerLead {
+  id        String           @id @default(cuid())
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  status    BrokerLeadStatus @default(NEW)
+
+  // Kontakt
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+
+  // Immobilie (Adresse — Lead-Form Pflichtfelder)
+  street     String
+  postalCode String
+  city       String
+
+  // Wizard-Eckdaten — Snapshot, damit Marco die Anfrage bewerten kann
+  assetType        String  // "ETW" | "EFH" | "MFH" | "GEWERBE" | "GRUNDSTUECK"
+  locationQuality  String  // "TOP" | "GUT" | "MITTEL" | "SCHWACH"
+  area             Float
+  yearBuilt        Int
+  condition        String
+  occupancy        String
+  saleReason       String
+  timePressure     String
+  experience       String
+  estimatedValue   Int?
+
+  // Heuristik-Snapshot
+  scoreSelbst      Int
+  scoreMakler      Int
+
+  // Optional: User-Notiz und KI-Refinement-Bericht (falls gepullt)
+  ownerNote        String?
+  aiReportSummary  String?
+
+  // Marco-interne Notizen (nur Admin sichtbar)
+  internalNote     String?
+
+  @@index([status, createdAt])
+  @@index([city])
+}
+
 // Verkäufer-Listing — Marketplace-Inserat (separat von Property = Investor-Watchlist).
 model Listing {
   id        String   @id @default(cuid())

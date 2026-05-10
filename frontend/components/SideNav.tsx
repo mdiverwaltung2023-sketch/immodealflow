@@ -206,7 +206,10 @@ const SECTION_ACCOUNT: Section = {
 const SECTION_ADMIN: Section = {
   id: "admin",
   title: "Admin",
-  items: [{ href: "/admin/coins", label: "Coin-Dashboard", icon: IcShield }]
+  items: [
+    { href: "/admin/coins", label: "Coin-Dashboard", icon: IcShield },
+    { href: "/admin/broker-leads", label: "Makler-Leads", icon: IcInbox }
+  ]
 };
 
 /**

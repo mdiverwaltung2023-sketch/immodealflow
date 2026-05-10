@@ -81,12 +81,12 @@ export default function SalesAdvisorLandingPage() {
         />
       </section>
 
-      {/* DREI SZENARIEN */}
-      <section className="mx-auto max-w-6xl space-y-8 px-4 py-20">
+      {/* ZWEI SZENARIEN */}
+      <section className="mx-auto max-w-5xl space-y-8 px-4 py-20">
         <h2 className="text-center text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
-          Drei Pfade. Eine ehrliche Empfehlung.
+          Zwei Pfade. Eine ehrliche Empfehlung.
         </h2>
-        <div className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2">
           <PathCard
             tone="emerald"
             dot="🟢"
@@ -97,25 +97,10 @@ export default function SalesAdvisorLandingPage() {
               "Exposé-Generator (Beschreibung, Zielgruppen-Tags)",
               "Käufer-Bonitäts-Check vor jeder Besichtigung",
               "Verhandlungs-Spickzettel mit Argumenten und Limits",
-              "Premium-Sichtbarkeit für 49 € (14 Tage Top)"
+              "Premium-Sichtbarkeit als One-off (Featured-Listing)"
             ]}
             ctaLabel="Investor Club ansehen"
             ctaHref="/pricing"
-          />
-          <PathCard
-            tone="amber"
-            dot="🟡"
-            title="Hybrid-Modell"
-            subtitle="Selbst verkaufen, aber an den richtigen Stellen unterstützt."
-            bullets={[
-              "Profi-Fotos vom Partner-Fotografen — 199 €",
-              "Käufer-Bonitäts-Check pro Interessent — 49 €",
-              "Notar-Vorbereitung & Vertragsprüfung — 299 €",
-              "1:1-Preisstrategie mit Analyst — 149 €",
-              "Punktgenau buchen, kein Vollauftrag, keine Provision"
-            ]}
-            ctaLabel="Hybrid-Bausteine"
-            ctaHref="/sign-up"
           />
           <PathCard
             tone="rose"
@@ -123,14 +108,13 @@ export default function SalesAdvisorLandingPage() {
             title="Makler empfohlen"
             subtitle="Komplexer Fall. Erfahrener Profi macht den Unterschied."
             bullets={[
-              "Vermittlung an verifizierte Makler im Netzwerk",
-              "Maximal 2–3 Vorschläge — keine Massenanfragen",
-              "Provision transparent vor Beauftragung verhandelt",
-              "Makler-Bewertungen aus realen Deals einsehbar",
-              "Wir empfehlen Makler nur, wenn die KI sie wirklich rät"
+              "Direkte Vermittlung an einen erfahrenen Makler",
+              "Wir melden uns innerhalb von 24 Stunden",
+              "Adresse + Eckdaten — keine Massenanfragen",
+              "Wir empfehlen Makler nur, wenn die KI ihn wirklich rät"
             ]}
-            ctaLabel="Makler-Vermittlung"
-            ctaHref="/sign-up?advisor=makler"
+            ctaLabel="Im Wizard anfordern"
+            ctaHref="#advisor-form"
           />
         </div>
       </section>
@@ -174,16 +158,17 @@ export default function SalesAdvisorLandingPage() {
               keine Provision auf den Kaufpreis.
             </Promise>
             <Promise>
-              Bei Hybrid verdienen wir an einzelnen Bausteinen (Fotos, Notar, Bonität) —
-              du buchst nur, was du brauchst.
-            </Promise>
-            <Promise>
-              Bei Makler-Empfehlung verdienen wir eine kleine Vermittlungs-Fee — die
-              Maklerprovision wird zwischen dir und dem Makler verhandelt.
+              Bei Makler-Empfehlung übernimmt ein erfahrener Makler aus unserem Haus
+              die Vermarktung — Provision wird transparent vor Auftragserteilung
+              verhandelt.
             </Promise>
             <Promise>
               Wir empfehlen niemals einen Makler, wenn die Heuristik ihn nicht wirklich
               empfiehlt. Auch nicht „zur Sicherheit".
+            </Promise>
+            <Promise>
+              Deine Daten bleiben bei uns — keine Weitergabe an Dritte, kein Spam,
+              keine Massenkampagnen.
             </Promise>
           </ul>
         </div>

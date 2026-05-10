@@ -1047,13 +1047,12 @@ export type SalesAdvisorRefineInput = {
   timePressure: "KEIN" | "12M" | "6M" | "3M";
   experience: "KEINE" | "ETWAS" | "VIEL";
   estimatedValue?: number;
-  heuristicScores: { selbst: number; hybrid: number; makler: number };
-  heuristicRecommendation: "SELBST" | "HYBRID" | "MAKLER";
+  heuristicScores: { selbst: number; makler: number };
+  heuristicRecommendation: "SELBST" | "MAKLER";
 };
 
 export type SalesAdvisorRefined = {
   reportSelbst: string;
-  reportHybrid: string;
   reportMakler: string;
   riskFlags: string[];
   specificTips: string[];
@@ -1061,7 +1060,7 @@ export type SalesAdvisorRefined = {
    * Falls Claude die Heuristik-Empfehlung NICHT bestaetigt: hier der
    * begruendete Gegen-Vorschlag. Andernfalls leerer String.
    */
-  adjustedRecommendation: "SELBST" | "HYBRID" | "MAKLER" | "";
+  adjustedRecommendation: "SELBST" | "MAKLER" | "";
   adjustmentReason: string;
   model?: string;
 };
@@ -1071,7 +1070,6 @@ export async function refineSalesAdvice(
 ): Promise<SalesAdvisorRefined> {
   const { data, model } = await callWithTool<{
     reportSelbst: string;
-    reportHybrid: string;
     reportMakler: string;
     riskFlags: string[];
     specificTips: string[];
@@ -1080,7 +1078,7 @@ export async function refineSalesAdvice(
   }>({
     systemPrompt: [
       "Du bist ein neutraler, datengetriebener Immobilienberater fuer den deutschen Markt.",
-      "Du bewertest, ob ein Eigentuemer seine Immobilie selbst vermarkten, ein Hybrid-Modell waehlen oder einen Makler beauftragen sollte.",
+      "Du bewertest, ob ein Eigentuemer seine Immobilie selbst vermarkten oder einen Makler beauftragen sollte.",
       "Wichtig: Du gibst KEINE Sales-Empfehlung pro Makler. Du bist neutral.",
       "Wenn die Heuristik den User auf SELBST setzt, bestaetige das aktiv und gib ihm Mut + konkrete Tipps.",
       "Empfehle MAKLER nur, wenn die Vermarktung wirklich komplex ist (Sanierungsbedarf, Erbschaft, schwierige Lage, Zeitdruck, vermietete Komplex-Strukturen).",
@@ -1102,7 +1100,6 @@ export async function refineSalesAdvice(
 
 Heuristik (transparente Vorab-Berechnung):
 - Selbst-Score: ${input.heuristicScores.selbst}/100
-- Hybrid-Score: ${input.heuristicScores.hybrid}/100
 - Makler-Score: ${input.heuristicScores.makler}/100
 - Heuristik-Empfehlung: ${input.heuristicRecommendation}
 
@@ -1113,7 +1110,7 @@ Sondersituationen): setze adjustedRecommendation auf den anderen Pfad und begrue
 Sonst leerer String.`,
     toolName: "refine_sales_advice",
     toolDescription:
-      "Verfeinere die Verkaufsberater-Empfehlung mit drei kurzen Pfad-Berichten, Risiken und konkreten Tipps.",
+      "Verfeinere die Verkaufsberater-Empfehlung mit zwei kurzen Pfad-Berichten, Risiken und konkreten Tipps.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1121,10 +1118,6 @@ Sonst leerer String.`,
           type: "string",
           description:
             "2-3 Saetze ueber den Selbstvermarktungs-Pfad fuer dieses spezifische Objekt. Konkret, kein Marketing."
-        },
-        reportHybrid: {
-          type: "string",
-          description: "2-3 Saetze ueber den Hybrid-Pfad fuer dieses Objekt."
         },
         reportMakler: {
           type: "string",
@@ -1144,7 +1137,7 @@ Sonst leerer String.`,
         },
         adjustedRecommendation: {
           type: "string",
-          enum: ["SELBST", "HYBRID", "MAKLER", ""],
+          enum: ["SELBST", "MAKLER", ""],
           description:
             "Leerer String, wenn du der Heuristik zustimmst. Andernfalls der Pfad, den du stattdessen empfiehlst."
         },
@@ -1156,7 +1149,6 @@ Sonst leerer String.`,
       },
       required: [
         "reportSelbst",
-        "reportHybrid",
         "reportMakler",
         "riskFlags",
         "specificTips",
@@ -1164,24 +1156,22 @@ Sonst leerer String.`,
         "adjustmentReason"
       ]
     },
-    maxTokens: 1200,
+    maxTokens: 1000,
     temperature: 0.3
   });
 
   const validAdjusted =
     data.adjustedRecommendation === "SELBST" ||
-    data.adjustedRecommendation === "HYBRID" ||
     data.adjustedRecommendation === "MAKLER"
       ? data.adjustedRecommendation
       : "";
 
   return {
     reportSelbst: data.reportSelbst,
-    reportHybrid: data.reportHybrid,
     reportMakler: data.reportMakler,
     riskFlags: Array.isArray(data.riskFlags) ? data.riskFlags.slice(0, 6) : [],
     specificTips: Array.isArray(data.specificTips) ? data.specificTips.slice(0, 6) : [],
-    adjustedRecommendation: validAdjusted as "SELBST" | "HYBRID" | "MAKLER" | "",
+    adjustedRecommendation: validAdjusted as "SELBST" | "MAKLER" | "",
     adjustmentReason: data.adjustmentReason ?? "",
     model
   };

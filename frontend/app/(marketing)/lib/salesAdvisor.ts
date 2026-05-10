@@ -1,11 +1,12 @@
 /**
- * Phase L11 — KI-Verkaufsberater (lokale Heuristik).
+ * Phase L11.3 — KI-Verkaufsberater (lokale Heuristik).
  *
- * Liefert für jeden der drei Pfade einen Score (0–100) und die
- * Top-Faktoren, die den Score begründen — damit die Empfehlung
- * nicht als Black Box wirkt, sondern transparent erklärbar ist.
+ * Zwei Pfade: SELBST oder MAKLER. Hybrid wurde entfernt, weil die
+ * Workflows fuer Pro-Fotos / Notar / Bonitaets-Check noch nicht
+ * aufgesetzt sind. Sobald sie kommen, kann Hybrid als dritter Pfad
+ * wieder ergaenzt werden.
  *
- * Lokal gerechnet, kein Backend-Call. Spätere Phase L11.2 darf
+ * Lokal gerechnet, kein Backend-Call. Spaetere Phase L11.4 darf
  * den Claude-Endpoint dazu schalten, der die Texte verfeinert.
  */
 
@@ -22,7 +23,7 @@ export type SaleReason =
 export type TimePressure = "KEIN" | "12M" | "6M" | "3M";
 export type Experience = "KEINE" | "ETWAS" | "VIEL";
 
-export type Scenario = "SELBST" | "HYBRID" | "MAKLER";
+export type Scenario = "SELBST" | "MAKLER";
 
 export type AdvisorInput = {
   assetType: AssetType;
@@ -43,10 +44,10 @@ export type Factor = { label: string; impact: number; positive: boolean };
 export type AdvisorOutput = {
   scores: Record<Scenario, number>;
   recommendation: Scenario;
-  positiveFactors: Factor[]; // pro Empfehlung — was sie unterstützt
-  negativeFactors: Factor[]; // was dagegen spricht
-  expectedCommissionSavings?: number; // bei Selbst/Hybrid (€)
-  estimatedTimeToSale: { selbst: string; hybrid: string; makler: string };
+  positiveFactors: Factor[];
+  negativeFactors: Factor[];
+  expectedCommissionSavings?: number; // bei Selbst (€)
+  estimatedTimeToSale: { selbst: string; makler: string };
 };
 
 const ASSET_LABELS: Record<AssetType, string> = {
@@ -112,116 +113,110 @@ function clamp(n: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, n));
 }
 
-/**
- * Heuristik: jeder Faktor liefert (Selbst-Delta, Hybrid-Delta, Makler-Delta).
- * Basis-Score 50 für jedes Szenario; Faktoren verschieben es.
- */
-type Triple = [number, number, number]; // [selbst, hybrid, makler]
+// [selbst, makler]
+type Pair = [number, number];
 
-function deltaForAsset(a: AssetType): Triple {
+function deltaForAsset(a: AssetType): Pair {
   switch (a) {
     case "ETW":
-      return [+20, +5, -10];
+      return [+22, -10];
     case "EFH":
-      return [+12, +5, 0];
+      return [+14, 0];
     case "MFH":
-      return [-15, +10, +20];
+      return [-15, +22];
     case "GEWERBE":
-      return [-25, 0, +30];
+      return [-25, +30];
     case "GRUNDSTUECK":
-      return [-5, +5, +10];
+      return [-5, +12];
   }
 }
 
-function deltaForLocation(l: LocationQuality): Triple {
+function deltaForLocation(l: LocationQuality): Pair {
   switch (l) {
     case "TOP":
-      return [+25, +5, -5];
+      return [+25, -5];
     case "GUT":
-      return [+15, +5, 0];
+      return [+15, 0];
     case "MITTEL":
-      return [-5, +5, +10];
+      return [-5, +12];
     case "SCHWACH":
-      return [-20, 0, +25];
+      return [-22, +25];
   }
 }
 
-function deltaForCondition(c: Condition): Triple {
+function deltaForCondition(c: Condition): Pair {
   switch (c) {
     case "NEU":
-      return [+15, 0, 0];
+      return [+15, 0];
     case "GEPFLEGT":
-      return [+10, +5, 0];
+      return [+10, 0];
     case "SANIERUNGSBEDARF":
-      return [-20, +5, +20];
+      return [-22, +22];
     case "ABRISS":
-      return [-30, -5, +30];
+      return [-30, +30];
   }
 }
 
-function deltaForOccupancy(o: Occupancy): Triple {
+function deltaForOccupancy(o: Occupancy): Pair {
   switch (o) {
     case "LEERSTAND":
-      return [+12, 0, 0];
+      return [+12, 0];
     case "EIGEN":
-      return [+8, 0, 0];
+      return [+8, 0];
     case "VERMIETET":
-      return [-15, +5, +15];
+      return [-15, +18];
   }
 }
 
-function deltaForReason(r: SaleReason): Triple {
+function deltaForReason(r: SaleReason): Pair {
   switch (r) {
     case "FREIWILLIG":
-      return [+10, 0, -5];
+      return [+10, -5];
     case "AUSWANDERUNG":
-      return [+5, +5, 0];
+      return [+5, +5];
     case "ERBSCHAFT":
-      return [-15, +5, +20];
+      return [-15, +22];
     case "SCHEIDUNG":
-      return [-20, +5, +20];
+      return [-20, +22];
     case "FINANZIELL":
-      return [-10, 0, +15];
+      return [-10, +18];
   }
 }
 
-function deltaForTime(t: TimePressure): Triple {
+function deltaForTime(t: TimePressure): Pair {
   switch (t) {
     case "KEIN":
-      return [+15, 0, -10];
+      return [+15, -10];
     case "12M":
-      return [+5, +5, 0];
+      return [+5, 0];
     case "6M":
-      return [-10, +5, +10];
+      return [-10, +12];
     case "3M":
-      return [-25, 0, +25];
+      return [-25, +28];
   }
 }
 
-function deltaForExperience(e: Experience): Triple {
+function deltaForExperience(e: Experience): Pair {
   switch (e) {
     case "VIEL":
-      return [+25, 0, -15];
+      return [+25, -18];
     case "ETWAS":
-      return [+10, +5, 0];
+      return [+10, 0];
     case "KEINE":
-      return [-20, +10, +20];
+      return [-22, +22];
   }
 }
 
-function deltaForValue(v?: number): Triple {
-  if (v == null) return [0, 0, 0];
-  if (v >= 2_000_000) return [-15, 0, +25];
-  if (v >= 1_000_000) return [-5, +5, +10];
-  if (v < 200_000) return [+10, 0, -5];
-  return [0, 0, 0];
+function deltaForValue(v?: number): Pair {
+  if (v == null) return [0, 0];
+  if (v >= 2_000_000) return [-15, +25];
+  if (v >= 1_000_000) return [-5, +12];
+  if (v < 200_000) return [+10, -5];
+  return [0, 0];
 }
 
-/**
- * Faktoren-Liste in lesbarer Form für die Erklärung im UI.
- */
-function explain(input: AdvisorInput): { factors: { label: string; deltas: Triple }[] } {
-  const factors: { label: string; deltas: Triple }[] = [
+function explain(input: AdvisorInput): { factors: { label: string; deltas: Pair }[] } {
+  const factors: { label: string; deltas: Pair }[] = [
     { label: `Objektart: ${ASSET_LABELS[input.assetType]}`, deltas: deltaForAsset(input.assetType) },
     {
       label: `Lage: ${LOCATION_OPTIONS.find((o) => o.value === input.locationQuality)?.label ?? input.locationQuality}`,
@@ -261,33 +256,22 @@ export function analyzeSalesStrategy(input: AdvisorInput): AdvisorOutput {
   const { factors } = explain(input);
 
   let selbst = 50;
-  let hybrid = 50;
   let makler = 50;
   for (const f of factors) {
     selbst += f.deltas[0];
-    hybrid += f.deltas[1];
-    makler += f.deltas[2];
+    makler += f.deltas[1];
   }
   selbst = clamp(selbst);
-  hybrid = clamp(hybrid);
   makler = clamp(makler);
 
   const scores: Record<Scenario, number> = {
     SELBST: Math.round(selbst),
-    HYBRID: Math.round(hybrid),
     MAKLER: Math.round(makler)
   };
 
-  // Empfehlung = höchster Score; bei Gleichstand bevorzugen wir Hybrid
-  let recommendation: Scenario = "HYBRID";
-  if (scores.SELBST > scores.HYBRID && scores.SELBST >= scores.MAKLER) {
-    recommendation = "SELBST";
-  } else if (scores.MAKLER > scores.HYBRID && scores.MAKLER > scores.SELBST) {
-    recommendation = "MAKLER";
-  }
+  const recommendation: Scenario = scores.SELBST >= scores.MAKLER ? "SELBST" : "MAKLER";
 
-  // Top-3-Faktoren, die FÜR die Empfehlung sprechen, und Top-2, die DAGEGEN
-  const idx = recommendation === "SELBST" ? 0 : recommendation === "HYBRID" ? 1 : 2;
+  const idx = recommendation === "SELBST" ? 0 : 1;
   const ranked = [...factors].sort((a, b) => b.deltas[idx] - a.deltas[idx]);
   const positiveFactors: Factor[] = ranked
     .filter((r) => r.deltas[idx] > 0)
@@ -298,18 +282,13 @@ export function analyzeSalesStrategy(input: AdvisorInput): AdvisorOutput {
     .slice(-2)
     .map((r) => ({ label: r.label, impact: r.deltas[idx], positive: false }));
 
-  // Geschätzte Provisions-Ersparnis bei Selbst/Hybrid (3,57 % bundesweit Ø)
   let expectedCommissionSavings: number | undefined;
-  if (input.estimatedValue) {
-    const fullCommission = input.estimatedValue * 0.0357;
-    if (recommendation === "SELBST") expectedCommissionSavings = Math.round(fullCommission);
-    else if (recommendation === "HYBRID") expectedCommissionSavings = Math.round(fullCommission * 0.6);
+  if (input.estimatedValue && recommendation === "SELBST") {
+    expectedCommissionSavings = Math.round(input.estimatedValue * 0.0357);
   }
 
-  // Grobe Zeit-bis-Verkauf-Schätzung
   const estimatedTimeToSale = {
     selbst: input.timePressure === "3M" ? "4–8 Mon" : "3–6 Mon",
-    hybrid: "2–4 Mon",
     makler: "1–3 Mon"
   };
 
@@ -325,7 +304,6 @@ export function analyzeSalesStrategy(input: AdvisorInput): AdvisorOutput {
 
 export const SCENARIO_LABELS: Record<Scenario, string> = {
   SELBST: "Selbstvermarktung empfohlen",
-  HYBRID: "Hybrid-Modell empfohlen",
   MAKLER: "Maklerunterstützung empfohlen"
 };
 
@@ -335,12 +313,6 @@ export const SCENARIO_TONES: Record<Scenario, { dot: string; text: string; bg: s
     text: "text-emerald-700",
     bg: "bg-emerald-50",
     border: "border-emerald-200"
-  },
-  HYBRID: {
-    dot: "bg-amber-500",
-    text: "text-amber-700",
-    bg: "bg-amber-50",
-    border: "border-amber-200"
   },
   MAKLER: {
     dot: "bg-rose-500",

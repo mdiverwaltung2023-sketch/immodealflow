@@ -169,10 +169,9 @@ const SalesAdvisorRefineSchema = z.object({
   estimatedValue: z.number().int().min(0).max(100_000_000).optional(),
   heuristicScores: z.object({
     selbst: z.number().int().min(0).max(100),
-    hybrid: z.number().int().min(0).max(100),
     makler: z.number().int().min(0).max(100)
   }),
-  heuristicRecommendation: z.enum(["SELBST", "HYBRID", "MAKLER"])
+  heuristicRecommendation: z.enum(["SELBST", "MAKLER"])
 });
 
 app.post("/sales-advisor/refine", async (req, res) => {
@@ -189,6 +188,91 @@ app.post("/sales-advisor/refine", async (req, res) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
     return res.status(400).json({ error: "advisor_failed", message: msg });
+  }
+});
+
+// --- Phase L11.3 — Makler-Lead absenden (PUBLIC, kein Auth) -----
+const BrokerLeadCreateSchema = z.object({
+  firstName: z.string().min(1).max(80),
+  lastName: z.string().min(1).max(80),
+  email: z.string().email().max(200),
+  phone: z.string().min(3).max(60),
+  street: z.string().min(1).max(200),
+  postalCode: z.string().min(1).max(20),
+  city: z.string().min(1).max(120),
+  assetType: z.enum(["ETW", "EFH", "MFH", "GEWERBE", "GRUNDSTUECK"]),
+  locationQuality: z.enum(["TOP", "GUT", "MITTEL", "SCHWACH"]),
+  area: z.number().min(1).max(100000),
+  yearBuilt: z.number().int().min(1850).max(2030),
+  condition: z.enum(["NEU", "GEPFLEGT", "SANIERUNGSBEDARF", "ABRISS"]),
+  occupancy: z.enum(["LEERSTAND", "EIGEN", "VERMIETET"]),
+  saleReason: z.enum(["FREIWILLIG", "ERBSCHAFT", "SCHEIDUNG", "FINANZIELL", "AUSWANDERUNG"]),
+  timePressure: z.enum(["KEIN", "12M", "6M", "3M"]),
+  experience: z.enum(["KEINE", "ETWAS", "VIEL"]),
+  estimatedValue: z.number().int().min(0).max(100_000_000).optional(),
+  scoreSelbst: z.number().int().min(0).max(100),
+  scoreMakler: z.number().int().min(0).max(100),
+  ownerNote: z.string().max(2000).optional(),
+  aiReportSummary: z.string().max(4000).optional()
+});
+
+// Anti-Spam: max 3 Leads pro IP / 24h
+const leadRateLimit = new Map<string, { count: number; windowStart: number }>();
+const LEAD_RATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const LEAD_RATE_MAX = 3;
+
+function leadRateOk(req: express.Request): boolean {
+  const id = advisorClientId(req);
+  const now = Date.now();
+  const entry = leadRateLimit.get(id);
+  if (!entry || now - entry.windowStart > LEAD_RATE_WINDOW_MS) {
+    leadRateLimit.set(id, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= LEAD_RATE_MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
+app.post("/sales-advisor/lead", async (req, res) => {
+  if (!leadRateOk(req)) {
+    return res.status(429).json({
+      error: "rate_limit",
+      message: "Zu viele Anfragen. Bitte später erneut versuchen."
+    });
+  }
+  try {
+    const body = BrokerLeadCreateSchema.parse(req.body);
+    const lead = await prisma.brokerLead.create({
+      data: {
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email,
+        phone: body.phone,
+        street: body.street,
+        postalCode: body.postalCode,
+        city: body.city,
+        assetType: body.assetType,
+        locationQuality: body.locationQuality,
+        area: body.area,
+        yearBuilt: body.yearBuilt,
+        condition: body.condition,
+        occupancy: body.occupancy,
+        saleReason: body.saleReason,
+        timePressure: body.timePressure,
+        experience: body.experience,
+        estimatedValue: body.estimatedValue ?? null,
+        scoreSelbst: body.scoreSelbst,
+        scoreMakler: body.scoreMakler,
+        ownerNote: body.ownerNote ?? null,
+        aiReportSummary: body.aiReportSummary ?? null
+      },
+      select: { id: true, createdAt: true }
+    });
+    return res.json({ ok: true, leadId: lead.id, createdAt: lead.createdAt });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
+    return res.status(400).json({ error: "lead_failed", message: msg });
   }
 });
 
@@ -4395,6 +4479,50 @@ app.post("/admin/coins/adjust", async (req, res) => {
     newBalance: updated.coinsBalance,
     refId
   });
+});
+
+// =========================================================
+// Phase L11.3 — Broker-Lead-Admin (nur fuer Marco / Admins)
+// =========================================================
+
+// GET /admin/broker-leads — Liste aller Leads, optional gefiltert nach Status.
+app.get("/admin/broker-leads", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  const where: Record<string, unknown> = {};
+  if (
+    status === "NEW" ||
+    status === "CONTACTED" ||
+    status === "QUALIFIED" ||
+    status === "CLOSED_WON" ||
+    status === "CLOSED_LOST"
+  ) {
+    where.status = status;
+  }
+  const leads = await prisma.brokerLead.findMany({
+    where: where as never,
+    orderBy: { createdAt: "desc" },
+    take: 200
+  });
+  return res.json(leads);
+});
+
+// PATCH /admin/broker-leads/:id — Status oder interne Notiz aktualisieren.
+const BrokerLeadUpdateSchema = z.object({
+  status: z
+    .enum(["NEW", "CONTACTED", "QUALIFIED", "CLOSED_WON", "CLOSED_LOST"])
+    .optional(),
+  internalNote: z.string().max(4000).nullable().optional()
+});
+
+app.patch("/admin/broker-leads/:id", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const body = BrokerLeadUpdateSchema.parse(req.body);
+  const updated = await prisma.brokerLead.update({
+    where: { id: req.params.id },
+    data: body as never
+  });
+  return res.json(updated);
 });
 
 const port = Number(process.env.PORT ?? 4000);

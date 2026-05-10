@@ -354,6 +354,54 @@ const AdminUserMiniSchema = z.object({
   isEarlyBird: z.boolean().optional()
 });
 
+// --- Phase L11.3 — Broker-Lead (Makler-Vermittlung) ------------
+export const BrokerLeadStatusEnum = z.enum([
+  "NEW",
+  "CONTACTED",
+  "QUALIFIED",
+  "CLOSED_WON",
+  "CLOSED_LOST"
+]);
+export type BrokerLeadStatusT = z.infer<typeof BrokerLeadStatusEnum>;
+
+export const BROKER_LEAD_STATUS_LABELS: Record<BrokerLeadStatusT, string> = {
+  NEW: "Neu",
+  CONTACTED: "Kontaktiert",
+  QUALIFIED: "Qualifiziert",
+  CLOSED_WON: "Mandat erhalten",
+  CLOSED_LOST: "Verloren"
+};
+
+export const BrokerLeadSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  status: BrokerLeadStatusEnum,
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  street: z.string(),
+  postalCode: z.string(),
+  city: z.string(),
+  assetType: z.string(),
+  locationQuality: z.string(),
+  area: z.number(),
+  yearBuilt: z.number(),
+  condition: z.string(),
+  occupancy: z.string(),
+  saleReason: z.string(),
+  timePressure: z.string(),
+  experience: z.string(),
+  estimatedValue: z.number().nullable().optional(),
+  scoreSelbst: z.number(),
+  scoreMakler: z.number(),
+  ownerNote: z.string().nullable().optional(),
+  aiReportSummary: z.string().nullable().optional(),
+  internalNote: z.string().nullable().optional()
+});
+export type BrokerLeadT = z.infer<typeof BrokerLeadSchema>;
+
 export const AdminCoinsOverviewSchema = z.object({
   totalUsers: z.number(),
   earlyBirdsActive: z.number(),
