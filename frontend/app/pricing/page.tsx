@@ -48,16 +48,16 @@ export default async function PricingPage({ searchParams }: { searchParams?: Sea
       {/* Hero */}
       <div className="space-y-3 text-center">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
-          Tarife
+          Mitgliedschaft
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
-          Plan auswählen
+          Werde Mitglied im Investor Club.
         </h1>
         <p className="mx-auto max-w-2xl text-sm text-zinc-600">
-          Free zum Reinschnuppern. <span className="font-semibold text-zinc-900">Investor Pro</span> für
-          Käufer mit echtem Suchdruck — Off-Market, KI-Tools, Verifiziert-Badge.{" "}
-          <span className="font-semibold text-zinc-900">Verkäufer Pro</span> für mehrere Inserate
-          mit Premium-Sichtbarkeit. Monatlich kündbar.
+          Off-Market-Deals, KI-gestützte Bietlimits und ein verifizierter Kreis
+          von Käufern, Verkäufern und Vermietern. Verkäufer und Vermieter
+          inserieren bei uns kostenlos — wir monetarisieren ausschließlich
+          die Investorenseite.
         </p>
         <div className="text-xs text-zinc-500">
           Aktueller Plan:{" "}
@@ -93,37 +93,61 @@ export default async function PricingPage({ searchParams }: { searchParams?: Sea
         <h2 className="text-base font-semibold text-zinc-900">Häufige Fragen</h2>
         <dl className="mt-4 space-y-4 text-sm">
           <div>
-            <dt className="font-semibold text-zinc-800">Kann ich später wechseln?</dt>
+            <dt className="font-semibold text-zinc-800">
+              Was bringt mir Off-Market-Zugang konkret?
+            </dt>
             <dd className="mt-1 text-zinc-600">
-              Ja — über{" "}
-              <Link href="/profile" className="text-indigo-600 hover:text-indigo-700 underline">
+              Off-Market-Inserate werden 4–7 Tage vor allen anderen für Investor-Club-
+              Mitglieder freigeschaltet. Du siehst Deals, bevor sie in den klassischen
+              Portalen erscheinen — das ist genau das Fenster, in dem die besten Preise
+              gemacht werden.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-zinc-800">
+              Wie zuverlässig ist die KI-Bietlimit-Analyse?
+            </dt>
+            <dd className="mt-1 text-zinc-600">
+              Unser Modell nutzt Mietspiegel, Lageparameter, Energiekennwerte und
+              vergleichbare Deals, um pro Objekt ein Bietlimit vorzuschlagen. Der
+              Vorschlag ist datengetrieben und nachvollziehbar — du behältst die
+              endgültige Entscheidung.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-zinc-800">
+              Verkäufer und Vermieter — wirklich kostenlos?
+            </dt>
+            <dd className="mt-1 text-zinc-600">
+              Ja. Unbegrenzt Inserate, kein Abo, keine versteckten Kosten. Wir
+              monetarisieren ausschließlich die Investorenseite — das macht die
+              Plattform für Anbieter risikofrei und für Investoren wertvoller.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-zinc-800">
+              Was bedeutet „Verifiziert-Badge"?
+            </dt>
+            <dd className="mt-1 text-zinc-600">
+              Investor-Club-Mitglieder durchlaufen einmalig einen KYC- und
+              Bonitäts-Check. Verkäufer sehen das Badge an deinem Profil und nehmen
+              Anfragen mit Badge deutlich häufiger an.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-zinc-800">
+              Wie kündige ich, falls ich es nicht brauche?
+            </dt>
+            <dd className="mt-1 text-zinc-600">
+              In zwei Klicks über{" "}
+              <Link
+                href="/profile"
+                className="text-indigo-600 hover:text-indigo-700 underline"
+              >
                 /profile
               </Link>{" "}
-              öffnest du das Stripe Customer Portal und kannst Plan, Karte oder
-              Kündigung selbst verwalten.
-            </dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-zinc-800">Was bedeutet „Verifiziert-Badge"?</dt>
-            <dd className="mt-1 text-zinc-600">
-              Investor-Pro-Nutzer durchlaufen einmalig KYC + Bonitäts-Check. Verkäufer
-              sehen das Badge an deinem Profil — qualifizierte Anfragen werden deutlich
-              häufiger angenommen.
-            </dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-zinc-800">Welche Karten akzeptiert ihr?</dt>
-            <dd className="mt-1 text-zinc-600">
-              Alle, die Stripe akzeptiert: Visa, Mastercard, American Express, SEPA,
-              Apple Pay, Google Pay. Rechnung als PDF kommt automatisch per E-Mail.
-            </dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-zinc-800">Brauche ich einen Pro-Plan, um Inserate anzulegen?</dt>
-            <dd className="mt-1 text-zinc-600">
-              Nein. Free-User können <span className="font-semibold">1 Inserat</span> aktiv
-              haben — das reicht für einzelne Off-Market-Deals. Verkäufer Pro hebt das
-              Limit auf 10 plus Premium-Hervorhebung in der Suche.
+              im Stripe Customer Portal. Monatlich kündbar zum Periodenende, ohne
+              Frist und ohne Rückfragen.
             </dd>
           </div>
         </dl>

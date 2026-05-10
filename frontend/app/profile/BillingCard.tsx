@@ -59,17 +59,17 @@ export function BillingCard({ billing }: { billing: BillingStateT }) {
         {billing.plan === "FREE" ? (
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
             <div className="text-sm font-semibold text-indigo-900">
-              Mehr aus Infinity Oikos rausholen
+              Werde Mitglied im Investor Club
             </div>
             <div className="mt-1 text-xs text-indigo-800/90">
-              Investor Pro: Off-Market-Inserate, KI-Tools, Verifiziert-Badge.
-              Verkäufer Pro: bis zu 10 Inserate, Premium-Sichtbarkeit.
+              Off-Market-Deals zuerst sehen, KI-Bietlimit pro Objekt,
+              Verifiziert-Badge — 19 €/Monat, monatlich kündbar.
             </div>
             <Link
               href="/pricing"
               className="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
             >
-              Tarife vergleichen
+              Mitgliedschaft starten
             </Link>
           </div>
         ) : (

@@ -21,22 +21,29 @@ export type PlanLimits = {
   hasVerifiedBadge: boolean;
 };
 
+// Phase L9 — Pricing-Pivot:
+// Verkaeufer-/Vermieter-Inserate sind in der Wachstumsphase generell
+// kostenlos und unlimitiert. Monetarisierung primaer ueber den
+// Investor Club (vormals INVESTOR_PRO). SELLER_PRO bleibt im Code
+// fuer Bestandskunden, hat aber keine harten Limits mehr — Bestand
+// laeuft am Periodenende automatisch auf FREE aus.
 export const PLAN_LIMITS: Record<PlanT, PlanLimits> = {
   FREE: {
-    activeListingsMax: 1,
-    inquiriesPer30dMax: 3,
+    activeListingsMax: null, // unbegrenzt — Verkaeufer/Vermieter inserieren frei
+    inquiriesPer30dMax: 3,   // Investor-Drosselung bleibt — der Push zu Investor Club
     canSeeOffMarket: false,
     hasVerifiedBadge: false
   },
   INVESTOR_PRO: {
-    activeListingsMax: 1, // Investor zahlt für die Investor-Seite, Listing-Limit unverändert
+    activeListingsMax: null,
     inquiriesPer30dMax: null,
     canSeeOffMarket: true,
     hasVerifiedBadge: true
   },
   SELLER_PRO: {
-    activeListingsMax: 10,
-    inquiriesPer30dMax: 3, // Seller-Pro fokussiert auf Inserate, Anfrage-Limit wie Free
+    // Legacy — Bestandskunden behalten ihren Plan, im UI nicht mehr angeboten.
+    activeListingsMax: null,
+    inquiriesPer30dMax: 3,
     canSeeOffMarket: false,
     hasVerifiedBadge: true
   }

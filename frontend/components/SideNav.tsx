@@ -324,11 +324,11 @@ export function SideNav({
             className="block rounded-lg bg-gradient-to-br from-indigo-600 to-violet-700 p-3 text-white shadow-sm transition hover:shadow-md"
           >
             <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">
-              Free-Plan
+              Beobachter
             </div>
-            <div className="mt-0.5 text-sm font-semibold">Auf Pro upgraden →</div>
+            <div className="mt-0.5 text-sm font-semibold">Investor Club starten →</div>
             <div className="mt-1 text-[10px] text-indigo-100/90">
-              Off-Market, KI-Tools, Verifiziert-Badge
+              Off-Market-Vorsprung · KI-Bietlimit · 19 €/Monat
             </div>
           </Link>
         ) : (

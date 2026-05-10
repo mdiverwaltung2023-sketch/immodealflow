@@ -1634,8 +1634,8 @@ app.patch("/me/listings/:id", async (req, res) => {
         return res.status(402).json(
           paywallBody({
             reason: "listing_limit_reached",
-            message: `Du hast bereits ${active} aktive Inserate. Dein Plan (${plan}) erlaubt maximal ${limits.activeListingsMax}. Verkäufer Pro hebt das Limit auf 10.`,
-            upgradeTo: "SELLER_PRO",
+            message: `Du hast bereits ${active} aktive Inserate. Dein Plan (${plan}) erlaubt maximal ${limits.activeListingsMax}.`,
+            upgradeTo: "INVESTOR_PRO",
             current: active,
             limit: limits.activeListingsMax
           })

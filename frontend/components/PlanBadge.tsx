@@ -4,12 +4,13 @@ import type { UserPlanT } from "@/lib/api";
 const TONES: Record<UserPlanT, { cls: string; label: string }> = {
   FREE: {
     cls: "bg-zinc-100 text-zinc-600 border-zinc-200",
-    label: "Free"
+    label: "Beobachter"
   },
   INVESTOR_PRO: {
     cls: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    label: "Investor Pro"
+    label: "Investor Club"
   },
+  // Legacy: Bestandskunden behalten ihren Plan, im UI nicht mehr aktiv angeboten.
   SELLER_PRO: {
     cls: "bg-amber-50 text-amber-800 border-amber-200",
     label: "Verkäufer Pro"
@@ -50,7 +51,7 @@ export function PlanBadge({
 
   if (asLink && plan === "FREE") {
     return (
-      <Link href="/pricing" title="Auf Pro upgraden">
+      <Link href="/pricing" title="Mitglied im Investor Club werden">
         {inner}
       </Link>
     );

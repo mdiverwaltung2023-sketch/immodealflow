@@ -4,57 +4,37 @@ import { useState } from "react";
 import { CheckoutButton } from "./CheckoutButton";
 import type { UserPlanT } from "@/lib/api";
 
-type Plan = {
-  id: Exclude<UserPlanT, "FREE">;
-  name: string;
-  monthly: number;
-  yearly: number;
-  tagline: string;
-  features: { label: string; bold?: boolean }[];
-  highlight?: boolean;
-};
+/**
+ * Phase L9 — Pricing-Pivot.
+ *
+ * Zwei Karten: Beobachter (Free) + Investor Club (19 €/Mo, 190 €/Jahr).
+ * Verkaeufer-Pro entfaellt; Verkaeufer/Vermieter inserieren in der
+ * Wachstumsphase generell kostenlos. Bestandskunden auf SELLER_PRO
+ * laufen am Periodenende automatisch auf FREE.
+ *
+ * Tonalitaet: Mitgliedschaft im Investment-Club, nicht "SaaS-Plan".
+ */
 
-const PLANS: Plan[] = [
-  {
-    id: "INVESTOR_PRO",
-    name: "Investor Pro",
-    monthly: 99,
-    yearly: 990,
-    tagline: "Für Käufer, die ernsthaft suchen — Off-Market und KI-Tools.",
-    highlight: true,
-    features: [
-      { label: "Unlimitiert Anfragen stellen", bold: true },
-      { label: "Off-Market-Inserate sichtbar", bold: true },
-      { label: "Verifiziert-Badge (KYC + Bonität geprüft)", bold: true },
-      { label: "Bietlimit-Schnellrechner" },
-      { label: "KI-Marktvergleich (Claude)" },
-      { label: "Watchlist mit E-Mail-Alerts" },
-      { label: "Mietspiegel-Vergleiche" }
-    ]
-  },
-  {
-    id: "SELLER_PRO",
-    name: "Verkäufer Pro",
-    monthly: 49,
-    yearly: 490,
-    tagline: "Für Eigentümer und Makler mit mehreren Inseraten.",
-    features: [
-      { label: "Bis zu 10 aktive Inserate", bold: true },
-      { label: "Premium-Hervorhebung in der Suche", bold: true },
-      { label: "Anbieter-Statistiken (Views, Match-Rate)" },
-      { label: "Verifizierter-Anbieter-Badge" },
-      { label: "AI-Exposé-Optimierung" },
-      { label: "Push an passende Investor-Profile" }
-    ]
-  }
-];
+type Interval = "monthly" | "yearly";
 
 const FREE_FEATURES = [
-  "1 aktives Inserat",
-  "3 Anfragen pro Monat",
-  "Basis-Marktansicht",
-  "Standard-Anonymisierung"
+  { label: "Inseriere als Verkäufer oder Vermieter — unbegrenzt", bold: true },
+  { label: "Durchsuche den öffentlichen Marktplatz" },
+  { label: "Lege Watchlist-Objekte an" },
+  { label: "Eigenes Profil mit Verifizierung" }
 ];
+
+const INVESTOR_FEATURES: { label: string; bold?: boolean }[] = [
+  { label: "Off-Market-Deals zuerst — 4–7 Tage Vorsprung", bold: true },
+  { label: "KI-Bietlimit pro Objekt — du bietest nie zu viel, nie zu wenig", bold: true },
+  { label: "Marktvergleich auf Knopfdruck — Yield, Mietmultiplikator, WALT" },
+  { label: "Verifiziert-Badge — Verkäufer nehmen deine Anfragen häufiger an" },
+  { label: "Investor-Profil mit Trackrecord — du wirst sichtbar, nicht nur ein Name" },
+  { label: "Unbegrenzte Anfragen — kein Tageslimit, kein Stress" }
+];
+
+const INVESTOR_PRICE_MONTHLY = 19;
+const INVESTOR_PRICE_YEARLY = 190;
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", {
@@ -70,11 +50,15 @@ type Props = {
 };
 
 export function PricingTable({ currentPlan, stripeReady }: Props) {
-  const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
+  const [interval, setInterval] = useState<Interval>("monthly");
+
+  const investorPrice =
+    interval === "monthly" ? INVESTOR_PRICE_MONTHLY : INVESTOR_PRICE_YEARLY;
+  const isCurrentInvestor = currentPlan === "INVESTOR_PRO";
 
   return (
     <div className="space-y-8">
-      {/* Toggle */}
+      {/* Toggle Monatlich/Jährlich */}
       <div className="flex items-center justify-center">
         <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white p-1 shadow-sm">
           <button
@@ -97,149 +81,161 @@ export function PricingTable({ currentPlan, stripeReady }: Props) {
                 : "rounded-full px-4 py-1.5 text-sm text-zinc-600 hover:text-zinc-900"
             }
           >
-            Jährlich <span className="ml-1 text-[10px] uppercase tracking-wide text-emerald-600">−2 Monate</span>
+            Jährlich{" "}
+            <span className="ml-1 text-[10px] uppercase tracking-wide text-emerald-600">
+              −2 Monate
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Plans Grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Free */}
-        <PlanCard
-          name="Free"
-          tagline="Zum Reinschnuppern."
-          price={0}
-          interval={interval}
-          features={FREE_FEATURES.map((f) => ({ label: f }))}
-          ctaLabel={currentPlan === "FREE" ? "Aktueller Plan" : "Downgrade über Abo verwalten"}
-          ctaDisabled
-        />
+      {/* Zwei Karten — Investor Club zentral hervorgehoben */}
+      <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
+        {/* Beobachter (Free) — zurueckhaltend */}
+        <div className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="text-base font-semibold text-zinc-900">Beobachter</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            Markt verstehen, ohne Risiko anfangen.
+          </div>
+          <div className="mt-4 flex items-baseline gap-1">
+            <span className="text-3xl font-bold tracking-tight text-zinc-900">
+              Kostenlos
+            </span>
+            <span className="text-xs text-zinc-500">· dauerhaft</span>
+          </div>
 
-        {PLANS.map((plan) => {
-          const price = interval === "monthly" ? plan.monthly : plan.yearly;
-          const isCurrent = currentPlan === plan.id;
-          return (
-            <PlanCard
-              key={plan.id}
-              name={plan.name}
-              tagline={plan.tagline}
-              price={price}
-              interval={interval}
-              features={plan.features}
-              highlight={plan.highlight}
-              ctaSlot={
-                <CheckoutButton
-                  plan={plan.id}
-                  interval={interval}
-                  label={isCurrent ? "Plan ändern" : `${plan.name} starten`}
-                  variant={plan.highlight ? "primary" : "secondary"}
-                  disabledReason={
-                    !stripeReady
-                      ? "Stripe noch nicht konfiguriert"
-                      : isCurrent
-                      ? "Aktueller Plan"
-                      : null
-                  }
-                />
-              }
-            />
-          );
-        })}
-      </div>
+          <ul className="mt-5 flex-1 space-y-2 text-sm">
+            {FREE_FEATURES.map((f) => (
+              <FeatureRow key={f.label} label={f.label} bold={f.bold} />
+            ))}
+          </ul>
 
-      {/* Footnote */}
-      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-600">
-        Alle Preise inkl. MwSt. Monatlich kündbar zum Ende der Laufzeit.
-        Jährliche Zahlung spart 2 Monate. Test-Phase mit Stripe-Test-Karten:{" "}
-        <code className="rounded bg-white border border-zinc-200 px-1 py-0.5 font-mono text-[10px]">4242 4242 4242 4242</code>.
-      </div>
-    </div>
-  );
+          <div className="mt-6">
+            <button
+              type="button"
+              disabled
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-400"
+            >
+              {currentPlan === "FREE" ? "Aktueller Plan" : "Über Abo verwalten"}
+            </button>
+          </div>
+        </div>
 
-  function PlanCard({
-    name,
-    tagline,
-    price,
-    interval,
-    features,
-    ctaLabel,
-    ctaSlot,
-    ctaDisabled,
-    highlight
-  }: {
-    name: string;
-    tagline: string;
-    price: number;
-    interval: "monthly" | "yearly";
-    features: { label: string; bold?: boolean }[];
-    ctaLabel?: string;
-    ctaSlot?: React.ReactNode;
-    ctaDisabled?: boolean;
-    highlight?: boolean;
-  }) {
-    return (
-      <div
-        className={
-          highlight
-            ? "relative flex flex-col rounded-2xl border-2 border-indigo-500 bg-white p-6 shadow-lg ring-4 ring-indigo-100"
-            : "flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-        }
-      >
-        {highlight ? (
+        {/* Investor Club — hervorgehoben */}
+        <div className="relative flex flex-col rounded-2xl border-2 border-indigo-500 bg-white p-6 shadow-lg ring-4 ring-indigo-100">
           <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow">
-            Empfohlen
+            Am beliebtesten
           </span>
-        ) : null}
-        <div className="text-base font-semibold text-zinc-900">{name}</div>
-        <div className="mt-1 text-xs text-zinc-500">{tagline}</div>
-        <div className="mt-4 flex items-baseline gap-1">
-          <span className="text-3xl font-bold tracking-tight text-zinc-900">
-            {price === 0 ? "Kostenlos" : eur(price)}
-          </span>
-          {price > 0 ? (
+
+          <div className="text-base font-semibold text-zinc-900">Investor Club</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            Der Vorsprung, den 80 % der Käufer übersehen.
+          </div>
+
+          <div className="mt-4 flex items-baseline gap-1">
+            <span className="text-4xl font-bold tracking-tight text-zinc-900">
+              {eur(investorPrice)}
+            </span>
             <span className="text-xs text-zinc-500">
               /{interval === "monthly" ? "Monat" : "Jahr"}
             </span>
-          ) : null}
-        </div>
-
-        <ul className="mt-5 flex-1 space-y-2 text-sm">
-          {features.map((f) => (
-            <li key={f.label} className="flex items-start gap-2">
-              <svg
-                className="mt-0.5 shrink-0 text-emerald-600"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span className={f.bold ? "font-semibold text-zinc-900" : "text-zinc-700"}>
-                {f.label}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-6">
-          {ctaSlot ? (
-            ctaSlot
+          </div>
+          {interval === "yearly" ? (
+            <div className="mt-1 text-[11px] text-emerald-700">
+              Spart 38 € gegenüber monatlich.
+            </div>
           ) : (
-            <button
-              type="button"
-              disabled={ctaDisabled}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-400"
-            >
-              {ctaLabel}
-            </button>
+            <div className="mt-1 text-[11px] text-zinc-500">
+              Oder 190 €/Jahr — 2 Monate gratis.
+            </div>
           )}
+
+          <ul className="mt-5 flex-1 space-y-2 text-sm">
+            {INVESTOR_FEATURES.map((f) => (
+              <FeatureRow key={f.label} label={f.label} bold={f.bold} />
+            ))}
+          </ul>
+
+          <div className="mt-6">
+            <CheckoutButton
+              plan="INVESTOR_PRO"
+              interval={interval}
+              label={
+                isCurrentInvestor
+                  ? "Plan ändern"
+                  : "Jetzt Mitglied werden"
+              }
+              variant="primary"
+              disabledReason={
+                !stripeReady
+                  ? "Stripe noch nicht konfiguriert"
+                  : isCurrentInvestor
+                  ? "Aktueller Plan"
+                  : null
+              }
+            />
+            <div className="mt-2 text-center text-[11px] text-zinc-500">
+              Monatlich kündbar · SEPA · Karte · Apple Pay
+            </div>
+          </div>
         </div>
       </div>
-    );
-  }
+
+      {/* Trust-Strip */}
+      <div className="grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 sm:grid-cols-3">
+        <TrustStat
+          big="1.200+"
+          small="Off-Market-Objekte analysiert"
+        />
+        <TrustStat
+          big="Ø 4,2 %"
+          small="präzisere Bietlimits dank KI-Modell"
+        />
+        <TrustStat
+          big="AGG-konform"
+          small="Anti-Diskriminierung by design"
+        />
+      </div>
+
+      {/* Footnote */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-600">
+        Alle Preise inkl. MwSt. Monatlich kündbar zum Ende der Laufzeit.
+        Jahresplan spart 2 Monate. Verkäufer und Vermieter inserieren in
+        der Wachstumsphase kostenlos — keine Listing-Limits, keine
+        versteckten Kosten.
+      </div>
+    </div>
+  );
+}
+
+function FeatureRow({ label, bold }: { label: string; bold?: boolean }) {
+  return (
+    <li className="flex items-start gap-2">
+      <svg
+        className="mt-0.5 shrink-0 text-emerald-600"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      <span className={bold ? "font-semibold text-zinc-900" : "text-zinc-700"}>
+        {label}
+      </span>
+    </li>
+  );
+}
+
+function TrustStat({ big, small }: { big: string; small: string }) {
+  return (
+    <div className="text-center">
+      <div className="text-xl font-bold text-zinc-900">{big}</div>
+      <div className="mt-0.5 text-[11px] text-zinc-600">{small}</div>
+    </div>
+  );
 }

@@ -216,9 +216,11 @@ export const UserPlanEnum = z.enum(["FREE", "INVESTOR_PRO", "SELLER_PRO"]);
 export type UserPlanT = z.infer<typeof UserPlanEnum>;
 
 export const USER_PLAN_LABELS: Record<UserPlanT, string> = {
-  FREE: "Free",
-  INVESTOR_PRO: "Investor Pro",
-  SELLER_PRO: "Verkäufer Pro"
+  FREE: "Beobachter",
+  INVESTOR_PRO: "Investor Club",
+  // SELLER_PRO bleibt im Enum fuer Bestandskunden, wird aber im UI nicht
+  // mehr aktiv angeboten (Phase L9 — Pricing-Pivot).
+  SELLER_PRO: "Verkäufer Pro (Legacy)"
 };
 
 export const BillingStateSchema = z.object({
