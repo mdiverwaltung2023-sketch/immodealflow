@@ -25,6 +25,18 @@ import {
   type TimePressure
 } from "../lib/salesAdvisor";
 
+type RefinedAdvice = {
+  reportSelbst: string;
+  reportHybrid: string;
+  reportMakler: string;
+  riskFlags: string[];
+  specificTips: string[];
+  adjustedRecommendation: "SELBST" | "HYBRID" | "MAKLER" | "";
+  adjustmentReason: string;
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+
 /**
  * Phase L11 — Wizard für den KI-Verkaufsberater. Single-Step,
  * alle Felder auf einmal. Lokal gerechnet, sofortiges Ergebnis.
@@ -46,6 +58,7 @@ export function AdvisorWizard() {
   const [experience, setExperience] = useState<Experience>("ETWAS");
   const [estimatedValue, setEstimatedValue] = useState("");
   const [result, setResult] = useState<AdvisorOutput | null>(null);
+  const [lastInput, setLastInput] = useState<AdvisorInput | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   function onSubmit(e: React.FormEvent) {
@@ -73,6 +86,7 @@ export function AdvisorWizard() {
       estimatedValue: ev
     };
     setResult(analyzeSalesStrategy(input));
+    setLastInput(input);
     // Sanftes Scrollen zum Ergebnis
     setTimeout(() => {
       const el = document.getElementById("advisor-result");
@@ -126,12 +140,58 @@ export function AdvisorWizard() {
         </div>
       </form>
 
-      {result ? <ResultCard result={result} /> : null}
+      {result && lastInput ? <ResultCard result={result} input={lastInput} /> : null}
     </div>
   );
 }
 
-function ResultCard({ result }: { result: AdvisorOutput }) {
+function ResultCard({ result, input }: { result: AdvisorOutput; input: AdvisorInput }) {
+  const [refined, setRefined] = useState<RefinedAdvice | null>(null);
+  const [refining, setRefining] = useState(false);
+  const [refineErr, setRefineErr] = useState<string | null>(null);
+
+  async function requestRefine() {
+    if (refining) return;
+    setRefining(true);
+    setRefineErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/sales-advisor/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city: input.city,
+          assetType: input.assetType,
+          locationQuality: input.locationQuality,
+          area: input.area,
+          yearBuilt: input.yearBuilt,
+          condition: input.condition,
+          occupancy: input.occupancy,
+          saleReason: input.saleReason,
+          timePressure: input.timePressure,
+          experience: input.experience,
+          estimatedValue: input.estimatedValue,
+          heuristicScores: {
+            selbst: result.scores.SELBST,
+            hybrid: result.scores.HYBRID,
+            makler: result.scores.MAKLER
+          },
+          heuristicRecommendation: result.recommendation
+        })
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { message?: string } | null;
+        setRefineErr(j?.message ?? `Fehler ${res.status}`);
+        return;
+      }
+      const data = (await res.json()) as RefinedAdvice;
+      setRefined(data);
+    } catch (e) {
+      setRefineErr(e instanceof Error ? e.message : "Netzwerkfehler");
+    } finally {
+      setRefining(false);
+    }
+  }
+
   const tone = SCENARIO_TONES[result.recommendation];
   return (
     <div
@@ -214,14 +274,127 @@ function ResultCard({ result }: { result: AdvisorOutput }) {
         </div>
       ) : null}
 
+      {/* KI-Bericht-Sektion (Phase L11.2) */}
+      <div className="mt-6 rounded-xl border border-indigo-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-zinc-900">
+              KI-Bericht — Detailanalyse
+            </div>
+            <div className="mt-0.5 text-[11px] text-zinc-500">
+              Claude verfeinert die Empfehlung mit konkreten Tipps und Risiken für dein Objekt.
+              Limit: 5 Anfragen pro Stunde.
+            </div>
+          </div>
+          {!refined ? (
+            <button
+              type="button"
+              onClick={requestRefine}
+              disabled={refining}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {refining ? "Analysiere ..." : "🤖 KI-Bericht anfordern"}
+            </button>
+          ) : null}
+        </div>
+
+        {refineErr ? (
+          <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">
+            {refineErr}
+          </div>
+        ) : null}
+
+        {refined ? (
+          <div className="mt-4 space-y-4">
+            {refined.adjustedRecommendation && refined.adjustedRecommendation !== result.recommendation ? (
+              <div className="rounded-lg border-2 border-indigo-300 bg-indigo-50 p-3">
+                <div className="text-xs font-semibold text-indigo-900">
+                  Claude weicht von der Heuristik ab — empfiehlt: {refined.adjustedRecommendation}
+                </div>
+                <div className="mt-1 text-[11px] text-indigo-800">{refined.adjustmentReason}</div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ReportTile title="Selbst" body={refined.reportSelbst} tone="emerald" />
+              <ReportTile title="Hybrid" body={refined.reportHybrid} tone="amber" />
+              <ReportTile title="Makler" body={refined.reportMakler} tone="rose" />
+            </div>
+
+            {refined.riskFlags.length > 0 ? (
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-700">
+                  Risiken / Stolpersteine
+                </div>
+                <ul className="mt-2 space-y-1 text-xs text-zinc-700">
+                  {refined.riskFlags.map((r) => (
+                    <li key={r} className="flex items-start gap-2">
+                      <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {refined.specificTips.length > 0 ? (
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  Konkrete nächste Schritte
+                </div>
+                <ul className="mt-2 space-y-1 text-xs text-zinc-700">
+                  {refined.specificTips.map((t) => (
+                    <li key={t} className="flex items-start gap-2">
+                      <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      <span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
       {/* Szenario-CTAs */}
       <div className="mt-6 space-y-3">
-        <ScenarioCta scenario={result.recommendation} />
+        <ScenarioCta
+          scenario={
+            refined?.adjustedRecommendation === "SELBST" ||
+            refined?.adjustedRecommendation === "HYBRID" ||
+            refined?.adjustedRecommendation === "MAKLER"
+              ? refined.adjustedRecommendation
+              : result.recommendation
+          }
+        />
       </div>
 
       <div className="mt-4 text-center text-[10px] text-zinc-500">
         Nicht bindende Marktorientierung. Nach dem Sign-up bekommst du die volle KI-Analyse mit Mikromarkt-Daten.
       </div>
+    </div>
+  );
+}
+
+function ReportTile({
+  title,
+  body,
+  tone
+}: {
+  title: string;
+  body: string;
+  tone: "emerald" | "amber" | "rose";
+}) {
+  const dot = tone === "emerald" ? "bg-emerald-500" : tone === "amber" ? "bg-amber-500" : "bg-rose-500";
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+      <div className="flex items-center gap-2">
+        <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+          {title}
+        </span>
+      </div>
+      <p className="mt-2 text-xs text-zinc-700 leading-snug">{body}</p>
     </div>
   );
 }

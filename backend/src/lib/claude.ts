@@ -1030,3 +1030,159 @@ export async function evaluateRentalApplicant(input: {
     rawJson: data
   };
 }
+
+// ============================================================
+// Phase L11.2 — Verkaufsberater: Heuristik-Empfehlung verfeinern
+// ============================================================
+
+export type SalesAdvisorRefineInput = {
+  city: string;
+  assetType: "ETW" | "EFH" | "MFH" | "GEWERBE" | "GRUNDSTUECK";
+  locationQuality: "TOP" | "GUT" | "MITTEL" | "SCHWACH";
+  area: number;
+  yearBuilt: number;
+  condition: "NEU" | "GEPFLEGT" | "SANIERUNGSBEDARF" | "ABRISS";
+  occupancy: "LEERSTAND" | "EIGEN" | "VERMIETET";
+  saleReason: "FREIWILLIG" | "ERBSCHAFT" | "SCHEIDUNG" | "FINANZIELL" | "AUSWANDERUNG";
+  timePressure: "KEIN" | "12M" | "6M" | "3M";
+  experience: "KEINE" | "ETWAS" | "VIEL";
+  estimatedValue?: number;
+  heuristicScores: { selbst: number; hybrid: number; makler: number };
+  heuristicRecommendation: "SELBST" | "HYBRID" | "MAKLER";
+};
+
+export type SalesAdvisorRefined = {
+  reportSelbst: string;
+  reportHybrid: string;
+  reportMakler: string;
+  riskFlags: string[];
+  specificTips: string[];
+  /**
+   * Falls Claude die Heuristik-Empfehlung NICHT bestaetigt: hier der
+   * begruendete Gegen-Vorschlag. Andernfalls leerer String.
+   */
+  adjustedRecommendation: "SELBST" | "HYBRID" | "MAKLER" | "";
+  adjustmentReason: string;
+  model?: string;
+};
+
+export async function refineSalesAdvice(
+  input: SalesAdvisorRefineInput
+): Promise<SalesAdvisorRefined> {
+  const { data, model } = await callWithTool<{
+    reportSelbst: string;
+    reportHybrid: string;
+    reportMakler: string;
+    riskFlags: string[];
+    specificTips: string[];
+    adjustedRecommendation: string;
+    adjustmentReason: string;
+  }>({
+    systemPrompt: [
+      "Du bist ein neutraler, datengetriebener Immobilienberater fuer den deutschen Markt.",
+      "Du bewertest, ob ein Eigentuemer seine Immobilie selbst vermarkten, ein Hybrid-Modell waehlen oder einen Makler beauftragen sollte.",
+      "Wichtig: Du gibst KEINE Sales-Empfehlung pro Makler. Du bist neutral.",
+      "Wenn die Heuristik den User auf SELBST setzt, bestaetige das aktiv und gib ihm Mut + konkrete Tipps.",
+      "Empfehle MAKLER nur, wenn die Vermarktung wirklich komplex ist (Sanierungsbedarf, Erbschaft, schwierige Lage, Zeitdruck, vermietete Komplex-Strukturen).",
+      "Sprache: Deutsch. Tonalitaet: sachlich, klar, kein Marketing-Sprech, keine Floskeln.",
+      "Keine sensiblen Merkmale erwaehnen (Familienstand, Religion, Herkunft, Geschlecht etc.) — nur wirtschaftliche und organisatorische Faktoren."
+    ].join(" "),
+    userMessage: `Eckdaten:
+- Stadt: ${input.city}
+- Objektart: ${input.assetType}
+- Lage-Qualitaet: ${input.locationQuality}
+- Wohn-/Grundflaeche: ${input.area} m²
+- Baujahr: ${input.yearBuilt}
+- Zustand: ${input.condition}
+- Belegung: ${input.occupancy}
+- Verkaufsanlass: ${input.saleReason}
+- Zeitrahmen: ${input.timePressure}
+- Eigene Verkaufserfahrung: ${input.experience}
+- Geschaetzter Wert: ${input.estimatedValue ? `${input.estimatedValue} EUR` : "nicht angegeben"}
+
+Heuristik (transparente Vorab-Berechnung):
+- Selbst-Score: ${input.heuristicScores.selbst}/100
+- Hybrid-Score: ${input.heuristicScores.hybrid}/100
+- Makler-Score: ${input.heuristicScores.makler}/100
+- Heuristik-Empfehlung: ${input.heuristicRecommendation}
+
+Aufgabe: Erstelle einen kurzen Bericht je Pfad (2-3 Saetze). Liste 2-4 konkrete Risiken
+und 3-5 konkrete Handlungs-Tipps fuer die empfohlene Variante. Wenn du der Heuristik-
+Empfehlung NICHT zustimmst (sehr seltener Fall — nur bei klar widersprechenden
+Sondersituationen): setze adjustedRecommendation auf den anderen Pfad und begruende kurz.
+Sonst leerer String.`,
+    toolName: "refine_sales_advice",
+    toolDescription:
+      "Verfeinere die Verkaufsberater-Empfehlung mit drei kurzen Pfad-Berichten, Risiken und konkreten Tipps.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        reportSelbst: {
+          type: "string",
+          description:
+            "2-3 Saetze ueber den Selbstvermarktungs-Pfad fuer dieses spezifische Objekt. Konkret, kein Marketing."
+        },
+        reportHybrid: {
+          type: "string",
+          description: "2-3 Saetze ueber den Hybrid-Pfad fuer dieses Objekt."
+        },
+        reportMakler: {
+          type: "string",
+          description: "2-3 Saetze ueber den Makler-Pfad fuer dieses Objekt."
+        },
+        riskFlags: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "2-4 konkrete Risiken oder Stolpersteine fuer den Verkaufsprozess (z.B. 'Vermieteter Zustand erschwert Eigennutzer-Markt')."
+        },
+        specificTips: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "3-5 konkrete Handlungs-Tipps fuer die empfohlene Variante (z.B. 'Energieausweis vor dem ersten Inserat besorgen')."
+        },
+        adjustedRecommendation: {
+          type: "string",
+          enum: ["SELBST", "HYBRID", "MAKLER", ""],
+          description:
+            "Leerer String, wenn du der Heuristik zustimmst. Andernfalls der Pfad, den du stattdessen empfiehlst."
+        },
+        adjustmentReason: {
+          type: "string",
+          description:
+            "Begruendung, falls adjustedRecommendation gesetzt ist. Sonst leerer String."
+        }
+      },
+      required: [
+        "reportSelbst",
+        "reportHybrid",
+        "reportMakler",
+        "riskFlags",
+        "specificTips",
+        "adjustedRecommendation",
+        "adjustmentReason"
+      ]
+    },
+    maxTokens: 1200,
+    temperature: 0.3
+  });
+
+  const validAdjusted =
+    data.adjustedRecommendation === "SELBST" ||
+    data.adjustedRecommendation === "HYBRID" ||
+    data.adjustedRecommendation === "MAKLER"
+      ? data.adjustedRecommendation
+      : "";
+
+  return {
+    reportSelbst: data.reportSelbst,
+    reportHybrid: data.reportHybrid,
+    reportMakler: data.reportMakler,
+    riskFlags: Array.isArray(data.riskFlags) ? data.riskFlags.slice(0, 6) : [],
+    specificTips: Array.isArray(data.specificTips) ? data.specificTips.slice(0, 6) : [],
+    adjustedRecommendation: validAdjusted as "SELBST" | "HYBRID" | "MAKLER" | "",
+    adjustmentReason: data.adjustmentReason ?? "",
+    model
+  };
+}

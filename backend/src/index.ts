@@ -19,9 +19,11 @@ import {
   analyzeListingMarket,
   evaluateBuyerOffer,
   evaluateRentalApplicant,
+  refineSalesAdvice,
   type ListingMarketInput,
   type RentalUnitInput,
-  type RentalApplicantInput
+  type RentalApplicantInput,
+  type SalesAdvisorRefineInput
 } from "./lib/claude.js";
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 import { requireAuth } from "./lib/auth.js";
@@ -124,6 +126,71 @@ app.options("/import/auction", bookmarkletCors);
 app.options("/import/auction-list", bookmarkletCors);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// --- Phase L11.2 — Public Sales-Advisor (Claude-Refinement) -----
+// Kein requireAuth, weil die Landing-Page anonym aufrufbar sein soll.
+// Schutz vor Missbrauch via simplem In-Memory-Rate-Limit pro IP:
+// max 5 Requests / Stunde. Reset bei Container-Neustart ist OK.
+const advisorRateLimit = new Map<string, { count: number; windowStart: number }>();
+const ADVISOR_RATE_WINDOW_MS = 60 * 60 * 1000;
+const ADVISOR_RATE_MAX = 5;
+
+function advisorClientId(req: express.Request): string {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd) return fwd.split(",")[0].trim();
+  if (Array.isArray(fwd) && fwd[0]) return fwd[0];
+  return req.ip ?? "unknown";
+}
+
+function advisorRateOk(req: express.Request): boolean {
+  const id = advisorClientId(req);
+  const now = Date.now();
+  const entry = advisorRateLimit.get(id);
+  if (!entry || now - entry.windowStart > ADVISOR_RATE_WINDOW_MS) {
+    advisorRateLimit.set(id, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= ADVISOR_RATE_MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
+const SalesAdvisorRefineSchema = z.object({
+  city: z.string().min(1).max(120),
+  assetType: z.enum(["ETW", "EFH", "MFH", "GEWERBE", "GRUNDSTUECK"]),
+  locationQuality: z.enum(["TOP", "GUT", "MITTEL", "SCHWACH"]),
+  area: z.number().min(1).max(100000),
+  yearBuilt: z.number().int().min(1850).max(2030),
+  condition: z.enum(["NEU", "GEPFLEGT", "SANIERUNGSBEDARF", "ABRISS"]),
+  occupancy: z.enum(["LEERSTAND", "EIGEN", "VERMIETET"]),
+  saleReason: z.enum(["FREIWILLIG", "ERBSCHAFT", "SCHEIDUNG", "FINANZIELL", "AUSWANDERUNG"]),
+  timePressure: z.enum(["KEIN", "12M", "6M", "3M"]),
+  experience: z.enum(["KEINE", "ETWAS", "VIEL"]),
+  estimatedValue: z.number().int().min(0).max(100_000_000).optional(),
+  heuristicScores: z.object({
+    selbst: z.number().int().min(0).max(100),
+    hybrid: z.number().int().min(0).max(100),
+    makler: z.number().int().min(0).max(100)
+  }),
+  heuristicRecommendation: z.enum(["SELBST", "HYBRID", "MAKLER"])
+});
+
+app.post("/sales-advisor/refine", async (req, res) => {
+  if (!advisorRateOk(req)) {
+    return res.status(429).json({
+      error: "rate_limit",
+      message: "Zu viele Anfragen. Bitte später erneut versuchen (max. 5/Stunde)."
+    });
+  }
+  try {
+    const body = SalesAdvisorRefineSchema.parse(req.body);
+    const refined = await refineSalesAdvice(body as SalesAdvisorRefineInput);
+    return res.json(refined);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
+    return res.status(400).json({ error: "advisor_failed", message: msg });
+  }
+});
 
 // --- Auth-Schutz für alle datenrelevanten Routes -----------------
 // /import/* und /health bleiben ohne requireAuth — /import/* braucht eigene
