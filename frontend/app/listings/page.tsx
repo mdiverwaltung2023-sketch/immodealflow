@@ -3,31 +3,15 @@ import { z } from "zod";
 import {
   LISTING_STATUS_LABELS,
   ListingSchema,
-  ASSET_TYPE_LABELS,
   type ListingStatusT,
   LISTING_STATUS_ORDER
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { DemoSeedButton } from "@/components/DemoSeedButton";
+import { OwnListingCard } from "@/components/OwnListingCard";
 
 const ListingsSchema = z.array(ListingSchema);
-
-function eur(n: number) {
-  return new Intl.NumberFormat("de-DE", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0
-  }).format(n);
-}
-
-const STATUS_COLORS: Record<ListingStatusT, string> = {
-  DRAFT: "bg-zinc-100 text-zinc-700 border-zinc-200",
-  ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  IN_NEGOTIATION: "bg-amber-50 text-amber-700 border-amber-200",
-  SOLD: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  ARCHIVED: "bg-zinc-50 text-zinc-500 border-zinc-200"
-};
 
 export default async function MyListingsPage() {
   await requireOnboardedUser();
@@ -43,6 +27,20 @@ export default async function MyListingsPage() {
   };
   listings.forEach((l) => {
     counts[l.status]++;
+  });
+
+  // Sortierung: aktive zuerst, dann nach updatedAt absteigend
+  const STATUS_RANK: Record<ListingStatusT, number> = {
+    ACTIVE: 0,
+    IN_NEGOTIATION: 1,
+    DRAFT: 2,
+    SOLD: 3,
+    ARCHIVED: 4
+  };
+  const sorted = [...listings].sort((a, b) => {
+    const r = STATUS_RANK[a.status] - STATUS_RANK[b.status];
+    if (r !== 0) return r;
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
 
   return (
@@ -62,62 +60,49 @@ export default async function MyListingsPage() {
         </Link>
       </div>
 
-      {listings.length === 0 ? <DemoSeedButton /> : null}
-
-      <Card title={`Inserate (${listings.length})`}>
-        {listings.length === 0 ? (
-          <div className="text-sm text-zinc-500">
-            Noch keine Inserate. Lege über „Inserat anlegen" ein erstes Inserat als Entwurf an —
-            oder nutze den Knopf oben, um Beispiel-Inserate mit Bildern zu laden.
-          </div>
-        ) : (
-          <div className="divide-y divide-zinc-200">
-            {listings.map((l) => (
-              <div key={l.id} className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      href={`/listings/${l.id}/edit`}
-                      className="text-sm font-semibold text-zinc-900 hover:text-indigo-700 hover:underline"
-                    >
-                      {l.title}
-                    </Link>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[l.status]}`}
-                    >
-                      {LISTING_STATUS_LABELS[l.status]}
-                    </span>
-                    {l.images.length > 0 ? (
-                      <span className="text-[10px] text-zinc-500">{l.images.length} Bild(er)</span>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-500">
-                    {ASSET_TYPE_LABELS[l.propertyType]} • {l.city}
-                    {l.district ? `, ${l.district}` : ""} • {l.totalArea} m² • Preis {eur(l.askingPrice)}
-                    {l.totalRent ? ` • Miete ${eur(l.totalRent)}/Mon.` : ""}
-                  </div>
-                </div>
-                <Link
-                  href={`/listings/${l.id}/edit`}
-                  className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50"
-                >
-                  Bearbeiten
-                </Link>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
       <Card title="Status-Übersicht">
         <div className="flex flex-wrap gap-2">
           {LISTING_STATUS_ORDER.map((s) => (
-            <div key={s} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600">
-              {LISTING_STATUS_LABELS[s]}: <span className="font-semibold text-zinc-900">{counts[s]}</span>
+            <div
+              key={s}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600"
+            >
+              {LISTING_STATUS_LABELS[s]}:{" "}
+              <span className="font-semibold text-zinc-900">{counts[s]}</span>
             </div>
           ))}
         </div>
       </Card>
+
+      {listings.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
+          <div className="text-sm text-zinc-600">
+            Noch keine Inserate. Lege über{" "}
+            <Link
+              href="/listings/new"
+              className="font-medium text-indigo-600 hover:text-indigo-700"
+            >
+              „Inserat anlegen"
+            </Link>{" "}
+            ein erstes Inserat als Entwurf an — oder nutze den Knopf unten, um
+            Beispiel-Inserate mit Bildern zu laden.
+          </div>
+          <div className="mt-4">
+            <DemoSeedButton />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="mb-3 text-sm text-zinc-500">
+            {listings.length} Inserat{listings.length === 1 ? "" : "e"} insgesamt
+          </div>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {sorted.map((l) => (
+              <OwnListingCard key={l.id} listing={l} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
