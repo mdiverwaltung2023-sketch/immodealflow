@@ -3,11 +3,12 @@ import type { ReactNode } from "react";
 import { ClerkProvider, SignedIn, SignedOut } from "@clerk/nextjs";
 import { SidebarShell } from "@/components/SidebarShell";
 import { ReferralCapture } from "@/components/ReferralCapture";
+import { ConditionalShell } from "@/components/ConditionalShell";
 
 export const metadata = {
-  title: "Infinity Oikos — Marketplace für Investoren und Verkäufer",
+  title: "Infinity Oikos — KI-gestützte Investmentplattform für Immobilien",
   description:
-    "Two-Sided Marketplace für Mehrfamilienhäuser und Gewerbe-Immobilien. Verkäufer sehen das Investor-Profil — Bonität, Trackrecord, Finanzierungsstatus."
+    "Off-Market-Vorsprung, KI-Bietlimit, AGG-konforme Mietsuche und neutraler Verkaufsberater. Verkäufer und Vermieter inserieren kostenlos."
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -28,13 +29,23 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {/* Phase H7: Referral-Capture aus ?ref=... in localStorage */}
           <ReferralCapture />
 
-          {/* Eingeloggte User: rollenabhängige Sidebar-Shell */}
-          <SignedIn>
-            <SidebarShell>{children}</SidebarShell>
-          </SignedIn>
+          {/* Phase L11.4: Marketing-Pages (/, /mieten, /verkaufen) immer
+              ohne App-Shell — auch fuer eingeloggte User. Sonst doppelte
+              Navigation (Sidebar + MarketingNav). */}
+          <ConditionalShell
+            marketingChildren={children}
+            defaultChildren={
+              <>
+                {/* Eingeloggte User: rollenabhängige Sidebar-Shell */}
+                <SignedIn>
+                  <SidebarShell>{children}</SidebarShell>
+                </SignedIn>
 
-          {/* Pre-Auth (Landing, Sign-in, Sign-up): Vollbild ohne Shell */}
-          <SignedOut>{children}</SignedOut>
+                {/* Pre-Auth: Vollbild ohne Shell */}
+                <SignedOut>{children}</SignedOut>
+              </>
+            }
+          />
         </body>
       </html>
     </ClerkProvider>
