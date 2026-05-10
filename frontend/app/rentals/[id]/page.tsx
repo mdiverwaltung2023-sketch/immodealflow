@@ -10,6 +10,7 @@ import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
 import { RentalUnitForm } from "@/components/RentalUnitForm";
 import { ApplicationsSection } from "./ApplicationsSection";
+import { RentalUnitImageManager } from "./RentalUnitImageManager";
 
 export const dynamic = "force-dynamic";
 
@@ -82,21 +83,7 @@ export default async function RentalDetailPage({
         ) : null}
       </Card>
 
-      {unit.images.length > 0 ? (
-        <Card title={`Bilder (${unit.images.length})`}>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {unit.images.map((img) => (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                key={img.id}
-                src={img.url}
-                alt={img.alt ?? unit.title}
-                className="aspect-[4/3] w-full rounded-lg object-cover"
-              />
-            ))}
-          </div>
-        </Card>
-      ) : null}
+      <RentalUnitImageManager unitId={unit.id} initialImages={unit.images} />
 
       <ApplicationsSection
         unitId={unit.id}
