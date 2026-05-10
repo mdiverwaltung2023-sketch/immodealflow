@@ -1020,6 +1020,88 @@ export const ListingInquiriesResponseSchema = z.object({
 });
 
 // --- Verkäufer-Dashboard: alle Anfragen auf eigenen Listings (Phase J5)
+// --- KI-Marktanalyse + Angebotsbewertung (Phase K) -------------
+
+export const SaleSpeedEnum = z.enum(["FAST", "NORMAL", "DIFFICULT"]);
+export type SaleSpeedT = z.infer<typeof SaleSpeedEnum>;
+export const SALE_SPEED_LABELS: Record<SaleSpeedT, string> = {
+  FAST: "Schnell",
+  NORMAL: "Normal",
+  DIFFICULT: "Eher schwierig"
+};
+
+export const DemandLevelEnum = z.enum(["HIGH", "MEDIUM", "LOW"]);
+export type DemandLevelT = z.infer<typeof DemandLevelEnum>;
+export const DEMAND_LEVEL_LABELS: Record<DemandLevelT, string> = {
+  HIGH: "Hoch",
+  MEDIUM: "Mittel",
+  LOW: "Gering"
+};
+
+export const OfferAttractivenessEnum = z.enum([
+  "SEHR_ATTRAKTIV",
+  "MARKTGERECHT",
+  "NIEDRIG",
+  "UNREALISTISCH"
+]);
+export type OfferAttractivenessT = z.infer<typeof OfferAttractivenessEnum>;
+export const OFFER_ATTRACTIVENESS_LABELS: Record<OfferAttractivenessT, string> = {
+  SEHR_ATTRAKTIV: "Sehr attraktiv",
+  MARKTGERECHT: "Marktgerecht",
+  NIEDRIG: "Niedrig",
+  UNREALISTISCH: "Unrealistisch"
+};
+
+export const OfferRecommendationEnum = z.enum([
+  "AKZEPTIEREN",
+  "GEGENANGEBOT",
+  "ABLEHNEN"
+]);
+export type OfferRecommendationT = z.infer<typeof OfferRecommendationEnum>;
+export const OFFER_RECOMMENDATION_LABELS: Record<OfferRecommendationT, string> = {
+  AKZEPTIEREN: "Akzeptieren",
+  GEGENANGEBOT: "Gegenangebot",
+  ABLEHNEN: "Ablehnen"
+};
+
+export const MarketAnalysisSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  listingId: z.string(),
+  priceConservative: z.number().nullable().optional(),
+  priceFair: z.number().nullable().optional(),
+  pricePremium: z.number().nullable().optional(),
+  salesSpeed: SaleSpeedEnum.nullable().optional(),
+  demand: DemandLevelEnum.nullable().optional(),
+  buyerSegments: z.array(z.string()),
+  recommendedAskingPrice: z.number().nullable().optional(),
+  negotiationRange: z.string().nullable().optional(),
+  marketingStrategy: z.string().nullable().optional(),
+  risks: z.array(z.string()),
+  summary: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  cached: z.boolean().optional()
+});
+export type MarketAnalysisT = z.infer<typeof MarketAnalysisSchema>;
+
+export const OfferEvaluationSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  listingId: z.string(),
+  inquiryId: z.string().nullable().optional(),
+  offerAmount: z.number(),
+  offerNote: z.string().nullable().optional(),
+  attractiveness: OfferAttractivenessEnum.nullable().optional(),
+  successProbability: z.number().nullable().optional(),
+  recommendation: OfferRecommendationEnum.nullable().optional(),
+  counterOffer: z.number().nullable().optional(),
+  negotiationHints: z.string().nullable().optional(),
+  strategicAdvice: z.string().nullable().optional(),
+  model: z.string().nullable().optional()
+});
+export type OfferEvaluationT = z.infer<typeof OfferEvaluationSchema>;
+
 export const InquiryReceivedSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
