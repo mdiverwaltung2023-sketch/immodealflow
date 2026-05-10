@@ -124,6 +124,13 @@ const IcBriefcase = (
     <path d="M3 12h18" />
   </Icon>
 );
+const IcKey = (
+  <Icon>
+    <circle cx="8" cy="15" r="4" />
+    <path d="M11 12l9-9" />
+    <path d="M16 7l3 3" />
+  </Icon>
+);
 
 /* ---------- Sektionen ---------- */
 
@@ -151,7 +158,8 @@ const SECTION_SELLER: Section = {
   items: [
     { href: "/listings", label: "Meine Inserate", icon: IcList },
     { href: "/listings/new", label: "Inserat anlegen", icon: IcPlus },
-    { href: "/sales", label: "Verkaufsabwicklung", icon: IcBriefcase }
+    { href: "/sales", label: "Verkaufsabwicklung", icon: IcBriefcase },
+    { href: "/rentals", label: "Vermietung", icon: IcKey }
   ]
 };
 

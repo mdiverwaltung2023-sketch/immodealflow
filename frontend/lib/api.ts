@@ -1124,6 +1124,179 @@ export const InquiryReceivedSchema = z.object({
 });
 export type InquiryReceivedT = z.infer<typeof InquiryReceivedSchema>;
 
+// --- Vermietungsplattform (Phase L) ----------------------------
+
+export const RentalStatusEnum = z.enum([
+  "DRAFT",
+  "AVAILABLE",
+  "RESERVED",
+  "RENTED",
+  "ARCHIVED"
+]);
+export type RentalStatusT = z.infer<typeof RentalStatusEnum>;
+export const RENTAL_STATUS_LABELS: Record<RentalStatusT, string> = {
+  DRAFT: "Entwurf",
+  AVAILABLE: "Verfügbar",
+  RESERVED: "Reserviert",
+  RENTED: "Vermietet",
+  ARCHIVED: "Archiviert"
+};
+export const RENTAL_STATUS_ORDER: RentalStatusT[] = [
+  "DRAFT",
+  "AVAILABLE",
+  "RESERVED",
+  "RENTED",
+  "ARCHIVED"
+];
+
+export const ApplicationStatusEnum = z.enum([
+  "NEW",
+  "REVIEWING",
+  "VIEWING",
+  "ACCEPTED",
+  "REJECTED",
+  "WITHDRAWN"
+]);
+export type ApplicationStatusT = z.infer<typeof ApplicationStatusEnum>;
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatusT, string> = {
+  NEW: "Neu",
+  REVIEWING: "In Prüfung",
+  VIEWING: "Besichtigung",
+  ACCEPTED: "Angenommen",
+  REJECTED: "Abgelehnt",
+  WITHDRAWN: "Zurückgezogen"
+};
+
+export const ApplicantRatingEnum = z.enum([
+  "SEHR_PASSEND",
+  "PASSEND",
+  "BEDINGT_PASSEND",
+  "EHER_UNPASSEND"
+]);
+export type ApplicantRatingT = z.infer<typeof ApplicantRatingEnum>;
+export const APPLICANT_RATING_LABELS: Record<ApplicantRatingT, string> = {
+  SEHR_PASSEND: "Sehr passend",
+  PASSEND: "Passend",
+  BEDINGT_PASSEND: "Bedingt passend",
+  EHER_UNPASSEND: "Eher unpassend"
+};
+
+export const RentalUnitImageSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  unitId: z.string(),
+  url: z.string(),
+  alt: z.string().nullable().optional(),
+  sortOrder: z.number()
+});
+export type RentalUnitImageT = z.infer<typeof RentalUnitImageSchema>;
+
+export const RentalUnitSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  ownerId: z.string(),
+  title: z.string(),
+  description: z.string(),
+  city: z.string(),
+  district: z.string().nullable().optional(),
+  postalCode: z.string().nullable().optional(),
+  fullAddress: z.string().nullable().optional(),
+  rooms: z.number(),
+  livingArea: z.number(),
+  floor: z.string().nullable().optional(),
+  rentCold: z.number(),
+  utilities: z.number().nullable().optional(),
+  totalRent: z.number().nullable().optional(),
+  deposit: z.number().nullable().optional(),
+  energyClass: EnergyClassEnum.nullable().optional(),
+  energyConsumption: z.number().nullable().optional(),
+  energyCarrier: EnergyCarrierEnum.nullable().optional(),
+  heatingType: z.string().nullable().optional(),
+  status: RentalStatusEnum,
+  availableFrom: z.string().nullable().optional(),
+  fixedTerm: z.boolean(),
+  fixedTermMonths: z.number().nullable().optional(),
+  features: z.array(z.string()),
+  images: z.array(RentalUnitImageSchema)
+});
+export type RentalUnitT = z.infer<typeof RentalUnitSchema>;
+
+export const RentalUnitListItemSchema = RentalUnitSchema.extend({
+  _count: z
+    .object({
+      applications: z.number()
+    })
+    .optional()
+});
+export type RentalUnitListItemT = z.infer<typeof RentalUnitListItemSchema>;
+
+export const ApplicantEvaluationSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  applicationId: z.string(),
+  rating: ApplicantRatingEnum,
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  risks: z.array(z.string()),
+  openQuestions: z.array(z.string()),
+  financialStability: z.string().nullable().optional(),
+  sizeFit: z.string().nullable().optional(),
+  expectedDuration: z.string().nullable().optional(),
+  reliability: z.string().nullable().optional(),
+  communication: z.string().nullable().optional(),
+  recommendViewing: z.boolean(),
+  requestDocuments: z.string().nullable().optional(),
+  suggestFollowUp: z.string().nullable().optional(),
+  rationale: z.string().nullable().optional(),
+  model: z.string().nullable().optional()
+});
+export type ApplicantEvaluationT = z.infer<typeof ApplicantEvaluationSchema>;
+
+export const RentalApplicationSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  unitId: z.string(),
+  applicantName: z.string(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  monthlyNetIncome: z.number().nullable().optional(),
+  employmentType: z.string().nullable().optional(),
+  employmentDuration: z.string().nullable().optional(),
+  schufaScore: z.string().nullable().optional(),
+  householdSize: z.number().nullable().optional(),
+  hasPets: z.boolean(),
+  petDetails: z.string().nullable().optional(),
+  smoker: z.boolean(),
+  desiredMoveInDate: z.string().nullable().optional(),
+  intendedDuration: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  status: ApplicationStatusEnum
+});
+export type RentalApplicationT = z.infer<typeof RentalApplicationSchema>;
+
+// Listen-Element auf der Detail-Page: pro Bewerber ggf. die letzte Evaluation kompakt
+export const RentalApplicationListItemSchema = RentalApplicationSchema.extend({
+  evaluations: z.array(
+    z.object({
+      id: z.string(),
+      createdAt: z.string(),
+      rating: ApplicantRatingEnum,
+      recommendViewing: z.boolean(),
+      summary: z.string()
+    })
+  )
+});
+export type RentalApplicationListItemT = z.infer<typeof RentalApplicationListItemSchema>;
+
+// Detail-Schema: Application mit voller Eval-History
+export const RentalApplicationDetailSchema = RentalApplicationSchema.extend({
+  unit: RentalUnitSchema,
+  evaluations: z.array(ApplicantEvaluationSchema)
+});
+export type RentalApplicationDetailT = z.infer<typeof RentalApplicationDetailSchema>;
+
 // --- Verkaufsabwicklung — Detail (Phase J) ---------------------
 // Detail-Schema steht hier unten, weil es ListingSchema referenziert,
 // das weiter oben definiert ist. Forward-Refs in Zod evaluieren sofort
