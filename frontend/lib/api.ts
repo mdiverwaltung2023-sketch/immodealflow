@@ -1335,6 +1335,47 @@ export const RentalApplicationDetailSchema = RentalApplicationSchema.extend({
 });
 export type RentalApplicationDetailT = z.infer<typeof RentalApplicationDetailSchema>;
 
+// --- Phase L6: Oeffentliche Mietboerse + Selbstbewerbung ----
+
+// Listen-Element (anonymisiert: kein fullAddress).
+// Wir nehmen RentalUnitSchema und ergaenzen owner-Mini.
+export const RentalMarketplaceListItemSchema = RentalUnitSchema.extend({
+  owner: z.object({
+    id: z.string(),
+    name: z.string().nullable().optional()
+  })
+});
+export type RentalMarketplaceListItemT = z.infer<typeof RentalMarketplaceListItemSchema>;
+
+// Detail-Schema mit myApplication (falls der User schon beworben ist)
+export const RentalMarketplaceDetailSchema = RentalMarketplaceListItemSchema.extend({
+  myApplication: z
+    .object({
+      id: z.string(),
+      status: ApplicationStatusEnum,
+      createdAt: z.string()
+    })
+    .nullable()
+    .optional()
+});
+export type RentalMarketplaceDetailT = z.infer<typeof RentalMarketplaceDetailSchema>;
+
+// "Meine Bewerbungen" — Eintrag in /me/applications-sent
+export const ApplicationSentItemSchema = RentalApplicationSchema.extend({
+  unit: z.object({
+    id: z.string(),
+    title: z.string(),
+    city: z.string(),
+    district: z.string().nullable().optional(),
+    rooms: z.number(),
+    livingArea: z.number(),
+    rentCold: z.number(),
+    status: RentalStatusEnum,
+    images: z.array(z.object({ url: z.string() }))
+  })
+});
+export type ApplicationSentItemT = z.infer<typeof ApplicationSentItemSchema>;
+
 // --- Verkaufsabwicklung — Detail (Phase J) ---------------------
 // Detail-Schema steht hier unten, weil es ListingSchema referenziert,
 // das weiter oben definiert ist. Forward-Refs in Zod evaluieren sofort

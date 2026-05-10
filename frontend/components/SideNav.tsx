@@ -16,7 +16,14 @@ type Item = {
 };
 
 type Section = {
-  id: "overview" | "investor" | "seller" | "landlord" | "account" | "admin";
+  id:
+    | "overview"
+    | "investor"
+    | "seller"
+    | "landlord"
+    | "rentSearch"
+    | "account"
+    | "admin";
   title: string;
   items: Item[];
 };
@@ -171,6 +178,15 @@ const SECTION_LANDLORD: Section = {
   ]
 };
 
+const SECTION_RENT_SEARCH: Section = {
+  id: "rentSearch",
+  title: "Wohnung mieten (suchen)",
+  items: [
+    { href: "/rental-marketplace", label: "Mietbörse", icon: IcStore },
+    { href: "/me/applications-sent", label: "Meine Bewerbungen", icon: IcInbox }
+  ]
+};
+
 const SECTION_ACCOUNT: Section = {
   id: "account",
   title: "Konto",
@@ -198,22 +214,27 @@ const SECTION_ADMIN: Section = {
 function getVisibleSections(role: UserRoleT, mode: ViewMode, isAdmin: boolean): Section[] {
   let base: Section[];
 
+  // "Wohnung mieten (suchen)" zeigen wir IMMER fuer eingeloggte User —
+  // egal ob Investor, Verkaeufer, Vermieter oder Broker. Jeder kann mal
+  // privat eine Mietwohnung suchen wollen.
+  const RENT_SEARCH = SECTION_RENT_SEARCH;
+
   // Reine Rollen — keine Mode-Auswahl noetig
   if (role === "INVESTOR") {
-    base = [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
+    base = [SECTION_OVERVIEW, SECTION_INVESTOR, RENT_SEARCH, SECTION_ACCOUNT];
   } else if (role === "SELLER") {
-    base = [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+    base = [SECTION_OVERVIEW, SECTION_SELLER, RENT_SEARCH, SECTION_ACCOUNT];
   } else if (role === "LANDLORD") {
-    base = [SECTION_OVERVIEW, SECTION_LANDLORD, SECTION_ACCOUNT];
+    base = [SECTION_OVERVIEW, SECTION_LANDLORD, RENT_SEARCH, SECTION_ACCOUNT];
   } else {
     // BOTH oder BROKER — Mode entscheidet, was sichtbar ist.
     // BROKER hat Zugriff auf alles (Investor + Verkaeufer + Vermieter).
     if (mode === "INVESTOR") {
-      base = [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
+      base = [SECTION_OVERVIEW, SECTION_INVESTOR, RENT_SEARCH, SECTION_ACCOUNT];
     } else if (mode === "SELLER") {
-      base = [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+      base = [SECTION_OVERVIEW, SECTION_SELLER, RENT_SEARCH, SECTION_ACCOUNT];
     } else if (mode === "LANDLORD") {
-      base = [SECTION_OVERVIEW, SECTION_LANDLORD, SECTION_ACCOUNT];
+      base = [SECTION_OVERVIEW, SECTION_LANDLORD, RENT_SEARCH, SECTION_ACCOUNT];
     } else {
       // mode === "BOTH" -> alles zeigen
       base = [
@@ -221,6 +242,7 @@ function getVisibleSections(role: UserRoleT, mode: ViewMode, isAdmin: boolean): 
         SECTION_INVESTOR,
         SECTION_SELLER,
         SECTION_LANDLORD,
+        RENT_SEARCH,
         SECTION_ACCOUNT
       ];
     }
