@@ -77,6 +77,36 @@ enum SaleStage {
   ABGEBROCHEN
 }
 
+// Phase K — KI-Bewertungen.
+//   SaleSpeed:     erwartete Verkaufsgeschwindigkeit
+//   DemandLevel:   Nachfrageniveau am Markt
+//   OfferAttractiveness: Bewertung eines konkreten Kaeufer-Angebots
+//   OfferRecommendation: Handlungsempfehlung dazu
+enum SaleSpeed {
+  FAST
+  NORMAL
+  DIFFICULT
+}
+
+enum DemandLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum OfferAttractiveness {
+  SEHR_ATTRAKTIV
+  MARKTGERECHT
+  NIEDRIG
+  UNREALISTISCH
+}
+
+enum OfferRecommendation {
+  AKZEPTIEREN
+  GEGENANGEBOT
+  ABLEHNEN
+}
+
 // Phase J1 — Dokumenten-Kategorien rund um den Immobilienverkauf.
 // Pro Process+Kind genau ein Dokument (Re-Upload ueberschreibt).
 // "SONSTIGES" ist der Catch-all fuer alles was nicht passt.
@@ -418,9 +448,11 @@ model Listing {
   // 99 EUR) auf now + 30 Tage gesetzt.
   featuredUntil DateTime?
 
-  images        ListingImage[]
-  inquiries     Inquiry[]
-  saleProcesses SaleProcess[]
+  images           ListingImage[]
+  inquiries        Inquiry[]
+  saleProcesses    SaleProcess[]
+  marketAnalysis   MarketAnalysis?
+  offerEvaluations OfferEvaluation[]
 
   @@index([ownerId])
   @@index([status])
@@ -464,8 +496,9 @@ model Inquiry {
   response    String?      // optionale Antwort vom Verkäufer beim accept/reject
   respondedAt DateTime?    // Zeitpunkt des accept/reject
 
-  ratings     Rating[]
-  saleProcess SaleProcess?
+  ratings          Rating[]
+  saleProcess      SaleProcess?
+  offerEvaluations OfferEvaluation[]
 
   // Doppelte PENDING-Inquiries vom selben Investor werden im Backend verhindert,
   // nicht via DB-Constraint — sonst könnte er nach REJECTED nicht erneut anfragen.
@@ -578,6 +611,77 @@ model SaleDocument {
 
   @@unique([processId, kind])
   @@index([processId])
+}
+
+// Phase K — KI-Marktanalyse (TEIL 1 des Prompts).
+// Pro Listing genau ein Eintrag (1:1) — neue Analyse ueberschreibt
+// die alte. rawJson speichert die vollstaendige Claude-Antwort
+// fuer Audit/Debug; die Felder darueber sind extrahierte Aggregat-
+// werte fuer schnelle UI-Anzeige.
+model MarketAnalysis {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId String   @unique
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  // Marktpreis-Spanne (EUR)
+  priceConservative Int?
+  priceFair         Int?
+  pricePremium      Int?
+
+  salesSpeed     SaleSpeed?
+  demand         DemandLevel?
+
+  // Käufer-Zielgruppen als freie String-Liste, weil Claude beliebig
+  // viele zurueckgibt (z. B. "Familien", "Senioren", "Single-Haushalte",
+  // "Kapitalanleger", "Eigennutzer").
+  buyerSegments  String[]   @default([])
+
+  recommendedAskingPrice Int?
+  negotiationRange       String?    // z. B. "Spielraum ca. 5–8 % nach unten"
+  marketingStrategy      String?
+
+  risks     String[] @default([])
+  summary   String?  // 5-Satz-Zusammenfassung
+
+  rawJson          Json
+  model            String?
+  promptTokens     Int?
+  completionTokens Int?
+}
+
+// Phase K — KI-Bewertung eines konkreten Kaeufer-Angebots (TEIL 2).
+// Pro Listing kann es mehrere Bewertungen geben (verschiedene Angebote,
+// History). Optional an Inquiry geknuepft, wenn das Angebot aus einer
+// Marketplace-Anfrage stammt.
+model OfferEvaluation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  inquiryId String?
+  inquiry   Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+
+  offerAmount Int     // EUR (Angebot des Kaeufers)
+  offerNote   String? // optional: was schreibt der Kaeufer dazu
+
+  attractiveness     OfferAttractiveness?
+  successProbability Float?              // 0..1
+  recommendation     OfferRecommendation?
+
+  counterOffer       Int?    // EUR — was Claude als Gegenangebot vorschlaegt
+  negotiationHints   String?
+  strategicAdvice    String?
+
+  rawJson Json
+  model   String?
+
+  @@index([listingId, createdAt])
+  @@index([inquiryId])
 }
 
 model Property {
