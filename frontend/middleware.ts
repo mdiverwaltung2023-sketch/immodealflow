@@ -3,6 +3,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 // Öffentliche Routes — alles andere ist geschützt
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/mieten(.*)", // Phase L10 — Mieter-Landing-Page
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/bookmarklet(.*)" // damit das Bookmarklet die Anleitungs-Seite ohne Login lesen kann; receive-Endpoint hat eigene Auth-Logik
