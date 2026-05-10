@@ -107,6 +107,35 @@ enum OfferRecommendation {
   ABLEHNEN
 }
 
+// Phase L — Vermietung.
+//   RentalStatus:       Lebenszyklus eines Mietobjekts
+//   ApplicationStatus:  Lebenszyklus einer Bewerbung
+//   ApplicantRating:    KI-Einschaetzung (NICHT als Entscheidung,
+//                       nur als organisatorische Unterstuetzung).
+enum RentalStatus {
+  DRAFT
+  AVAILABLE
+  RESERVED
+  RENTED
+  ARCHIVED
+}
+
+enum ApplicationStatus {
+  NEW
+  REVIEWING
+  VIEWING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicantRating {
+  SEHR_PASSEND
+  PASSEND
+  BEDINGT_PASSEND
+  EHER_UNPASSEND
+}
+
 // Phase J1 — Dokumenten-Kategorien rund um den Immobilienverkauf.
 // Pro Process+Kind genau ein Dokument (Re-Upload ueberschreibt).
 // "SONSTIGES" ist der Catch-all fuer alles was nicht passt.
@@ -264,6 +293,7 @@ model User {
   saleProcessesAsBuyer  SaleProcess[]    @relation("BuyerProcesses")
   saleStageEntries      SaleStageEntry[] @relation("StageBy")
   uploadedSaleDocs      SaleDocument[]   @relation("DocUploads")
+  rentalUnits           RentalUnit[]
 
   @@index([referredById])
 }
@@ -650,6 +680,157 @@ model MarketAnalysis {
   model            String?
   promptTokens     Int?
   completionTokens Int?
+}
+
+// Phase L — Mietobjekt. Eigene Tabelle (nicht Erweiterung von Listing),
+// weil Vermietung andere Datenstruktur und anderen Lebenszyklus hat
+// (monatliche Miete, Kaution, viele Bewerber pro Wohnung).
+model RentalUnit {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String   @default("")
+
+  city        String
+  district    String?
+  postalCode  String?
+  fullAddress String?
+
+  // Wohnungs-Eckdaten
+  rooms       Float    // 1.0, 2.5, 3.0, …
+  livingArea  Float    // m²
+  floor       String?  // "EG", "3. OG", "DG"
+
+  // Miete + Kaution (alle EUR)
+  rentCold   Int       // Kaltmiete pro Monat
+  utilities  Int?      // Nebenkosten/Betriebskosten pro Monat
+  totalRent  Int?      // Warmmiete pro Monat (kann auch berechnet werden)
+  deposit    Int?      // Kaution
+
+  // Energie (Re-Use bestehender Enums)
+  energyClass       EnergyClass?
+  energyConsumption Float?
+  energyCarrier     EnergyCarrier?
+  heatingType       String?
+
+  // Verfuegbarkeit
+  status        RentalStatus @default(DRAFT)
+  availableFrom DateTime?
+
+  // Mietdauer
+  fixedTerm        Boolean @default(false)
+  fixedTermMonths  Int?
+
+  // Tags / Ausstattung
+  features  String[] @default([])    // "Balkon","Aufzug","Einbaukueche", ...
+
+  images       RentalUnitImage[]
+  applications RentalApplication[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([city])
+}
+
+// Bilder zu Mietobjekten — wie ListingImage, aber separat
+// damit Verkauf und Vermietung sauber getrennt bleiben.
+model RentalUnitImage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  unitId    String
+  unit      RentalUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  url       String
+  alt       String?
+  sortOrder Int      @default(0)
+
+  @@index([unitId, sortOrder])
+}
+
+// Mietbewerbung. WICHTIG: keine sensiblen Merkmale erfassen
+// (Ethnie, Religion, Geschlecht, etc.). Felder hier sind ausschliesslich
+// organisatorisch/wirtschaftlich.
+model RentalApplication {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  unitId    String
+  unit      RentalUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  // Kontakt (Pflichtfeld: Name, sonst optional)
+  applicantName String
+  email         String?
+  phone         String?
+
+  // Wirtschaftliche Faktoren
+  monthlyNetIncome   Int?     // Haushaltsnetto pro Monat (EUR)
+  employmentType     String?  // "Festanstellung unbefristet", "Selbststaendig", "Beamter", ...
+  employmentDuration String?  // "5 Jahre", "neu seit 3 Monaten"
+  schufaScore        String?  // "100 %", "97 %", "kein SCHUFA verfuegbar"
+
+  // Organisatorische Faktoren (NICHT diskriminierend, rein praktisch)
+  householdSize Int?    // Personen im Haushalt (inkl. Bewerber)
+  hasPets       Boolean @default(false)
+  petDetails    String?
+  smoker        Boolean @default(false)
+
+  // Kontext
+  desiredMoveInDate DateTime?
+  intendedDuration  String?  // "langfristig", "2-3 Jahre", "befristet bis ..."
+
+  // Notizen vom Vermieter (frei)
+  notes String?
+
+  status ApplicationStatus @default(NEW)
+
+  evaluations ApplicantEvaluation[]
+
+  @@index([unitId, status])
+}
+
+// KI-Bewertung einer Bewerbung (TEIL 1 + 2 + 3 + 4 + 5 des Marco-Prompts).
+// Pro Application kann es mehrere Bewertungen geben (z. B. nach Update
+// der Bewerber-Daten neu bewerten lassen) — History bleibt erhalten.
+model ApplicantEvaluation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  applicationId String
+  application   RentalApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  // Output-Hauptfelder
+  rating ApplicantRating
+
+  summary       String
+  strengths     String[] @default([])
+  risks         String[] @default([])
+  openQuestions String[] @default([])
+
+  // Faktor-Bewertungen (jeweils kurzer Text)
+  financialStability String?
+  sizeFit            String?
+  expectedDuration   String?
+  reliability        String?
+  communication      String?
+
+  // Handlungsempfehlungen
+  recommendViewing  Boolean @default(false)
+  requestDocuments  String?
+  suggestFollowUp   String?
+
+  rationale String?
+
+  rawJson Json
+  model   String?
+
+  @@index([applicationId, createdAt])
 }
 
 // Phase K — KI-Bewertung eines konkreten Kaeufer-Angebots (TEIL 2).
