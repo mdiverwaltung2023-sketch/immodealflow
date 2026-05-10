@@ -18,9 +18,9 @@ export function AuthHero({ headlineLine1, headlineLine2 }: { headlineLine1: stri
         style={{ background: "radial-gradient(closest-side, #6366f1, transparent)" }}
       />
 
-      {/* Top: Branding */}
+      {/* Top: Branding — OIKOS auf goldenem Verlauf passend zum Symbol */}
       <div className="relative z-10">
-        <BrandLockup width={220} className="text-white" />
+        <BrandLockup width={220} tone="gold" />
       </div>
 
       {/* Mitte: Headline + Feature-Liste */}

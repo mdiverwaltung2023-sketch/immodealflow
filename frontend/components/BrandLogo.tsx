@@ -51,16 +51,23 @@ export function BrandLogo({
 }
 
 /**
- * "OIKOS"-Schriftzug — extern als HTML-Text. Indigo-Verlauf passend zur
- * App-Farbpalette (Marketplace-Card, Buttons, Premium-Pill), damit sich
- * der Schriftzug klar von den goldenen Tönen des Logos abhebt.
+ * "OIKOS"-Schriftzug — extern als HTML-Text.
+ *
+ * tone="indigo" (default): Indigo-/Violett-Verlauf — gut auf hellen
+ *                          Hintergruenden (Sidebar, weisse Cards).
+ * tone="gold":             Warmer Goldverlauf — passt zum goldenen
+ *                          INFINITY-Symbol und ist auf dunkelblauem
+ *                          Hintergrund (AuthHero, Hero-Gradients) klar
+ *                          lesbar.
  */
 export function BrandWordmark({
   className = "",
-  size = "md"
+  size = "md",
+  tone = "indigo"
 }: {
   className?: string;
   size?: "sm" | "md" | "lg";
+  tone?: "indigo" | "gold";
 }) {
   const fontCls =
     size === "lg"
@@ -68,9 +75,24 @@ export function BrandWordmark({
       : size === "sm"
         ? "text-xs tracking-[0.4em]"
         : "text-sm tracking-[0.5em]";
+
+  const gradientCls =
+    tone === "gold"
+      ? "bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-500"
+      : "bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700";
+
+  // Subtiler Drop-Shadow nur fuer Gold — hebt das Wort vom dunklen
+  // Hintergrund nochmal etwas stärker ab, ohne ueber das Markenbild
+  // hinwegzugehen.
+  const shadowStyle =
+    tone === "gold"
+      ? { filter: "drop-shadow(0 1px 6px rgba(0,0,0,0.35))" }
+      : undefined;
+
   return (
     <div
-      className={`font-serif font-semibold bg-clip-text text-transparent bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 ${fontCls} ${className}`}
+      className={`font-serif font-semibold bg-clip-text text-transparent ${gradientCls} ${fontCls} ${className}`}
+      style={shadowStyle}
       aria-hidden
     >
       OIKOS
@@ -85,19 +107,23 @@ export function BrandWordmark({
  *    [    SYMBOL     ]
  *    [   INFINITY    ]   <-- aus Bildausschnitt
  *    [    OIKOS      ]   <-- HTML-Text
+ *
+ * Optional tone-Prop steuert die OIKOS-Farbe je nach Hintergrund.
  */
 export function BrandLockup({
   width = 160,
-  className = ""
+  className = "",
+  tone = "indigo"
 }: {
   width?: number;
   className?: string;
+  tone?: "indigo" | "gold";
 }) {
   const wordmarkSize = width >= 220 ? "lg" : width >= 140 ? "md" : "sm";
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <BrandLogo width={width} />
-      <BrandWordmark size={wordmarkSize} className="mt-1" />
+      <BrandWordmark size={wordmarkSize} tone={tone} className="mt-1" />
     </div>
   );
 }
