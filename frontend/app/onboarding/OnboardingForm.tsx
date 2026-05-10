@@ -12,7 +12,7 @@ const ROLE_DESCRIPTIONS: Record<UserRoleT, string> = {
   SELLER:
     "Du verkaufst Objekte und möchtest Investoren mit passendem Profil (Trackrecord, Finanzierung) ansprechen.",
   BOTH:
-    "Du machst beides — als Eigentümer und als aktiver Investor.",
+    "Du nimmst mehrere Rollen ein. Du kannst oben in der Topbar zwischen Investor, Verkäufer, Vermieter und Mieter umschalten.",
   BROKER:
     "Du bist Makler nach §34c GewO und willst alle Bereiche begleiten — Verkauf, Vermietung und Investorenansprache.",
   LANDLORD:

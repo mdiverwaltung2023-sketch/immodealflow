@@ -204,7 +204,7 @@ export type UserRoleT = z.infer<typeof UserRoleEnum>;
 export const USER_ROLE_LABELS: Record<UserRoleT, string> = {
   INVESTOR: "Investor",
   SELLER: "Verkäufer",
-  BOTH: "Investor + Verkäufer",
+  BOTH: "Mehrere Rollen",
   BROKER: "Makler",
   LANDLORD: "Vermieter",
   TENANT: "Mieter"

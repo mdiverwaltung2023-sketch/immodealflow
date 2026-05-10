@@ -36,8 +36,9 @@ function isViewMode(x: string | null): x is ViewMode {
 /**
  * Welche View-Modes darf eine bestimmte Rolle umschalten?
  *  - INVESTOR / SELLER / LANDLORD / TENANT: nur den eigenen (Toggle versteckt)
- *  - BOTH:    Investor + Verkäufer + Mieter (jeder kann mal mieten)
- *  - BROKER:  alle vier Sichten (kann Investor / Verkäufer / Vermieter / Mieter abdecken)
+ *  - BOTH:   alle vier Sichten — wer mehrere Dinge macht, kann auch
+ *            mal vermieten oder mieten wollen.
+ *  - BROKER: alle vier Sichten (Makler deckt alles ab).
  */
 export function getAllowedModes(role: UserRoleT): ViewMode[] {
   switch (role) {
@@ -50,7 +51,6 @@ export function getAllowedModes(role: UserRoleT): ViewMode[] {
     case "TENANT":
       return ["TENANT"];
     case "BOTH":
-      return ["INVESTOR", "SELLER", "TENANT"];
     case "BROKER":
       return ALL_MODES;
     default:

@@ -67,7 +67,7 @@ function RoleBadge({ role }: { role: UserRoleT }) {
       ? "Mieter"
       : role === "BROKER"
       ? "Makler"
-      : "Investor + Verkäufer";
+      : "Mehrere Rollen";
   const tone =
     role === "INVESTOR"
       ? "bg-indigo-50 text-indigo-700 border-indigo-200"
