@@ -4,8 +4,6 @@ import {
   RentalUnitSchema,
   RentalApplicationListItemSchema,
   RENTAL_STATUS_LABELS,
-  APPLICATION_STATUS_LABELS,
-  APPLICANT_RATING_LABELS,
   type ApplicantRatingT
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
@@ -140,7 +138,3 @@ function DiscriminationDisclaimer() {
     </div>
   );
 }
-
-// Re-Export für die Labels (TypeScript-Konsistenz) — nicht zwingend benötigt,
-// aber nett wenn man hier später noch was rendert:
-export { APPLICATION_STATUS_LABELS, APPLICANT_RATING_LABELS };
