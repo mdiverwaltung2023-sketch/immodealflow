@@ -31,7 +31,7 @@ export function TopBar({
           </span>
         </Link>
 
-        {/* ViewModeToggle: zentriert, nur für BOTH */}
+        {/* ViewModeToggle: zentriert, nur fuer Multi-Rollen (BOTH, BROKER) */}
         <div className="hidden lg:flex flex-1 justify-center">
           <ViewModeToggle userRole={userRole} />
         </div>
@@ -46,7 +46,7 @@ export function TopBar({
       </div>
 
       {/* Mobile-Toggle separat unter Header (auf grossen Screens schon im flex zentriert) */}
-      {userRole === "BOTH" ? (
+      {userRole === "BOTH" || userRole === "BROKER" ? (
         <div className="flex justify-center border-t border-zinc-100 bg-white/85 py-2 lg:hidden">
           <ViewModeToggle userRole={userRole} />
         </div>
@@ -63,6 +63,8 @@ function RoleBadge({ role }: { role: UserRoleT }) {
       ? "Verkäufer"
       : role === "LANDLORD"
       ? "Vermieter"
+      : role === "TENANT"
+      ? "Mieter"
       : role === "BROKER"
       ? "Makler"
       : "Investor + Verkäufer";
@@ -73,6 +75,8 @@ function RoleBadge({ role }: { role: UserRoleT }) {
       ? "bg-amber-50 text-amber-800 border-amber-200"
       : role === "LANDLORD"
       ? "bg-rose-50 text-rose-700 border-rose-200"
+      : role === "TENANT"
+      ? "bg-cyan-50 text-cyan-700 border-cyan-200"
       : role === "BROKER"
       ? "bg-violet-50 text-violet-700 border-violet-200"
       : "bg-emerald-50 text-emerald-700 border-emerald-200";

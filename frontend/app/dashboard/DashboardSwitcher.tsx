@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { InvestorView } from "./InvestorView";
 import { SellerView } from "./SellerView";
 import { LandlordView } from "./LandlordView";
+import { TenantView } from "./TenantView";
 import {
-  VIEW_MODE_STORAGE_KEY,
   VIEW_MODE_EVENT,
+  defaultModeForRole,
+  getAllowedModes,
+  readViewModeFor,
   type ViewMode
 } from "@/components/viewMode";
 import type {
@@ -20,16 +23,16 @@ import type {
 } from "@/lib/api";
 
 /**
- * Phase J5 — Dashboard rollen- und viewMode-abhaengig.
+ * Phase L7 — Dashboard streng nach effektivem ViewMode.
  *
- * Server-Component liefert ALLE Daten parallel; Switcher entscheidet
- * Client-side, welche Sub-View gerendert wird:
- *   - role=SELLER  -> SellerView
- *   - role=INVESTOR -> InvestorView
- *   - role=BOTH oder BROKER:
- *       viewMode=SELLER   -> SellerView
- *       viewMode=INVESTOR -> InvestorView
- *       viewMode=BOTH/null -> InvestorView (Default — bisheriges Verhalten)
+ * Reine Rollen haben genau einen erlaubten Mode (= Default).
+ * Multi-Rollen (BOTH, BROKER) wechseln per TopBar-Toggle.
+ *
+ * Mapping ViewMode -> Sub-View:
+ *   INVESTOR -> InvestorView (Kauf, Marketplace)
+ *   SELLER   -> SellerView (Inserate, Sales-Pipeline)
+ *   LANDLORD -> LandlordView (Mietobjekte, Bewerber-Inbox)
+ *   TENANT   -> TenantView (Mietbörse-Verknüpfung)
  */
 export function DashboardSwitcher({
   role,
@@ -46,50 +49,27 @@ export function DashboardSwitcher({
   saleProcesses: SaleProcessListItemT[];
   pendingInquiries: InquiryReceivedT[];
 }) {
-  const [viewMode, setViewMode] = useState<ViewMode>("BOTH");
+  const allowed = getAllowedModes(role);
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultModeForRole(role));
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
-    if (role !== "BOTH" && role !== "BROKER") return;
-    try {
-      const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-      if (
-        saved === "INVESTOR" ||
-        saved === "SELLER" ||
-        saved === "BOTH" ||
-        saved === "LANDLORD"
-      ) {
-        setViewMode(saved);
-      }
-    } catch {
-      /* ignore */
-    }
+    setViewMode(readViewModeFor(role));
+
     function onChange(e: Event) {
       const detail = (e as CustomEvent<ViewMode>).detail;
-      if (
-        detail === "INVESTOR" ||
-        detail === "SELLER" ||
-        detail === "BOTH" ||
-        detail === "LANDLORD"
-      ) {
-        setViewMode(detail);
-      }
+      if (allowed.includes(detail)) setViewMode(detail);
     }
     window.addEventListener(VIEW_MODE_EVENT, onChange);
     return () => window.removeEventListener(VIEW_MODE_EVENT, onChange);
-  }, [role]);
+  }, [role, allowed]);
 
-  // Vor Hydration: Default Investor-View, damit Hydration nicht flickert.
-  const showLandlord =
-    role === "LANDLORD" ||
-    ((role === "BOTH" || role === "BROKER") && hydrated && viewMode === "LANDLORD");
-  const showSeller =
-    role === "SELLER" ||
-    ((role === "BOTH" || role === "BROKER") && hydrated && viewMode === "SELLER");
+  const effectiveMode = hydrated ? viewMode : defaultModeForRole(role);
 
-  if (showLandlord) return <LandlordView />;
-  if (showSeller) {
+  if (effectiveMode === "TENANT") return <TenantView />;
+  if (effectiveMode === "LANDLORD") return <LandlordView />;
+  if (effectiveMode === "SELLER") {
     return (
       <SellerView
         myListings={myListings}

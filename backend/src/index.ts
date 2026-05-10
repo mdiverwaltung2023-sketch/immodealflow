@@ -831,7 +831,7 @@ app.get("/me", async (req, res) => {
   });
 });
 
-const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH", "BROKER", "LANDLORD"]);
+const UserRoleEnum = z.enum(["INVESTOR", "SELLER", "BOTH", "BROKER", "LANDLORD", "TENANT"]);
 
 // PATCH /me — Felder updaten (z. B. Name, Rolle)
 app.patch("/me", async (req, res) => {

@@ -6,7 +6,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { BrandLogo, BrandWordmark } from "@/components/BrandLogo";
 import { PlanBadge } from "@/components/PlanBadge";
 import type { UserPlanT, UserRoleT } from "@/lib/api";
-import { VIEW_MODE_STORAGE_KEY, VIEW_MODE_EVENT, type ViewMode } from "@/components/viewMode";
+import {
+  VIEW_MODE_EVENT,
+  defaultModeForRole,
+  getAllowedModes,
+  readViewModeFor,
+  type ViewMode
+} from "@/components/viewMode";
 
 type Item = {
   href: string;
@@ -204,50 +210,29 @@ const SECTION_ADMIN: Section = {
 };
 
 /**
- * Sektionen je nach (Rolle × ViewMode):
- * - INVESTOR -> Übersicht + Investor + Konto
- * - SELLER   -> Übersicht + Verkäufer + Konto
- * - BOTH + viewMode "BOTH"     -> alle 4
- * - BOTH + viewMode "INVESTOR" -> Übersicht + Investor + Konto
- * - BOTH + viewMode "SELLER"   -> Übersicht + Verkäufer + Konto
+ * Phase L7 — saubere Trennung pro View-Mode. Jede View hat genau EINE
+ * Rollen-Sektion (Investor / Verkäufer / Vermieter / Mieter) plus
+ * Übersicht + Konto. Verkäufer sieht KEINE Vermiet- oder Miet-Features,
+ * Investor ebenso, etc.
+ *
+ * Multi-Rollen (BOTH, BROKER) wechseln über den TopBar-Toggle zwischen
+ * den für ihre Rolle erlaubten Sichten.
  */
-function getVisibleSections(role: UserRoleT, mode: ViewMode, isAdmin: boolean): Section[] {
-  let base: Section[];
-
-  // "Wohnung mieten (suchen)" zeigen wir IMMER fuer eingeloggte User —
-  // egal ob Investor, Verkaeufer, Vermieter oder Broker. Jeder kann mal
-  // privat eine Mietwohnung suchen wollen.
-  const RENT_SEARCH = SECTION_RENT_SEARCH;
-
-  // Reine Rollen — keine Mode-Auswahl noetig
-  if (role === "INVESTOR") {
-    base = [SECTION_OVERVIEW, SECTION_INVESTOR, RENT_SEARCH, SECTION_ACCOUNT];
-  } else if (role === "SELLER") {
-    base = [SECTION_OVERVIEW, SECTION_SELLER, RENT_SEARCH, SECTION_ACCOUNT];
-  } else if (role === "LANDLORD") {
-    base = [SECTION_OVERVIEW, SECTION_LANDLORD, RENT_SEARCH, SECTION_ACCOUNT];
-  } else {
-    // BOTH oder BROKER — Mode entscheidet, was sichtbar ist.
-    // BROKER hat Zugriff auf alles (Investor + Verkaeufer + Vermieter).
-    if (mode === "INVESTOR") {
-      base = [SECTION_OVERVIEW, SECTION_INVESTOR, RENT_SEARCH, SECTION_ACCOUNT];
-    } else if (mode === "SELLER") {
-      base = [SECTION_OVERVIEW, SECTION_SELLER, RENT_SEARCH, SECTION_ACCOUNT];
-    } else if (mode === "LANDLORD") {
-      base = [SECTION_OVERVIEW, SECTION_LANDLORD, RENT_SEARCH, SECTION_ACCOUNT];
-    } else {
-      // mode === "BOTH" -> alles zeigen
-      base = [
-        SECTION_OVERVIEW,
-        SECTION_INVESTOR,
-        SECTION_SELLER,
-        SECTION_LANDLORD,
-        RENT_SEARCH,
-        SECTION_ACCOUNT
-      ];
-    }
+function sectionsForMode(mode: ViewMode): Section[] {
+  switch (mode) {
+    case "INVESTOR":
+      return [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
+    case "SELLER":
+      return [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+    case "LANDLORD":
+      return [SECTION_OVERVIEW, SECTION_LANDLORD, SECTION_ACCOUNT];
+    case "TENANT":
+      return [SECTION_OVERVIEW, SECTION_RENT_SEARCH, SECTION_ACCOUNT];
   }
+}
 
+function getVisibleSections(role: UserRoleT, mode: ViewMode, isAdmin: boolean): Section[] {
+  const base = sectionsForMode(mode);
   return isAdmin ? [...base, SECTION_ADMIN] : base;
 }
 
@@ -266,49 +251,28 @@ export function SideNav({
   isAdmin?: boolean;
 }) {
   const pathname = usePathname() || "/";
-  const [viewMode, setViewMode] = useState<ViewMode>("BOTH");
+  const allowed = getAllowedModes(userRole);
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultModeForRole(userRole));
   const [hydrated, setHydrated] = useState(false);
 
   // ViewMode aus localStorage initialisieren + auf Toggle-Events hören.
-  // Wechselbar nur fuer BOTH oder BROKER (haben Zugriff auf mehrere Sektionen).
+  // Multi-Rollen wechseln dynamisch; reine Rollen haben einen einzigen Mode
+  // und ignorieren externe Events.
   useEffect(() => {
     setHydrated(true);
-    if (userRole !== "BOTH" && userRole !== "BROKER") {
-      // Reine Investoren / Verkaeufer / Vermieter haben keinen Modus
-      return;
-    }
-    try {
-      const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-      if (
-        saved === "INVESTOR" ||
-        saved === "SELLER" ||
-        saved === "BOTH" ||
-        saved === "LANDLORD"
-      ) {
-        setViewMode(saved);
-      }
-    } catch {
-      // localStorage kann blockiert sein — egal, dann Default
-    }
+    setViewMode(readViewModeFor(userRole));
 
     function onChange(e: Event) {
       const detail = (e as CustomEvent<ViewMode>).detail;
-      if (
-        detail === "INVESTOR" ||
-        detail === "SELLER" ||
-        detail === "BOTH" ||
-        detail === "LANDLORD"
-      ) {
-        setViewMode(detail);
-      }
+      if (allowed.includes(detail)) setViewMode(detail);
     }
     window.addEventListener(VIEW_MODE_EVENT, onChange);
     return () => window.removeEventListener(VIEW_MODE_EVENT, onChange);
-  }, [userRole]);
+  }, [userRole, allowed]);
 
-  // Vor Hydration: nutze die Server-Default-Variante (BOTH-View) damit kein
-  // Layout-Shift entsteht, der schlimmer wäre als die kurze Anzeige aller Items.
-  const sections = getVisibleSections(userRole, hydrated ? viewMode : "BOTH", isAdmin);
+  // Vor Hydration: nutze den Default-Mode der Rolle (Sub-View ist klar bestimmt).
+  const effectiveMode = hydrated ? viewMode : defaultModeForRole(userRole);
+  const sections = getVisibleSections(userRole, effectiveMode, isAdmin);
 
   return (
     <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:shrink-0 lg:border-r lg:border-zinc-200 lg:bg-white">

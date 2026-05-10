@@ -196,16 +196,18 @@ export const UserRoleEnum = z.enum([
   "SELLER",
   "BOTH",
   "BROKER",
-  "LANDLORD"
+  "LANDLORD",
+  "TENANT"
 ]);
 export type UserRoleT = z.infer<typeof UserRoleEnum>;
 
 export const USER_ROLE_LABELS: Record<UserRoleT, string> = {
   INVESTOR: "Investor",
   SELLER: "Verkäufer",
-  BOTH: "Beides",
+  BOTH: "Investor + Verkäufer",
   BROKER: "Makler",
-  LANDLORD: "Vermieter"
+  LANDLORD: "Vermieter",
+  TENANT: "Mieter"
 };
 
 // --- Subscription / Billing (Phase G1+G2) -----------------------

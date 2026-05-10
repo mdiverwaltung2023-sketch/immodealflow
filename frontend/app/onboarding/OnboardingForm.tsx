@@ -12,14 +12,16 @@ const ROLE_DESCRIPTIONS: Record<UserRoleT, string> = {
   SELLER:
     "Du verkaufst Objekte und möchtest Investoren mit passendem Profil (Trackrecord, Finanzierung) ansprechen.",
   BOTH:
-    "Du machst beides — als Eigentümer und als aktiver Investor (oder Vermieter).",
+    "Du machst beides — als Eigentümer und als aktiver Investor.",
   BROKER:
     "Du bist Makler nach §34c GewO und willst alle Bereiche begleiten — Verkauf, Vermietung und Investorenansprache.",
   LANDLORD:
-    "Du vermietest Wohnungen oder Häuser und willst Bewerber strukturiert verwalten — mit KI-gestützter, diskriminierungs-freier Vorab-Bewertung."
+    "Du vermietest Wohnungen oder Häuser und willst Bewerber strukturiert verwalten — mit KI-gestützter, diskriminierungs-freier Vorab-Bewertung.",
+  TENANT:
+    "Du suchst eine Mietwohnung. Du nutzt die öffentliche Mietbörse und kannst dich direkt bewerben."
 };
 
-const ROLES: UserRoleT[] = ["INVESTOR", "SELLER", "LANDLORD", "BOTH", "BROKER"];
+const ROLES: UserRoleT[] = ["INVESTOR", "SELLER", "LANDLORD", "TENANT", "BOTH", "BROKER"];
 
 export function OnboardingForm({ initial }: { initial: { name: string; role: UserRoleT } }) {
   const router = useRouter();
@@ -85,7 +87,7 @@ export function OnboardingForm({ initial }: { initial: { name: string; role: Use
         />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         {ROLES.map((r) => {
           const active = role === r;
           return (

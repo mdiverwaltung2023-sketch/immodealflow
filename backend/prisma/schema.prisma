@@ -42,6 +42,7 @@ enum UserRole {
   BOTH
   BROKER
   LANDLORD
+  TENANT
 }
 
 // Phase H1 — Coin-System: alle Earn-/Spend-Kinds.

@@ -5,42 +5,40 @@ import type { UserRoleT } from "@/lib/api";
 import {
   VIEW_MODE_EVENT,
   VIEW_MODE_LABELS,
-  readViewMode,
+  defaultModeForRole,
+  getAllowedModes,
+  readViewModeFor,
   setViewMode,
   type ViewMode
 } from "@/components/viewMode";
 
-const OPTIONS: ViewMode[] = ["BOTH", "INVESTOR", "SELLER", "LANDLORD"];
-
 /**
- * Segmented-Control oben in der TopBar — sichtbar für Nutzer mit
- * Rolle "BOTH" oder "BROKER" (alle anderen haben eine feste Sicht).
- * Wechselt die Sidebar-Sektionen, persistiert in localStorage.
+ * Segmented-Control oben in der TopBar — sichtbar für Multi-Rollen
+ * (BOTH, BROKER). Reine Rollen sehen den Toggle gar nicht.
+ *
+ * Phase L7 — kein "Beides"-Modus mehr; saubere Single-View-Wahl
+ * zwischen den für die Rolle erlaubten Sichten. BOTH bekommt
+ * Investor / Verkäufer / Mieter, BROKER alle vier.
  */
 export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
-  const [mode, setMode] = useState<ViewMode>("BOTH");
+  const allowed = getAllowedModes(userRole);
+  const [mode, setMode] = useState<ViewMode>(defaultModeForRole(userRole));
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
-    setMode(readViewMode());
+    setMode(readViewModeFor(userRole));
 
     function onChange(e: Event) {
       const next = (e as CustomEvent<ViewMode>).detail;
-      if (
-        next === "INVESTOR" ||
-        next === "SELLER" ||
-        next === "BOTH" ||
-        next === "LANDLORD"
-      ) {
-        setMode(next);
-      }
+      if (allowed.includes(next)) setMode(next);
     }
     window.addEventListener(VIEW_MODE_EVENT, onChange);
     return () => window.removeEventListener(VIEW_MODE_EVENT, onChange);
-  }, []);
+  }, [userRole, allowed]);
 
-  if (userRole !== "BOTH" && userRole !== "BROKER") return null;
+  // Toggle nur fuer Multi-Rollen sichtbar
+  if (allowed.length <= 1) return null;
 
   function pick(next: ViewMode) {
     setMode(next);
@@ -50,10 +48,10 @@ export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
   return (
     <div
       role="tablist"
-      aria-label="Sidebar-Modus"
+      aria-label="Sicht wechseln"
       className="hidden md:inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 text-xs"
     >
-      {OPTIONS.map((opt) => {
+      {allowed.map((opt) => {
         const active = hydrated && mode === opt;
         return (
           <button
