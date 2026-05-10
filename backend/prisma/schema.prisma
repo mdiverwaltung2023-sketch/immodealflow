@@ -41,6 +41,7 @@ enum UserRole {
   SELLER
   BOTH
   BROKER
+  LANDLORD
 }
 
 // Phase H1 — Coin-System: alle Earn-/Spend-Kinds.
@@ -726,7 +727,53 @@ model RentalUnit {
   fixedTerm        Boolean @default(false)
   fixedTermMonths  Int?
 
-  // Tags / Ausstattung
+  // --- Phase L5: Erweiterte Inserat-Felder ----------------------
+
+  // Bausubstanz
+  yearBuilt        Int?
+  lastRenovation   Int?
+  totalUnits       Int?     // Wohneinheiten im Gebaeude
+
+  // Raum-Detail
+  bathrooms        Int?     // Anzahl Baeder
+  separateGuestWc  Boolean  @default(false)
+
+  // Aussenflaechen
+  balcony          Boolean  @default(false)
+  balconyArea      Float?   // m²
+  terrace          Boolean  @default(false)
+  terraceArea      Float?   // m²
+  garden           Boolean  @default(false)
+  gardenShared     Boolean  @default(false)  // Gemeinschaftsgarten
+  cellar           Boolean  @default(false)
+  attic            Boolean  @default(false)  // Dachboden / Speicher
+
+  // Komfort / Barrierefreiheit
+  elevator         Boolean  @default(false)
+  barrierFree      Boolean  @default(false)
+  furnished        Boolean  @default(false)  // voll moebliert
+  partlyFurnished  Boolean  @default(false)  // teilmoebliert
+  kitchenIncluded  Boolean  @default(false)  // Einbaukueche im Mietpreis
+  kitchenBuyOut    Int?     // Ablöse Kueche EUR (optional)
+
+  // Stellplatz
+  parkingType      String?  // "GARAGE" / "STELLPLATZ" / "TIEFGARAGE" / "KEINER"
+  parkingCost      Int?     // EUR/Monat zusaetzlich
+
+  // Haustiere
+  petsAllowed      Boolean? // null = nach Absprache, true = ja, false = nein
+  petsNote         String?  // z. B. "Kleintiere ja, Hund auf Anfrage"
+
+  // Internet
+  internetAvailable Boolean? // null = unbekannt
+  internetSpeed     String?  // "50 Mbit", "Glasfaser", "1 Gbit", ...
+
+  // Mietbedingungen
+  minRentDurationMonths Int?    // Mindestmietdauer (Monate)
+  depositMonths         Float?  // Kaution in Kaltmieten (z. B. 3.0)
+  conditions            String? // freie Bedingungen, z. B. "Nichtraucher"
+
+  // Tags / Ausstattung (frei)
   features  String[] @default([])    // "Balkon","Aufzug","Einbaukueche", ...
 
   images       RentalUnitImage[]
