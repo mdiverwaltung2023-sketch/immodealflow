@@ -192,8 +192,8 @@ export default function SalesAdvisorLandingPage() {
               a: "Die Empfehlung selbst ist kostenlos und braucht keine Anmeldung. Erst wenn du den nächsten Schritt gehen willst (Vollanalyse, Profi-Fotos, Makler-Vermittlung), gibt es buchbare Bausteine."
             },
             {
-              q: "Wie verhindert ihr, dass ihr immer „Makler" empfehlt?",
-              a: "Die Heuristik ist deterministisch und im Code öffentlich nachvollziehbar — keine versteckten Gewichte. Bei einer gepflegten ETW in guter Lage mit erfahrenem Eigentümer kommt fast immer „Selbst" raus. Genau so soll es sein."
+              q: 'Wie verhindert ihr, dass ihr immer „Makler" empfehlt?',
+              a: 'Die Heuristik ist deterministisch und im Code öffentlich nachvollziehbar — keine versteckten Gewichte. Bei einer gepflegten ETW in guter Lage mit erfahrenem Eigentümer kommt fast immer „Selbst" raus. Genau so soll es sein.'
             }
           ]}
         />
