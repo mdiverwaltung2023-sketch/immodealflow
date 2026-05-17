@@ -1,9 +1,9 @@
 /**
- * Phase F.2 + F.3 — Image-Processing fuer Offmarket-Bilder.
+ * Phase F.2 + F.3 - Image-Processing fuer Offmarket-Bilder.
  *
- * Lazy-Loading: sharp + openai werden erst beim ERSTEN Aufruf geladen.
- * Dadurch crasht der Container-Start nicht, falls libvips auf dem Host
- * fehlt — nur die Image-Endpoints geben dann einen klaren 503.
+ * Sharp ist optionalDependency. Falls Installation scheitert,
+ * wird die Blur-Variante einfach uebersprungen (Frontend nutzt
+ * CSS-Blur als Fallback).
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -17,10 +17,7 @@ async function loadSharp() {
     const m = await import("sharp");
     return m.default;
   } catch (e) {
-    throw new Error(
-      "sharp ist nicht ladbar — libvips fehlt auf dem Host? " +
-        (e as Error).message
-    );
+    return null;
   }
 }
 
@@ -38,20 +35,11 @@ async function fetchAsBuffer(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-function sniffMediaType(
-  buf: Buffer
-): "image/jpeg" | "image/png" | "image/webp" | "image/gif" {
+function sniffMediaType(buf: Buffer): "image/jpeg" | "image/png" | "image/webp" | "image/gif" {
   if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
   if (buf[0] === 0x89 && buf[1] === 0x50) return "image/png";
   if (buf[0] === 0x47 && buf[1] === 0x49) return "image/gif";
-  if (
-    buf[0] === 0x52 &&
-    buf[1] === 0x49 &&
-    buf[8] === 0x57 &&
-    buf[9] === 0x45
-  ) {
-    return "image/webp";
-  }
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[8] === 0x57 && buf[9] === 0x45) return "image/webp";
   return "image/jpeg";
 }
 
@@ -60,8 +48,12 @@ export async function generateBlurredVariant(
   userId: string,
   leadId: string,
   imageId: string
-): Promise<string> {
+): Promise<string | null> {
   const sharp = await loadSharp();
+  if (!sharp) {
+    // Kein sharp verfuegbar -> Frontend macht CSS-Blur
+    return null;
+  }
   const put = await loadBlobPut();
 
   const buf = await fetchAsBuffer(originalUrl);
@@ -89,15 +81,10 @@ export async function generateStylizedVariant(
   leadId: string,
   imageId: string
 ): Promise<{ url: string; caption: string }> {
-  if (!ANTHROPIC_KEY) {
-    throw new Error("ANTHROPIC_API_KEY fehlt — Stilisierung nicht moeglich.");
-  }
-  if (!OPENAI_KEY) {
-    throw new Error("OPENAI_API_KEY fehlt — KI-Stilisierung nicht moeglich.");
-  }
-  const sharp = await loadSharp();
-  const put = await loadBlobPut();
+  if (!ANTHROPIC_KEY) throw new Error("ANTHROPIC_API_KEY fehlt - Stilisierung nicht moeglich.");
+  if (!OPENAI_KEY) throw new Error("OPENAI_API_KEY fehlt - KI-Stilisierung nicht moeglich.");
 
+  const put = await loadBlobPut();
   const buf = await fetchAsBuffer(originalUrl);
   const base64 = buf.toString("base64");
   const mediaType = sniffMediaType(buf);
@@ -106,30 +93,13 @@ export async function generateStylizedVariant(
   const visionResp = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 600,
-    system: [
-      "Du beschreibst ein Immobilienfoto fuer eine kuenstlerische",
-      "Aquarell-Neudarstellung. Beschreibe NUR:",
-      "- Bauform, Etagenzahl, Dachform",
-      "- Fassadenfarbe + Material",
-      "- Fenster-Stil",
-      "- Umgebung/Lichtstimmung",
-      "Beschreibe NICHT:",
-      "- Hausnummern, Schilder, Werbung, Personen, Kennzeichen",
-      "- Konkrete Strassennamen oder Ortsangaben",
-      "Antworte mit MAX 60 Worten als zusammenhaengender Satz."
-    ].join("\n"),
+    system: "Beschreibe ein Immobilienfoto fuer eine kuenstlerische Aquarell-Neudarstellung. Nur: Bauform, Etagen, Dachform, Fassadenfarbe, Material, Fenster-Stil, Umgebung, Lichtstimmung. Keine Hausnummern, Schilder, Personen, Strassennamen. Max 60 Worte.",
     messages: [
       {
         role: "user",
         content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: mediaType, data: base64 }
-          },
-          {
-            type: "text",
-            text: "Beschreibe dieses Immobilienfoto fuer eine Aquarell-Neudarstellung."
-          }
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: "Beschreibe dieses Immobilienfoto fuer eine Aquarell-Neudarstellung." }
         ]
       }
     ]
@@ -141,57 +111,29 @@ export async function generateStylizedVariant(
     .join(" ")
     .trim();
 
-  const prompt = [
-    "Soft watercolor painting of a residential building exterior.",
-    "Style: gentle washes, blurred edges, dreamy atmosphere,",
-    "muted earth tones with subtle gold accents, no sharp lines,",
-    "no readable text, no recognizable details, painterly mood.",
-    "Subject details:",
-    description
-  ].join(" ");
+  const prompt = `Soft watercolor painting of a residential building exterior. Gentle washes, blurred edges, muted earth tones with subtle gold accents. No sharp lines, no readable text, no recognizable details. Subject: ${description}`;
 
   const imageRes = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "gpt-image-1",
-      prompt,
-      n: 1,
-      size: "1024x1024",
-      quality: "medium"
-    })
+    headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "gpt-image-1", prompt, n: 1, size: "1024x1024", quality: "medium" })
   });
 
   if (!imageRes.ok) {
     const txt = await imageRes.text().catch(() => "");
-    throw new Error(
-      `OpenAI Image-Generation fehlgeschlagen (${imageRes.status}): ${txt.slice(0, 400)}`
-    );
+    throw new Error(`OpenAI fehlgeschlagen (${imageRes.status}): ${txt.slice(0, 400)}`);
   }
-  const json = (await imageRes.json()) as {
-    data?: { b64_json?: string; url?: string }[];
-  };
+  const json = (await imageRes.json()) as { data?: { b64_json?: string; url?: string }[] };
   const first = json.data?.[0];
   if (!first) throw new Error("OpenAI lieferte kein Bild zurueck.");
 
   let stylizedBuf: Buffer;
-  if (first.b64_json) {
-    stylizedBuf = Buffer.from(first.b64_json, "base64");
-  } else if (first.url) {
-    stylizedBuf = await fetchAsBuffer(first.url);
-  } else {
-    throw new Error("OpenAI Response hat weder b64_json noch url.");
-  }
-
-  const finalBuf = await sharp(stylizedBuf)
-    .jpeg({ quality: 85, mozjpeg: true })
-    .toBuffer();
+  if (first.b64_json) stylizedBuf = Buffer.from(first.b64_json, "base64");
+  else if (first.url) stylizedBuf = await fetchAsBuffer(first.url);
+  else throw new Error("OpenAI Response hat weder b64_json noch url.");
 
   const path = `offmarket/${userId}/${leadId}/${imageId}-stylized.jpg`;
-  const blob = await put(path, finalBuf, {
+  const blob = await put(path, stylizedBuf, {
     access: "public",
     addRandomSuffix: true,
     contentType: "image/jpeg",
