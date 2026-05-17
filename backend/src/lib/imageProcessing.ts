@@ -106,8 +106,8 @@ export async function generateStylizedVariant(
   });
 
   const description = visionResp.content
-    .filter((c): c is { type: "text"; text: string } => c.type === "text")
-    .map((c) => c.text)
+    .filter((c) => c.type === "text")
+    .map((c) => ("text" in c ? c.text : ""))
     .join(" ")
     .trim();
 
