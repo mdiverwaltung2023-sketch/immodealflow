@@ -5,6 +5,7 @@ import {
   OffmarketLeadSchema,
   OffmarketAnonLeadSchema,
   OffmarketInviteStatusEnum,
+  OffmarketImageSchema,
   OFFMARKET_INVITE_STATUS_LABELS,
   UserRoleEnum,
   ProfileVisibilityEnum,
@@ -13,6 +14,7 @@ import {
   TrackrecordItemSchema,
   ASSET_TYPE_LABELS
 } from "@/lib/api";
+import { OffmarketImage } from "@/components/OffmarketImage";
 import { InviteResponseForm } from "./InviteResponseForm";
 import { ChatThread } from "./ChatThread";
 
@@ -26,7 +28,9 @@ const InviteDetailSchema = z.object({
   investorNote: z.string().nullable().optional(),
   respondedAt: z.string().nullable().optional(),
   role: z.enum(["owner", "investor"]),
-  lead: z.union([OffmarketLeadSchema, OffmarketAnonLeadSchema]),
+  lead: z.union([OffmarketLeadSchema, OffmarketAnonLeadSchema]).and(
+    z.object({ images: z.array(OffmarketImageSchema).optional() }).partial()
+  ),
   owner: z.object({
     id: z.string(),
     name: z.string().nullable().optional(),
@@ -83,6 +87,15 @@ export default async function InviteDetailPage({
     district?: string | null;
     fullAddress?: string | null;
     location?: string;
+    images?: Array<{
+      id: string;
+      originalUrl?: string | null;
+      blurredUrl?: string | null;
+      stylizedUrl?: string | null;
+      alt?: string | null;
+      caption?: string | null;
+      sortOrder: number;
+    }>;
   };
 
   const isAccepted = inv.status === "ACCEPTED";
@@ -148,6 +161,28 @@ export default async function InviteDetailPage({
             </div>
           </div>
         </div>
+
+        {(lead.images?.length ?? 0) > 0 && (
+          <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-3">
+            {lead.images?.map((img) => (
+              <div key={img.id} className="aspect-[4/3] overflow-hidden rounded-xl">
+                <OffmarketImage
+                  image={{
+                    id: img.id,
+                    originalUrl: img.originalUrl ?? null,
+                    blurredUrl: img.blurredUrl ?? null,
+                    stylizedUrl: img.stylizedUrl ?? null,
+                    alt: img.alt ?? null,
+                    caption: img.caption ?? null,
+                    sortOrder: img.sortOrder
+                  }}
+                  mode={isAccepted ? "full" : "anon"}
+                  className="h-full"
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4 whitespace-pre-line rounded-lg bg-white/70 p-3 text-sm text-zinc-700">
           {lead.description}

@@ -4735,13 +4735,18 @@ app.get("/me/offmarket-leads", async (req, res) => {
     where: { ownerId: req.userId! },
     orderBy: { createdAt: "desc" },
     include: {
-      _count: { select: { invites: true } }
+      _count: { select: { invites: true } },
+      images: {
+        orderBy: { sortOrder: "asc" },
+        take: 1 // nur Cover-Bild fuer Liste
+      }
     }
   });
   res.json(
     leads.map((l) => ({
       ...leadFullView(l),
-      _count: l._count
+      _count: l._count,
+      images: l.images
     }))
   );
 });
@@ -4768,6 +4773,7 @@ app.get("/me/offmarket-leads/:id", async (req, res) => {
   const lead = await prisma.offmarketLead.findFirst({
     where: { id: req.params.id, ownerId: req.userId! },
     include: {
+      images: { orderBy: { sortOrder: "asc" } },
       invites: {
         orderBy: { createdAt: "desc" },
         include: {
@@ -4791,6 +4797,7 @@ app.get("/me/offmarket-leads/:id", async (req, res) => {
   if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
   res.json({
     ...leadFullView(lead),
+    images: lead.images,
     invites: lead.invites.map((inv) => ({
       id: inv.id,
       createdAt: inv.createdAt,
@@ -4986,13 +4993,37 @@ app.post("/me/offmarket-leads/:id/invite", async (req, res) => {
 // Investor-Endpoints (eingegangene Einladungen + Chat)
 // =====================================================================
 
+// Helper: Image-View je nach Invite-Status
+function imagesForInvestor(
+  imgs: { id: string; originalUrl: string; blurredUrl: string | null; stylizedUrl: string | null; alt: string | null; caption: string | null; sortOrder: number }[],
+  isAccepted: boolean
+) {
+  return imgs.map((i) => ({
+    id: i.id,
+    // Bei PENDING/DECLINED: nur die anonymen Varianten ausliefern
+    originalUrl: isAccepted ? i.originalUrl : null,
+    blurredUrl: i.blurredUrl,
+    stylizedUrl: i.stylizedUrl,
+    alt: i.alt,
+    caption: i.caption,
+    sortOrder: i.sortOrder
+  }));
+}
+
 // GET /me/offmarket-invites — Liste eingegangener Einladungen
 app.get("/me/offmarket-invites", async (req, res) => {
   const invites = await prisma.offmarketInvite.findMany({
     where: { investorId: req.userId! },
     orderBy: { createdAt: "desc" },
     include: {
-      lead: true,
+      lead: {
+        include: {
+          images: {
+            orderBy: { sortOrder: "asc" },
+            take: 1 // Cover
+          }
+        }
+      },
       owner: {
         select: { id: true, name: true, email: true, role: true }
       },
@@ -5000,20 +5031,23 @@ app.get("/me/offmarket-invites", async (req, res) => {
     }
   });
   res.json(
-    invites.map((i) => ({
-      id: i.id,
-      createdAt: i.createdAt,
-      status: i.status,
-      ownerNote: i.ownerNote,
-      investorNote: i.investorNote,
-      respondedAt: i.respondedAt,
-      messageCount: i._count.messages,
-      // Anonyme Sicht solange PENDING; nach ACCEPT volle Sicht
-      lead:
-        i.status === "ACCEPTED" ? leadFullView(i.lead) : leadAnonView(i.lead),
-      // Owner-Kontakt nur nach ACCEPTED
-      owner:
-        i.status === "ACCEPTED"
+    invites.map((i) => {
+      const isAccepted = i.status === "ACCEPTED";
+      return {
+        id: i.id,
+        createdAt: i.createdAt,
+        status: i.status,
+        ownerNote: i.ownerNote,
+        investorNote: i.investorNote,
+        respondedAt: i.respondedAt,
+        messageCount: i._count.messages,
+        // Anonyme Sicht solange PENDING; nach ACCEPT volle Sicht
+        lead: {
+          ...(isAccepted ? leadFullView(i.lead) : leadAnonView(i.lead)),
+          images: imagesForInvestor(i.lead.images, isAccepted)
+        },
+        // Owner-Kontakt nur nach ACCEPTED
+        owner: isAccepted
           ? i.owner
           : {
               id: i.owner.id,
@@ -5021,7 +5055,8 @@ app.get("/me/offmarket-invites", async (req, res) => {
               email: undefined,
               role: i.owner.role
             }
-    }))
+      };
+    })
   );
 });
 
@@ -5033,7 +5068,11 @@ app.get("/me/offmarket-invites/:id", async (req, res) => {
       OR: [{ investorId: req.userId! }, { ownerId: req.userId! }]
     },
     include: {
-      lead: true,
+      lead: {
+        include: {
+          images: { orderBy: { sortOrder: "asc" } }
+        }
+      },
       owner: { select: { id: true, name: true, email: true, role: true } },
       investor: {
         select: {
@@ -5055,6 +5094,7 @@ app.get("/me/offmarket-invites/:id", async (req, res) => {
   const isInvestor = inv.investorId === req.userId;
   const isOwner = inv.ownerId === req.userId;
   const isAccepted = inv.status === "ACCEPTED";
+  const fullImageAccess = isOwner || isAccepted;
   res.json({
     id: inv.id,
     createdAt: inv.createdAt,
@@ -5063,7 +5103,10 @@ app.get("/me/offmarket-invites/:id", async (req, res) => {
     investorNote: inv.investorNote,
     respondedAt: inv.respondedAt,
     role: isOwner ? "owner" : "investor",
-    lead: isOwner || isAccepted ? leadFullView(inv.lead) : leadAnonView(inv.lead),
+    lead: {
+      ...(fullImageAccess ? leadFullView(inv.lead) : leadAnonView(inv.lead)),
+      images: imagesForInvestor(inv.lead.images, fullImageAccess)
+    },
     owner:
       isOwner || isAccepted
         ? inv.owner
@@ -5310,6 +5353,138 @@ app.get("/offmarket/stats", async (_req, res) => {
 // /offmarket/* (oeffentlich-ish): /offmarket/stats darf ohne Auth, die
 // anderen Routen darunter brauchen requireAuth (siehe inline an jeder Route).
 // Wir mounten requireAuth nicht global auf /offmarket, damit /stats public bleibt.
+
+// =====================================================================
+// Phase F.2 + F.3 — Offmarket-Bilder
+// =====================================================================
+//
+// Frontend laedt das Original-Bild via /api/upload-image hoch (Vercel Blob)
+// und sendet die resultierende URL hier rein. Backend erzeugt automatisch
+// die Blur-Variante (sharp). Stilisierung (KI) auf manuellen Aufruf.
+
+import {
+  generateBlurredVariant,
+  generateStylizedVariant
+} from "./lib/imageProcessing.js";
+
+// GET /me/offmarket-leads/:id/images — Liste eigener Bilder (Owner-Sicht)
+app.get("/me/offmarket-leads/:id/images", async (req, res) => {
+  const lead = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
+  const imgs = await prisma.offmarketLeadImage.findMany({
+    where: { leadId: lead.id },
+    orderBy: { sortOrder: "asc" }
+  });
+  res.json(imgs);
+});
+
+// POST /me/offmarket-leads/:id/images — neues Bild registrieren
+// Body: { originalUrl, alt? }
+// Backend triggert async die Blur-Generierung.
+const ImageInputSchema = z.object({
+  originalUrl: z.string().url(),
+  alt: z.string().max(200).optional().nullable(),
+  sortOrder: z.number().int().optional()
+});
+
+app.post("/me/offmarket-leads/:id/images", async (req, res) => {
+  const lead = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
+  const body = ImageInputSchema.parse(req.body);
+
+  const count = await prisma.offmarketLeadImage.count({ where: { leadId: lead.id } });
+  if (count >= 12) {
+    return res.status(400).json({ error: "Max. 12 Bilder pro Inserat" });
+  }
+
+  // Erstmal Eintrag anlegen (ohne blurredUrl), damit der Client sofort
+  // den Eintrag sieht.
+  const created = await prisma.offmarketLeadImage.create({
+    data: {
+      leadId: lead.id,
+      originalUrl: body.originalUrl,
+      alt: body.alt ?? null,
+      sortOrder: body.sortOrder ?? count
+    }
+  });
+
+  // Async Blur generieren — Client kann erneut GET aufrufen oder direkt
+  // mit CSS-Blur arbeiten, bis blurredUrl da ist.
+  generateBlurredVariant(
+    body.originalUrl,
+    req.userId!,
+    lead.id,
+    created.id
+  )
+    .then((blurredUrl) =>
+      prisma.offmarketLeadImage.update({
+        where: { id: created.id },
+        data: { blurredUrl }
+      })
+    )
+    .catch((e) => console.error("blur generate failed", e));
+
+  res.status(201).json(created);
+});
+
+// DELETE /me/offmarket-leads/:id/images/:imageId
+app.delete("/me/offmarket-leads/:id/images/:imageId", async (req, res) => {
+  const lead = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
+  const img = await prisma.offmarketLeadImage.findFirst({
+    where: { id: req.params.imageId, leadId: lead.id }
+  });
+  if (!img) return res.status(404).json({ error: "Bild nicht gefunden" });
+  await prisma.offmarketLeadImage.delete({ where: { id: img.id } });
+  res.json({ ok: true });
+});
+
+// POST /me/offmarket-leads/:id/images/:imageId/stylize — KI-Stilisierung
+// (Stufe 3). Triggert Claude-Beschreibung + OpenAI Image-Generation.
+// Synchron (kann ~30 Sek dauern); fuer Production-Scale spaeter besser
+// als Job-Queue.
+app.post(
+  "/me/offmarket-leads/:id/images/:imageId/stylize",
+  async (req, res) => {
+    const lead = await prisma.offmarketLead.findFirst({
+      where: { id: req.params.id, ownerId: req.userId! },
+      select: { id: true }
+    });
+    if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
+    const img = await prisma.offmarketLeadImage.findFirst({
+      where: { id: req.params.imageId, leadId: lead.id }
+    });
+    if (!img) return res.status(404).json({ error: "Bild nicht gefunden" });
+
+    try {
+      const { url, caption } = await generateStylizedVariant(
+        img.originalUrl,
+        req.userId!,
+        lead.id,
+        img.id
+      );
+      const updated = await prisma.offmarketLeadImage.update({
+        where: { id: img.id },
+        data: { stylizedUrl: url, caption }
+      });
+      res.json(updated);
+    } catch (e) {
+      console.error("stylize failed", e);
+      res.status(503).json({
+        error: "Stilisierung fehlgeschlagen",
+        detail: (e as Error).message
+      });
+    }
+  }
+);
 
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {

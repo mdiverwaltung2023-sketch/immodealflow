@@ -1662,5 +1662,20 @@ export const OffmarketStatsSchema = z.object({
 });
 export type OffmarketStatsT = z.infer<typeof OffmarketStatsSchema>;
 
+// --- Phase F.2/F.3 — Offmarket-Bilder mit Anonymisierung ---
+export const OffmarketImageSchema = z.object({
+  id: z.string(),
+  createdAt: z.string().optional(),
+  leadId: z.string().optional(),
+  // originalUrl ist nur in Owner-Sicht + ACCEPTED-Invite-Sicht gesetzt
+  originalUrl: z.string().nullable().optional(),
+  blurredUrl: z.string().nullable().optional(),
+  stylizedUrl: z.string().nullable().optional(),
+  alt: z.string().nullable().optional(),
+  caption: z.string().nullable().optional(),
+  sortOrder: z.number()
+});
+export type OffmarketImageT = z.infer<typeof OffmarketImageSchema>;
+
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.

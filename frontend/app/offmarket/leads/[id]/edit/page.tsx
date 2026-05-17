@@ -2,6 +2,7 @@ import Link from "next/link";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { OffmarketLeadSchema } from "@/lib/api";
 import { EditLeadForm } from "./EditLeadForm";
+import { ImageManager } from "./ImageManager";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function EditOffmarketLeadPage({
         </p>
       </div>
       <EditLeadForm lead={lead} />
+      <ImageManager leadId={lead.id} />
     </div>
   );
 }

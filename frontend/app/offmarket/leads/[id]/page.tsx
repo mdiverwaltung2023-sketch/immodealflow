@@ -4,6 +4,7 @@ import {
   OffmarketLeadSchema,
   OffmarketMatchResponseSchema,
   OffmarketInviteStatusEnum,
+  OffmarketImageSchema,
   OFFMARKET_INVITE_STATUS_LABELS,
   OFFMARKET_LEAD_STATUS_LABELS,
   ASSET_TYPE_LABELS
@@ -11,10 +12,12 @@ import {
 import { z } from "zod";
 import { LeadMatchPanel } from "./LeadMatchPanel";
 import { LeadStatusActions } from "./LeadStatusActions";
+import { OffmarketImage } from "@/components/OffmarketImage";
 
 export const dynamic = "force-dynamic";
 
 const DetailWithInvitesSchema = OffmarketLeadSchema.extend({
+  images: z.array(OffmarketImageSchema).optional(),
   invites: z.array(
     z.object({
       id: z.string(),
@@ -124,6 +127,26 @@ export default async function OffmarketLeadDetailPage({
         {lead.description && (
           <div className="mt-4 whitespace-pre-line rounded-lg bg-white/70 p-3 text-sm text-zinc-700">
             {lead.description}
+          </div>
+        )}
+
+        {/* Owner-Sicht: alle Bilder (Original) */}
+        {(lead.images?.length ?? 0) > 0 && (
+          <div className="mt-4">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+              Bilder ({lead.images?.length})
+            </div>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {lead.images?.map((img) => (
+                <div key={img.id} className="aspect-[4/3] overflow-hidden rounded-xl">
+                  <OffmarketImage image={img} mode="full" className="h-full" />
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 text-[11px] text-zinc-500">
+              Owner-Ansicht: Original. Investoren sehen die Blur-/KI-Variante.
+              Bearbeiten & Stilisieren oben über „✎ Bearbeiten".
+            </div>
           </div>
         )}
       </div>

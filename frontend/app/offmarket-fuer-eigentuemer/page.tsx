@@ -93,6 +93,41 @@ export default async function OffmarketAkquisePage() {
         </div>
       </section>
 
+      {/* Beispiel-Karten mit anonymisierten Bildern */}
+      <section className="border-t border-zinc-200 bg-white">
+        <div className="mx-auto max-w-5xl px-4 py-16 lg:px-8">
+          <h2 className="text-2xl font-semibold text-zinc-900 lg:text-3xl">
+            So sehen Investoren <span className="text-amber-700">Ihr Objekt</span>.
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600">
+            Lichtstimmung, Bauform und Atmosphäre bleiben erkennbar — Adresse,
+            Hausnummer, Schilder und identifizierbare Details sind unkenntlich.
+            Auf Wunsch verwandeln wir Ihr Foto in eine KI-Aquarell-Variante.
+          </p>
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+            <DemoCard
+              title="MFH · 8 Einheiten"
+              location="Hamburg, Eimsbüttel"
+              gradient="from-amber-200 via-orange-300 to-rose-400"
+              tag="Blur · Sharp"
+            />
+            <DemoCard
+              title="Gewerbeimmobilie"
+              location="München, Schwabing"
+              gradient="from-sky-200 via-indigo-300 to-violet-400"
+              tag="KI-Aquarell"
+              watercolor
+            />
+            <DemoCard
+              title="MFH · 12 Einheiten"
+              location="Berlin, Charlottenburg"
+              gradient="from-emerald-200 via-teal-300 to-cyan-400"
+              tag="Blur · Sharp"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Differenzierung */}
       <section className="border-y border-zinc-200 bg-white">
         <div className="mx-auto max-w-5xl px-4 py-16 lg:px-8">
@@ -314,6 +349,70 @@ function Step({ n, t, d }: { n: number; t: string; d: string }) {
       </div>
       <h3 className="mt-3 text-lg font-semibold text-zinc-900">{t}</h3>
       <p className="mt-2 text-sm text-zinc-600">{d}</p>
+    </div>
+  );
+}
+
+function DemoCard({
+  title,
+  location,
+  gradient,
+  tag,
+  watercolor
+}: {
+  title: string;
+  location: string;
+  gradient: string;
+  tag: string;
+  watercolor?: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      <div className="relative aspect-[4/3] overflow-hidden">
+        <div
+          className={`absolute inset-0 bg-gradient-to-br ${gradient}`}
+          style={
+            watercolor
+              ? {
+                  backgroundImage: `radial-gradient(at 20% 30%, rgba(255,255,255,0.5), transparent 50%), radial-gradient(at 80% 70%, rgba(255,200,150,0.4), transparent 50%)`,
+                  filter: "blur(3px) saturate(1.3)"
+                }
+              : { filter: "blur(20px) saturate(1.2)" }
+          }
+        />
+        {/* Pseudo-Architektur-Silhouette */}
+        <svg
+          className="absolute inset-0 h-full w-full opacity-40"
+          viewBox="0 0 400 300"
+          preserveAspectRatio="none"
+        >
+          <rect x="60" y="120" width="280" height="160" fill="rgba(40,30,20,0.45)" />
+          <rect x="100" y="150" width="40" height="40" fill="rgba(255,250,230,0.55)" />
+          <rect x="170" y="150" width="40" height="40" fill="rgba(255,250,230,0.55)" />
+          <rect x="240" y="150" width="40" height="40" fill="rgba(255,250,230,0.55)" />
+          <rect x="100" y="210" width="40" height="40" fill="rgba(255,250,230,0.55)" />
+          <rect x="170" y="210" width="40" height="40" fill="rgba(255,250,230,0.55)" />
+          <rect x="240" y="210" width="40" height="40" fill="rgba(255,250,230,0.55)" />
+          <polygon
+            points="50,120 200,40 350,120"
+            fill="rgba(60,40,30,0.55)"
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-amber-900/15 via-transparent to-zinc-900/15" />
+        <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-zinc-900/60 px-2.5 py-1 backdrop-blur-sm">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_4px_1px_rgba(251,191,36,0.8)]" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+            Offmarket
+          </span>
+        </div>
+        <div className="absolute bottom-2 right-2 rounded-full bg-zinc-900/55 px-2 py-0.5 text-[10px] text-zinc-100 backdrop-blur-sm">
+          {tag}
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="text-sm font-semibold text-zinc-900">{title}</div>
+        <div className="mt-0.5 text-xs text-zinc-500">{location}</div>
+      </div>
     </div>
   );
 }

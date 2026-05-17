@@ -1217,6 +1217,7 @@ model OffmarketLead {
   status             OffmarketLeadStatus @default(DRAFT)
 
   invites            OffmarketInvite[]
+  images             OffmarketLeadImage[]
 
   @@index([ownerId])
   @@index([status])
@@ -1272,4 +1273,40 @@ model OffmarketMessage {
   readAt    DateTime?
 
   @@index([inviteId, createdAt])
+}
+
+// =====================================================================
+// Phase F.2 — Offmarket-Bilder mit 3 Anzeige-Stufen
+// =====================================================================
+// Pro Lead beliebig viele Bilder. Drei URLs pro Bild:
+//   - originalUrl   = Originalbild (nur Owner + Investor nach ACCEPTED)
+//   - blurredUrl    = stark verpixelte/blurr-Version (sharp, public)
+//   - stylizedUrl?  = optional KI-stilisiertes Aquarell/Skizze (premium)
+//
+// Im Frontend wird je nach Sicht das passendste Bild gerendert:
+//   - Owner-Edit:        original (zum Pruefen)
+//   - PENDING-Invite:    stylized > blurred (anonyme Sicht)
+//   - ACCEPTED-Invite:   original (Kontakt freigegeben)
+//   - Public Akquise:    blurred (Demo-Aesthetik)
+// =====================================================================
+
+model OffmarketLeadImage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  leadId    String
+  lead      OffmarketLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  originalUrl  String   // Vercel-Blob-URL des Originals
+  blurredUrl   String?  // sharp-erzeugte Blur-Version (auto bei Upload)
+  stylizedUrl  String?  // KI-erzeugte Stilisierung (manuell, optional)
+
+  alt          String?  // Beschreibung (auto-generiert oder manuell)
+  sortOrder    Int      @default(0)
+
+  // Caption / Lichtstimmung-Hinweis fuer Investoren-Sicht (von Claude
+  // optional generiert)
+  caption      String?
+
+  @@index([leadId, sortOrder])
 }

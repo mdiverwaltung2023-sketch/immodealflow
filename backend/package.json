@@ -15,10 +15,13 @@
     "@anthropic-ai/sdk": "^0.70.0",
     "@clerk/backend": "^1.31.0",
     "@prisma/client": "^6.16.1",
+    "@vercel/blob": "^0.27.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "openai": "^4.78.1",
     "pdf-parse": "^1.1.1",
+    "sharp": "^0.34.1",
     "stripe": "^17.4.0",
     "zod": "^4.1.3"
   },
