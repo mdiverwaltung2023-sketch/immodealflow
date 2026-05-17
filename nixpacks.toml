@@ -1,0 +1,6 @@
+# Railway / Nixpacks System-Setup.
+# Nur Nix-Packages — Build/Start kommen aus railway.json.
+# vips wird gebraucht, damit sharp's native binding laden kann.
+
+[phases.setup]
+nixPkgs = ["...", "vips", "pkg-config"]

@@ -1,62 +1,74 @@
 /**
  * Phase F.2 + F.3 — Image-Processing fuer Offmarket-Bilder.
  *
- * Drei Stufen:
- *   1) CSS-Blur (passiert nur im Frontend, kein Backend-Code)
- *   2) Server-side Heavy-Blur via sharp (diese Datei)
- *   3) KI-Stilisierung via Claude (Vision) + OpenAI gpt-image-1
- *
- * Storage: alle drei Varianten landen in Vercel Blob unter
- *   offmarket/<userId>/<leadId>/<imageId>-<variant>.<ext>
- * Variant in {original, blurred, stylized}.
+ * Lazy-Loading: sharp + openai werden erst beim ERSTEN Aufruf geladen.
+ * Dadurch crasht der Container-Start nicht, falls libvips auf dem Host
+ * fehlt — nur die Image-Endpoints geben dann einen klaren 503.
  */
 
-import sharp from "sharp";
-import { put } from "@vercel/blob";
 import Anthropic from "@anthropic-ai/sdk";
 
 const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
-function ensureBlob() {
-  if (!BLOB_TOKEN) {
+async function loadSharp() {
+  try {
+    const m = await import("sharp");
+    return m.default;
+  } catch (e) {
     throw new Error(
-      "BLOB_READ_WRITE_TOKEN nicht gesetzt — Vercel Blob nicht verfuegbar."
+      "sharp ist nicht ladbar — libvips fehlt auf dem Host? " +
+        (e as Error).message
     );
   }
 }
 
-/**
- * Laedt ein Bild von einer URL als Buffer.
- */
+async function loadBlobPut() {
+  if (!BLOB_TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN nicht gesetzt im Backend.");
+  }
+  const m = await import("@vercel/blob");
+  return m.put;
+}
+
 async function fetchAsBuffer(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Fetch ${url} fehlgeschlagen: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
 
-/**
- * Erzeugt eine stark verpixelte Version eines Bildes — anonymisierend.
- * Strategie: Aggressive Verkleinerung (kleines Pixelraster) + sigma-Blur
- * + leichte Saturation, damit das Bild "kuenstlerisch" wirkt.
- */
+function sniffMediaType(
+  buf: Buffer
+): "image/jpeg" | "image/png" | "image/webp" | "image/gif" {
+  if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+  if (buf[0] === 0x89 && buf[1] === 0x50) return "image/png";
+  if (buf[0] === 0x47 && buf[1] === 0x49) return "image/gif";
+  if (
+    buf[0] === 0x52 &&
+    buf[1] === 0x49 &&
+    buf[8] === 0x57 &&
+    buf[9] === 0x45
+  ) {
+    return "image/webp";
+  }
+  return "image/jpeg";
+}
+
 export async function generateBlurredVariant(
   originalUrl: string,
   userId: string,
   leadId: string,
   imageId: string
 ): Promise<string> {
-  ensureBlob();
+  const sharp = await loadSharp();
+  const put = await loadBlobPut();
 
   const buf = await fetchAsBuffer(originalUrl);
-
-  // Heavy Blur: Pixelize (resize down, dann up) + Gauss-Blur + leicht
-  // gesaettigt, damit es "Aquarell-mood" hat.
   const blurred = await sharp(buf)
-    .resize({ width: 64, withoutEnlargement: false }) // Pixelize Stufe 1
-    .resize({ width: 1024 }) // wieder hoch
-    .blur(35) // starker Gauss-Blur
+    .resize({ width: 64, withoutEnlargement: false })
+    .resize({ width: 1024 })
+    .blur(35)
     .modulate({ saturation: 1.25 })
     .jpeg({ quality: 75, mozjpeg: true })
     .toBuffer();
@@ -66,37 +78,26 @@ export async function generateBlurredVariant(
     access: "public",
     addRandomSuffix: true,
     contentType: "image/jpeg",
-    token: BLOB_TOKEN
+    token: BLOB_TOKEN!
   });
   return blob.url;
 }
 
-/**
- * Erzeugt eine KI-stilisierte Aquarell-/Skizze-Variante.
- *
- * Pipeline:
- *   1) Claude (Vision) beschreibt das Bild knapp ("ein 3-stoeckiges
- *      Altbau-MFH mit Erkerfenstern in der Daemmerung, ...")
- *   2) OpenAI gpt-image-1 generiert ein neues Bild im Aquarell-Stil
- *      basierend auf der Beschreibung.
- * Vorteil: das Original verlaesst nie unsere Pipeline, die KI sieht
- * keine identifizierbaren Details.
- */
 export async function generateStylizedVariant(
   originalUrl: string,
   userId: string,
   leadId: string,
   imageId: string
 ): Promise<{ url: string; caption: string }> {
-  ensureBlob();
   if (!ANTHROPIC_KEY) {
     throw new Error("ANTHROPIC_API_KEY fehlt — Stilisierung nicht moeglich.");
   }
   if (!OPENAI_KEY) {
     throw new Error("OPENAI_API_KEY fehlt — KI-Stilisierung nicht moeglich.");
   }
+  const sharp = await loadSharp();
+  const put = await loadBlobPut();
 
-  // --- Schritt 1: Claude beschreibt das Bild ANONYMISIERT ---
   const buf = await fetchAsBuffer(originalUrl);
   const base64 = buf.toString("base64");
   const mediaType = sniffMediaType(buf);
@@ -109,9 +110,9 @@ export async function generateStylizedVariant(
       "Du beschreibst ein Immobilienfoto fuer eine kuenstlerische",
       "Aquarell-Neudarstellung. Beschreibe NUR:",
       "- Bauform, Etagenzahl, Dachform",
-      "- Fassadenfarbe + Material (z.B. 'helle Putzfassade')",
-      "- Fenster-Stil (z.B. 'Sprossenfenster')",
-      "- Umgebung/Lichtstimmung (z.B. 'baumgesaeumte Strasse, Morgenlicht')",
+      "- Fassadenfarbe + Material",
+      "- Fenster-Stil",
+      "- Umgebung/Lichtstimmung",
       "Beschreibe NICHT:",
       "- Hausnummern, Schilder, Werbung, Personen, Kennzeichen",
       "- Konkrete Strassennamen oder Ortsangaben",
@@ -140,7 +141,6 @@ export async function generateStylizedVariant(
     .join(" ")
     .trim();
 
-  // --- Schritt 2: OpenAI generiert Aquarell-Bild ---
   const prompt = [
     "Soft watercolor painting of a residential building exterior.",
     "Style: gentle washes, blurred edges, dreamy atmosphere,",
@@ -186,7 +186,6 @@ export async function generateStylizedVariant(
     throw new Error("OpenAI Response hat weder b64_json noch url.");
   }
 
-  // Komprimieren + uploaden
   const finalBuf = await sharp(stylizedBuf)
     .jpeg({ quality: 85, mozjpeg: true })
     .toBuffer();
@@ -196,26 +195,8 @@ export async function generateStylizedVariant(
     access: "public",
     addRandomSuffix: true,
     contentType: "image/jpeg",
-    token: BLOB_TOKEN
+    token: BLOB_TOKEN!
   });
 
   return { url: blob.url, caption: description };
-}
-
-function sniffMediaType(
-  buf: Buffer
-): "image/jpeg" | "image/png" | "image/webp" | "image/gif" {
-  if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
-  if (buf[0] === 0x89 && buf[1] === 0x50) return "image/png";
-  if (buf[0] === 0x47 && buf[1] === 0x49) return "image/gif";
-  // WebP: "RIFF....WEBP"
-  if (
-    buf[0] === 0x52 &&
-    buf[1] === 0x49 &&
-    buf[8] === 0x57 &&
-    buf[9] === 0x45
-  ) {
-    return "image/webp";
-  }
-  return "image/jpeg";
 }
