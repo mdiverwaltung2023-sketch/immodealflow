@@ -43,12 +43,12 @@ export function OffmarketImage({
   } else if (image.blurredUrl) {
     src = image.blurredUrl;
     // Mini-CSS-Blur als Belt-and-Suspenders
-    cssBlur = "blur(2px)";
+    cssBlur = "";
     label = "Anonymisiert";
   } else if (image.originalUrl) {
     // Fallback: Server-Blur noch nicht fertig — wir blurren stark im CSS
     src = image.originalUrl;
-    cssBlur = "blur(28px) saturate(1.2)";
+    cssBlur = "blur(12px) saturate(1.15)";
     label = "Vorschau anonymisiert";
   }
 

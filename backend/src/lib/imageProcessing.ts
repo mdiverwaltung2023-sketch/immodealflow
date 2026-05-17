@@ -57,12 +57,13 @@ export async function generateBlurredVariant(
   const put = await loadBlobPut();
 
   const buf = await fetchAsBuffer(originalUrl);
+  // Sanfte Anonymisierung: Lichtstimmung + Bauform bleiben erkennbar,
+  // identifizierbare Details (Schilder, Nummern, Personen) werden weich.
   const blurred = await sharp(buf)
-    .resize({ width: 64, withoutEnlargement: false })
-    .resize({ width: 1024 })
-    .blur(35)
-    .modulate({ saturation: 1.25 })
-    .jpeg({ quality: 75, mozjpeg: true })
+    .resize({ width: 1200, withoutEnlargement: true })
+    .blur(14)
+    .modulate({ saturation: 1.12, brightness: 1.02 })
+    .jpeg({ quality: 80, mozjpeg: true })
     .toBuffer();
 
   const path = `offmarket/${userId}/${leadId}/${imageId}-blurred.jpg`;
