@@ -299,6 +299,12 @@ model User {
   rentalApplicationsSent RentalApplication[] @relation("RentalApplicationsSent")
   tenantProfile         TenantProfile?
 
+  // --- Phase F (Offmarket-Layer) ---
+  offmarketLeads        OffmarketLead[]     @relation("OffmarketLeadOwner")
+  offmarketInvitesSent  OffmarketInvite[]   @relation("OffmarketInvitesSentByOwner")
+  offmarketInvitesRecv  OffmarketInvite[]   @relation("OffmarketInvitesReceivedByInvestor")
+  offmarketMessages     OffmarketMessage[]  @relation("OffmarketMessageSender")
+
   @@index([referredById])
 }
 
@@ -1148,4 +1154,122 @@ model AuctionInfo {
   bidLimit        Int?         // Berechnetes Bietlimit (max Kaufpreis bei CF n. Steuer ≥ 0)
   bidLimitNeutral Int?         // Bietlimit für CF n. Steuer = 0 (Break-Even)
   notes           String?      // Auffälligkeiten aus der Extraktion
+}
+
+// =====================================================================
+// Phase F — Offmarket-Layer (additiver Zusatz zum bestehenden Portal)
+//
+// Konzept: Offmarket-Leads sind diskrete Verkaufsabsichten, die NICHT
+// auf dem oeffentlichen Marketplace erscheinen. Der Eigentuemer waehlt
+// gezielt verifizierte Investoren aus und laedt sie ein. Erst nach
+// Einladungs-Annahme (ACCEPTED) wird Klar-Lage / Kontakt freigegeben
+// und ein 1:1-Chat (OffmarketMessage) freigeschaltet.
+//
+// Das ist parallel zum bestehenden Listing/Marketplace-/Inquiry-Flow:
+// nichts an Listing/Inquiry/Rating/SaleProcess wurde veraendert.
+// =====================================================================
+
+enum OffmarketLeadStatus {
+  DRAFT       // nur Owner sichtbar
+  ACTIVE      // Owner laedt aktiv Investoren ein
+  PAUSED      // Owner hat pausiert, neue Einladungen blockiert
+  CLOSED      // Off-Market-Deal abgeschlossen oder Owner zieht zurueck
+}
+
+enum OffmarketInviteStatus {
+  PENDING     // Owner hat Investor eingeladen, Antwort offen
+  ACCEPTED    // Investor hat Interesse bekundet -> Kontakt/Adresse frei
+  DECLINED    // Investor hat abgelehnt
+  WITHDRAWN   // Owner hat Einladung zurueckgezogen
+  EXPIRED     // ueber 30 Tage ohne Antwort
+}
+
+// Anonymisierungs-Level wie bei Listing — wir wiederverwenden den Enum.
+// (AnonymizationLevel ist bereits in diesem Schema definiert.)
+
+model OffmarketLead {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId   String
+  owner     User     @relation("OffmarketLeadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Pflicht-Eckdaten (bewusst schlank gegenueber Listing v2)
+  title              String              // interner Titel, dem Investor wird die ANON-Variante gezeigt
+  propertyType       AssetType
+  city               String
+  postalCode         String?
+  district           String?
+  fullAddress        String?             // erst nach Invite-ACCEPTED sichtbar
+  anonymizationLevel AnonymizationLevel  @default(CITY_ONLY)
+
+  approxArea         Float               // ungefaehre Gesamtflaeche m²
+  approxPrice        Int                 // Wunschpreis (EUR) — Range-Anzeige im UI
+  approxRent         Int?                // Ist-Miete (EUR/Monat), optional
+
+  // Freitext-Beschreibung fuer Investor (anonymisiert formuliert)
+  description        String
+
+  // Highlights fuer Match-Anzeige ("Vollvermietet","Erbe","Off-Market","Diskret")
+  highlights         String[]            @default([])
+
+  status             OffmarketLeadStatus @default(DRAFT)
+
+  invites            OffmarketInvite[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([city, propertyType])
+}
+
+model OffmarketInvite {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leadId       String
+  lead         OffmarketLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Owner = wer einlaedt (denormalisiert fuer schnellen Owner-Filter)
+  ownerId      String
+  owner        User          @relation("OffmarketInvitesSentByOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Investor = wer eingeladen wird
+  investorId   String
+  investor     User          @relation("OffmarketInvitesReceivedByInvestor", fields: [investorId], references: [id], onDelete: Cascade)
+
+  status       OffmarketInviteStatus @default(PENDING)
+
+  // Optionale persoenliche Notiz des Owners an den Investor
+  ownerNote    String?
+  // Antworttext des Investors bei ACCEPT/DECLINE
+  investorNote String?
+
+  respondedAt  DateTime?
+
+  messages     OffmarketMessage[]
+
+  // Pro (Lead, Investor) genau eine Einladung — verhindert Doppel-Einladungen.
+  @@unique([leadId, investorId], name: "uniq_offmarket_invite")
+  @@index([investorId, status])
+  @@index([ownerId, status])
+}
+
+model OffmarketMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  inviteId  String
+  invite    OffmarketInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+
+  senderId  String
+  sender    User     @relation("OffmarketMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  body      String
+
+  // Soft-Read-Receipt fuer den jeweils anderen Teilnehmer
+  readAt    DateTime?
+
+  @@index([inviteId, createdAt])
 }

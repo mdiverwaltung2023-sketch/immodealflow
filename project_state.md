@@ -243,7 +243,78 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase E erledigt — Bewertungssystem live**
+## Aktuelle Phase: **Phase F — Offmarket-Layer fertig (lokal)**
+
+### Phase F (2026-05-17) — Offmarket-Layer (additives Zusatzfeature)
+
+**Konzept:** Eigener Bereich `Offmarket` parallel zum bestehenden
+Marketplace. Eigentuemer legen diskrete Offmarket-Inserate an, die
+**nie** im oeffentlichen `/marketplace` erscheinen. Sie sehen vorab
+verifizierte Investoren-Profile mit Finanzierungsstaerke und Trackrecord
+und laden gezielt ein (Reverse-Marketplace). Erst nach Doppel-Freigabe
+werden Adresse und Eigentuemer-Kontakt freigeschaltet — dann steht ein
+1:1-Chat (Polling) zur Verfuegung. Bestehende Listing/Marketplace/
+Inquiry/SaleProcess-Flows bleiben unveraendert.
+
+- ✅ Prisma: `OffmarketLead`, `OffmarketInvite`, `OffmarketMessage` +
+  Enums `OffmarketLeadStatus {DRAFT, ACTIVE, PAUSED, CLOSED}`,
+  `OffmarketInviteStatus {PENDING, ACCEPTED, DECLINED, WITHDRAWN, EXPIRED}`.
+  Migration in `deploy/83_phase-f1-offmarket-schema.bat`
+  (`20260517_add_offmarket`).
+- ✅ Backend Owner-Endpoints (alle unter `/me/offmarket-leads`,
+  daher automatisch `requireAuth`):
+  - `GET/POST /me/offmarket-leads`
+  - `GET/PATCH/DELETE /me/offmarket-leads/:id`
+  - `GET /me/offmarket-leads/:id/match` — ranked Investoren-Liste
+    (4-Achsen-Score: Asset/Region/Ticket/Finanzierung)
+  - `POST /me/offmarket-leads/:id/invite` (body `{investorIds[], ownerNote?}`)
+  - `POST /me/offmarket-invites/:id/withdraw`
+- ✅ Backend Investor-Endpoints:
+  - `GET /me/offmarket-invites` (anonyme Sicht bis ACCEPTED)
+  - `GET /me/offmarket-invites/:id`
+  - `POST /me/offmarket-invites/:id/respond` (action ACCEPT/DECLINE)
+- ✅ Backend Chat-Endpoints (Polling, kein WS):
+  - `GET /me/offmarket-invites/:id/messages` (markiert Empfaenger-Nachrichten als gelesen)
+  - `POST /me/offmarket-invites/:id/messages`
+- ✅ Backend Discovery + Public Stats:
+  - `GET /offmarket/investors?city=&assetType=&minTicket=&maxTicket=`
+    (auth-pflichtig, Visibility != PRIVATE)
+  - `GET /offmarket/stats` — bewusst public, fuer Akquise-Landing
+- ✅ Frontend Schemas (`lib/api.ts`): `OffmarketLeadSchema`,
+  `OffmarketAnonLeadSchema`, `OffmarketInvestorMatchSchema`,
+  `OffmarketMatchResponseSchema`, `OffmarketInviteListItemSchema`,
+  `OffmarketMessageSchema`, `OffmarketStatsSchema` + Label-Maps.
+- ✅ Frontend Pages:
+  - `/offmarket` — Hub mit Stats + Rollen-CTAs
+  - `/offmarket/leads` — eigene Offmarket-Inserate (Verkaeufer-Sicht)
+  - `/offmarket/leads/neu` — 3-Step Wizard
+    (Eckdaten → Anonymisierung → Zusammenfassung)
+  - `/offmarket/leads/[id]` — Detail mit Match-Panel + Invite-Modal +
+    Status-Aktionen
+  - `/offmarket/investoren` — filterbare Investoren-Liste mit
+    "Direkt zu Inserat einladen"-Picker
+  - `/offmarket/einladungen` — Posteingang fuer Investoren
+  - `/offmarket/einladungen/[id]` — Einladungs-Detail mit ACCEPT/DECLINE-Form
+    und 1:1-Chat (Polling alle 4s)
+- ✅ Wiederverwendbare `OffmarketInvestorCard` mit Finanzierungs-
+  Spotlight (Bonitaet, Pre-Approval-Badge, Ticket-Range, Trackrecord).
+- ✅ Sidebar additiv erweitert: neue `SECTION_OFFMARKET_SELLER`
+  (Verkaeufer-Mode) und `SECTION_OFFMARKET_INVESTOR` (Investor-Mode)
+  mit goldenem Akzent. Vermieter/Mieter sehen Offmarket bewusst nicht.
+  Bestehende Sections unveraendert.
+- ✅ Public Akquise-Landing `/offmarket-fuer-eigentuemer` (Marketing-
+  Path, ohne Sidebar-Shell) — fuer eBay-Verkaeufer-Gespraeche. Stats
+  live aus `/offmarket/stats`. Middleware + `ConditionalShell` als
+  Marketing-Path registriert.
+- ⚠️ `prisma generate` lokal nicht ausfuehrbar im Cowork-Sandbox
+  (binaries.prisma.sh 403) — Marco fuehrt vor erstem Test die BAT
+  `83_phase-f1-offmarket-schema.bat` aus. Auf Railway laeuft
+  `prisma migrate deploy` automatisch im Build-Hook.
+- ⚠️ Match-Score-Heuristik (4 × 25 Punkte) ist bewusst einfach;
+  feinere Gewichtung kann spaeter im selben Algorithmus erfolgen.
+- ⚠️ Vorbestehende `ReactNode`-Doppel-Types-Errors (SideNav 56/396/414,
+  UploadPage etc.) sind durch doppelte `@types/react` im Repo bedingt
+  und haben mit Phase F nichts zu tun — `next build` ignoriert sie.
 
 ### Phase E (2026-05-07) — Bewertungssystem
 
@@ -503,6 +574,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-17  | Phase F: Offmarket-Layer (Lead/Invite/Message + Discovery + Wizard + 1:1-Chat + Akquise-Landing) |
 | 2026-05-07  | Phase E: Bewertungssystem (beidseitig, Gegendarstellung, rechtliche Hinweise) |
 | 2026-05-07  | Phase D: Inquiry-Flow (Profil-Auszug bei Anfrage, Accept/Reject, fullAddress-Freigabe) |
 | 2026-05-07  | Phase C: Verkäufer-Listings + Marketplace + Bilder-Upload    |

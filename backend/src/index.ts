@@ -4525,6 +4525,792 @@ app.patch("/admin/broker-leads/:id", async (req, res) => {
   return res.json(updated);
 });
 
+// =====================================================================
+// Phase F — Offmarket-Layer
+// =====================================================================
+//
+// Additiver Zusatz: bestehendes Listing/Marketplace/Inquiry bleibt
+// unveraendert. OffmarketLead/Invite/Message sind eine separate
+// Welt, in der Eigentuemer diskret + reverse-marketplace agieren.
+
+const OffmarketLeadInputSchema = z.object({
+  title: z.string().min(3).max(200),
+  propertyType: z.enum([
+    "MFH",
+    "COMMERCIAL",
+    "MIXED_USE",
+    "SINGLE_FAMILY",
+    "APARTMENT",
+    "LAND",
+    "OTHER"
+  ]),
+  city: z.string().min(2).max(120),
+  postalCode: z.string().max(20).optional().nullable(),
+  district: z.string().max(120).optional().nullable(),
+  fullAddress: z.string().max(300).optional().nullable(),
+  anonymizationLevel: z
+    .enum(["FULL_ADDRESS", "DISTRICT_ONLY", "CITY_ONLY"])
+    .default("CITY_ONLY"),
+  approxArea: z.coerce.number().positive(),
+  approxPrice: z.coerce.number().int().positive(),
+  approxRent: z.coerce.number().int().positive().optional().nullable(),
+  description: z.string().min(20).max(8000),
+  highlights: z.array(z.string()).max(20).default([]),
+  status: z
+    .enum(["DRAFT", "ACTIVE", "PAUSED", "CLOSED"])
+    .default("DRAFT")
+});
+
+// Liefert die anonymisierte Sicht auf ein OffmarketLead fuer einen
+// Investor BEVOR die Einladung ACCEPTED wurde. Nach ACCEPTED gibt
+// es die volle Sicht via leadFullViewForInvestor().
+function leadAnonView(l: {
+  id: string;
+  title: string;
+  propertyType: string;
+  city: string;
+  district: string | null;
+  postalCode: string | null;
+  fullAddress: string | null;
+  anonymizationLevel: string;
+  approxArea: number;
+  approxPrice: number;
+  approxRent: number | null;
+  description: string;
+  highlights: string[];
+  status: string;
+  createdAt: Date;
+}) {
+  // Adresse je nach Level reduzieren — fullAddress nie an nicht-akzeptierten Investor.
+  let location = l.city;
+  if (l.anonymizationLevel === "DISTRICT_ONLY" && l.district) {
+    location = `${l.city}, ${l.district}`;
+  }
+  return {
+    id: l.id,
+    title: l.title,
+    propertyType: l.propertyType,
+    location,
+    city: l.city,
+    district: l.anonymizationLevel === "CITY_ONLY" ? null : l.district,
+    postalCode: l.anonymizationLevel === "CITY_ONLY" ? null : l.postalCode,
+    approxArea: l.approxArea,
+    approxPrice: l.approxPrice,
+    approxRent: l.approxRent,
+    description: l.description,
+    highlights: l.highlights,
+    status: l.status,
+    createdAt: l.createdAt
+  };
+}
+
+function leadFullView(l: {
+  id: string;
+  ownerId: string;
+  title: string;
+  propertyType: string;
+  city: string;
+  district: string | null;
+  postalCode: string | null;
+  fullAddress: string | null;
+  anonymizationLevel: string;
+  approxArea: number;
+  approxPrice: number;
+  approxRent: number | null;
+  description: string;
+  highlights: string[];
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: l.id,
+    ownerId: l.ownerId,
+    title: l.title,
+    propertyType: l.propertyType,
+    city: l.city,
+    district: l.district,
+    postalCode: l.postalCode,
+    fullAddress: l.fullAddress,
+    anonymizationLevel: l.anonymizationLevel,
+    approxArea: l.approxArea,
+    approxPrice: l.approxPrice,
+    approxRent: l.approxRent,
+    description: l.description,
+    highlights: l.highlights,
+    status: l.status,
+    createdAt: l.createdAt,
+    updatedAt: l.updatedAt
+  };
+}
+
+// Match-Score zwischen Lead und Investor-Profil (0..100).
+// Wir bewerten 4 Achsen je 25 Punkte:
+//   - Asset-Typ-Match
+//   - Region-Match (City exact / PLZ-Praefix / Land enthalten)
+//   - Ticket-Range-Match (approxPrice innerhalb [min, max])
+//   - Finanzierung (preApproved + Affordability >= approxPrice)
+function computeOffmarketMatchScore(
+  lead: {
+    propertyType: string;
+    city: string;
+    postalCode: string | null;
+    approxPrice: number;
+  },
+  profile: {
+    preferredAssetTypes: string[];
+    preferredRegions: string[];
+    minTicketSize: number | null;
+    maxTicketSize: number | null;
+    financingPreApproved: boolean;
+    equity: number | null;
+    monthlyIncome: number | null;
+    monthlyDebt: number | null;
+  } | null
+): number {
+  if (!profile) return 0;
+  let score = 0;
+
+  // 1) Asset-Typ
+  if (
+    profile.preferredAssetTypes.length === 0 ||
+    profile.preferredAssetTypes.includes(lead.propertyType)
+  ) {
+    score += 25;
+  }
+
+  // 2) Region
+  const regions = profile.preferredRegions.map((r) => r.toLowerCase());
+  const cityLc = lead.city.toLowerCase();
+  if (regions.length === 0) {
+    score += 10; // keine Region gesetzt = neutral
+  } else if (
+    regions.some(
+      (r) =>
+        cityLc.includes(r) ||
+        r.includes(cityLc) ||
+        (lead.postalCode && lead.postalCode.startsWith(r))
+    )
+  ) {
+    score += 25;
+  }
+
+  // 3) Ticket-Range
+  const min = profile.minTicketSize ?? 0;
+  const max = profile.maxTicketSize ?? Number.MAX_SAFE_INTEGER;
+  if (lead.approxPrice >= min && lead.approxPrice <= max) {
+    score += 25;
+  } else if (
+    // 80%-Toleranz: noch 12 Punkte, wenn nicht gefuellt
+    !profile.minTicketSize &&
+    !profile.maxTicketSize
+  ) {
+    score += 12;
+  }
+
+  // 4) Finanzierung
+  const aff = computeAffordability({
+    equity: profile.equity,
+    monthlyIncome: profile.monthlyIncome,
+    monthlyDebt: profile.monthlyDebt
+  });
+  if (profile.financingPreApproved) {
+    score += 25;
+  } else if (aff.maxInvestment && aff.maxInvestment >= lead.approxPrice) {
+    score += 18;
+  } else if (aff.maxInvestment && aff.maxInvestment >= lead.approxPrice * 0.7) {
+    score += 10;
+  }
+
+  return Math.min(100, score);
+}
+
+// =====================================================================
+// Owner-Endpoints (eigene Leads + Einladungen aussenden)
+// =====================================================================
+
+// GET /me/offmarket-leads — Liste eigener Offmarket-Leads
+app.get("/me/offmarket-leads", async (req, res) => {
+  const leads = await prisma.offmarketLead.findMany({
+    where: { ownerId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: { select: { invites: true } }
+    }
+  });
+  res.json(
+    leads.map((l) => ({
+      ...leadFullView(l),
+      _count: l._count
+    }))
+  );
+});
+
+// POST /me/offmarket-leads — neues Lead
+app.post("/me/offmarket-leads", async (req, res) => {
+  const body = OffmarketLeadInputSchema.parse(req.body);
+  const lead = await prisma.offmarketLead.create({
+    data: {
+      ownerId: req.userId!,
+      ...body,
+      // explizite null/undefined-Normalisierung fuer optional-Felder
+      postalCode: body.postalCode ?? null,
+      district: body.district ?? null,
+      fullAddress: body.fullAddress ?? null,
+      approxRent: body.approxRent ?? null
+    }
+  });
+  res.status(201).json(leadFullView(lead));
+});
+
+// GET /me/offmarket-leads/:id — Owner-Sicht inkl. Invites + Investor-Profile
+app.get("/me/offmarket-leads/:id", async (req, res) => {
+  const lead = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    include: {
+      invites: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          investor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              investorProfile: true,
+              trackrecordItems: {
+                orderBy: [{ year: "desc" }],
+                take: 8
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+  if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
+  res.json({
+    ...leadFullView(lead),
+    invites: lead.invites.map((inv) => ({
+      id: inv.id,
+      createdAt: inv.createdAt,
+      status: inv.status,
+      ownerNote: inv.ownerNote,
+      investorNote: inv.investorNote,
+      respondedAt: inv.respondedAt,
+      investor: inv.investor
+    }))
+  });
+});
+
+// PATCH /me/offmarket-leads/:id — Felder updaten / Status wechseln
+app.patch("/me/offmarket-leads/:id", async (req, res) => {
+  const existing = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!existing) return res.status(404).json({ error: "Lead nicht gefunden" });
+  const body = OffmarketLeadInputSchema.partial().parse(req.body);
+  const updated = await prisma.offmarketLead.update({
+    where: { id: existing.id },
+    data: body as never
+  });
+  res.json(leadFullView(updated));
+});
+
+// DELETE /me/offmarket-leads/:id
+app.delete("/me/offmarket-leads/:id", async (req, res) => {
+  const existing = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!existing) return res.status(404).json({ error: "Lead nicht gefunden" });
+  await prisma.offmarketLead.delete({ where: { id: existing.id } });
+  res.json({ ok: true });
+});
+
+// GET /me/offmarket-leads/:id/match — Ranking passender Investoren
+app.get("/me/offmarket-leads/:id/match", async (req, res) => {
+  const lead = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
+
+  // Investor-Pool: alle User mit InvestorProfile (Visibility != PRIVATE),
+  // ausgenommen der Owner selbst und User, die schon eingeladen wurden.
+  const existingInvites = await prisma.offmarketInvite.findMany({
+    where: { leadId: lead.id },
+    select: { investorId: true }
+  });
+  const invitedIds = new Set(existingInvites.map((i) => i.investorId));
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      id: { not: req.userId! },
+      investorProfile: { visibility: { in: ["ON_REQUEST", "PUBLIC"] } }
+    },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      investorProfile: true,
+      trackrecordItems: {
+        orderBy: [{ year: "desc" }],
+        take: 5
+      }
+    },
+    take: 200
+  });
+
+  const ranked = candidates
+    .map((u) => {
+      const p = u.investorProfile;
+      const score = computeOffmarketMatchScore(
+        {
+          propertyType: lead.propertyType,
+          city: lead.city,
+          postalCode: lead.postalCode,
+          approxPrice: lead.approxPrice
+        },
+        p
+          ? {
+              preferredAssetTypes: p.preferredAssetTypes,
+              preferredRegions: p.preferredRegions,
+              minTicketSize: p.minTicketSize,
+              maxTicketSize: p.maxTicketSize,
+              financingPreApproved: p.financingPreApproved,
+              equity: p.equity,
+              monthlyIncome: p.monthlyIncome,
+              monthlyDebt: p.monthlyDebt
+            }
+          : null
+      );
+      const aff = p
+        ? computeAffordability({
+            equity: p.equity,
+            monthlyIncome: p.monthlyIncome,
+            monthlyDebt: p.monthlyDebt
+          })
+        : { maxInvestment: null, maxLoan: null, maxMonthlyDebtService: null };
+      return {
+        userId: u.id,
+        displayName: p?.visibility === "PUBLIC" ? u.name : null, // anonym
+        role: u.role,
+        score,
+        alreadyInvited: invitedIds.has(u.id),
+        profile: p
+          ? {
+              bio: p.bio,
+              experienceYears: p.investmentExperienceYears,
+              preferredAssetTypes: p.preferredAssetTypes,
+              preferredRegions: p.preferredRegions,
+              minTicketSize: p.minTicketSize,
+              maxTicketSize: p.maxTicketSize,
+              financingPreApproved: p.financingPreApproved,
+              financingNote: p.financingNote,
+              affordability: aff,
+              visibility: p.visibility
+            }
+          : null,
+        trackrecordCount: u.trackrecordItems.length,
+        trackrecordTop: u.trackrecordItems.slice(0, 3).map((t) => ({
+          type: t.type,
+          year: t.year,
+          location: t.location,
+          role: t.role
+        }))
+      };
+    })
+    .filter((x) => x.score >= 25)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 50);
+
+  res.json({ lead: leadFullView(lead), matches: ranked });
+});
+
+// POST /me/offmarket-leads/:id/invite — gezielt einladen
+const InviteSchema = z.object({
+  investorIds: z.array(z.string().min(1)).min(1).max(50),
+  ownerNote: z.string().max(2000).optional().nullable()
+});
+
+app.post("/me/offmarket-leads/:id/invite", async (req, res) => {
+  const lead = await prisma.offmarketLead.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!lead) return res.status(404).json({ error: "Lead nicht gefunden" });
+  if (lead.status === "CLOSED") {
+    return res.status(400).json({ error: "Lead ist geschlossen" });
+  }
+  const body = InviteSchema.parse(req.body);
+
+  // Self-Invite verhindern
+  const validIds = body.investorIds.filter((id) => id !== req.userId);
+
+  // Eligible-Check: alle IDs sind echte User mit InvestorProfile
+  const users = await prisma.user.findMany({
+    where: { id: { in: validIds } },
+    select: { id: true, investorProfile: { select: { id: true } } }
+  });
+  const eligible = users.filter((u) => u.investorProfile).map((u) => u.id);
+
+  const results: Array<{ investorId: string; ok: boolean; note?: string }> = [];
+  for (const investorId of eligible) {
+    try {
+      await prisma.offmarketInvite.create({
+        data: {
+          leadId: lead.id,
+          ownerId: req.userId!,
+          investorId,
+          status: "PENDING",
+          ownerNote: body.ownerNote ?? null
+        }
+      });
+      results.push({ investorId, ok: true });
+    } catch (e) {
+      // Wahrscheinlich uniq_offmarket_invite Verstoss (schon eingeladen)
+      results.push({ investorId, ok: false, note: "bereits eingeladen" });
+    }
+  }
+
+  // Lead bei erster Einladung von DRAFT auf ACTIVE setzen
+  if (lead.status === "DRAFT" && results.some((r) => r.ok)) {
+    await prisma.offmarketLead.update({
+      where: { id: lead.id },
+      data: { status: "ACTIVE" }
+    });
+  }
+
+  res.status(201).json({ results });
+});
+
+// =====================================================================
+// Investor-Endpoints (eingegangene Einladungen + Chat)
+// =====================================================================
+
+// GET /me/offmarket-invites — Liste eingegangener Einladungen
+app.get("/me/offmarket-invites", async (req, res) => {
+  const invites = await prisma.offmarketInvite.findMany({
+    where: { investorId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: {
+      lead: true,
+      owner: {
+        select: { id: true, name: true, email: true, role: true }
+      },
+      _count: { select: { messages: true } }
+    }
+  });
+  res.json(
+    invites.map((i) => ({
+      id: i.id,
+      createdAt: i.createdAt,
+      status: i.status,
+      ownerNote: i.ownerNote,
+      investorNote: i.investorNote,
+      respondedAt: i.respondedAt,
+      messageCount: i._count.messages,
+      // Anonyme Sicht solange PENDING; nach ACCEPT volle Sicht
+      lead:
+        i.status === "ACCEPTED" ? leadFullView(i.lead) : leadAnonView(i.lead),
+      // Owner-Kontakt nur nach ACCEPTED
+      owner:
+        i.status === "ACCEPTED"
+          ? i.owner
+          : {
+              id: i.owner.id,
+              name: null,
+              email: undefined,
+              role: i.owner.role
+            }
+    }))
+  );
+});
+
+// GET /me/offmarket-invites/:id — Detail
+app.get("/me/offmarket-invites/:id", async (req, res) => {
+  const inv = await prisma.offmarketInvite.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [{ investorId: req.userId! }, { ownerId: req.userId! }]
+    },
+    include: {
+      lead: true,
+      owner: { select: { id: true, name: true, email: true, role: true } },
+      investor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          investorProfile: true,
+          trackrecordItems: {
+            orderBy: [{ year: "desc" }],
+            take: 8
+          }
+        }
+      }
+    }
+  });
+  if (!inv) return res.status(404).json({ error: "Einladung nicht gefunden" });
+
+  const isInvestor = inv.investorId === req.userId;
+  const isOwner = inv.ownerId === req.userId;
+  const isAccepted = inv.status === "ACCEPTED";
+  res.json({
+    id: inv.id,
+    createdAt: inv.createdAt,
+    status: inv.status,
+    ownerNote: inv.ownerNote,
+    investorNote: inv.investorNote,
+    respondedAt: inv.respondedAt,
+    role: isOwner ? "owner" : "investor",
+    lead: isOwner || isAccepted ? leadFullView(inv.lead) : leadAnonView(inv.lead),
+    owner:
+      isOwner || isAccepted
+        ? inv.owner
+        : { id: inv.owner.id, name: null, role: inv.owner.role },
+    investor: isInvestor
+      ? inv.investor
+      : isAccepted
+        ? inv.investor
+        : {
+            // Owner-Sicht bei PENDING: trotzdem Profil sichtbar (Investor wusste
+            // bei Profil-Anlage, dass er sichtbar werden kann -> Visibility-Setting)
+            ...inv.investor,
+            email: inv.investor.investorProfile?.visibility === "PUBLIC"
+              ? inv.investor.email
+              : ""
+          },
+    canChat: isAccepted
+  });
+});
+
+// POST /me/offmarket-invites/:id/respond — Investor antwortet (ACCEPT/DECLINE)
+const RespondSchema = z.object({
+  action: z.enum(["ACCEPT", "DECLINE"]),
+  note: z.string().max(2000).optional().nullable()
+});
+
+app.post("/me/offmarket-invites/:id/respond", async (req, res) => {
+  const inv = await prisma.offmarketInvite.findFirst({
+    where: { id: req.params.id, investorId: req.userId! }
+  });
+  if (!inv) return res.status(404).json({ error: "Einladung nicht gefunden" });
+  if (inv.status !== "PENDING") {
+    return res.status(400).json({ error: "Einladung ist nicht mehr offen" });
+  }
+  const body = RespondSchema.parse(req.body);
+
+  const updated = await prisma.offmarketInvite.update({
+    where: { id: inv.id },
+    data: {
+      status: body.action === "ACCEPT" ? "ACCEPTED" : "DECLINED",
+      investorNote: body.note ?? null,
+      respondedAt: new Date()
+    }
+  });
+  res.json({ ok: true, status: updated.status });
+});
+
+// POST /me/offmarket-invites/:id/withdraw — Owner zieht Einladung zurueck
+app.post("/me/offmarket-invites/:id/withdraw", async (req, res) => {
+  const inv = await prisma.offmarketInvite.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!inv) return res.status(404).json({ error: "Einladung nicht gefunden" });
+  if (inv.status !== "PENDING") {
+    return res.status(400).json({ error: "Einladung ist nicht mehr offen" });
+  }
+  await prisma.offmarketInvite.update({
+    where: { id: inv.id },
+    data: { status: "WITHDRAWN", respondedAt: new Date() }
+  });
+  res.json({ ok: true });
+});
+
+// =====================================================================
+// Chat-Endpoints (Polling, kein WebSocket)
+// =====================================================================
+
+// GET /me/offmarket-invites/:id/messages — Chat-Verlauf
+app.get("/me/offmarket-invites/:id/messages", async (req, res) => {
+  const inv = await prisma.offmarketInvite.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [{ investorId: req.userId! }, { ownerId: req.userId! }]
+    }
+  });
+  if (!inv) return res.status(404).json({ error: "Einladung nicht gefunden" });
+  if (inv.status !== "ACCEPTED") {
+    return res.status(403).json({ error: "Chat erst nach Annahme freigegeben" });
+  }
+  const messages = await prisma.offmarketMessage.findMany({
+    where: { inviteId: inv.id },
+    orderBy: { createdAt: "asc" }
+  });
+  // Soft-Read: alle nicht von mir, ungelesen -> markieren
+  await prisma.offmarketMessage.updateMany({
+    where: {
+      inviteId: inv.id,
+      senderId: { not: req.userId! },
+      readAt: null
+    },
+    data: { readAt: new Date() }
+  });
+  res.json({ messages });
+});
+
+// POST /me/offmarket-invites/:id/messages — neue Nachricht
+const MessageBodySchema = z.object({
+  body: z.string().min(1).max(8000)
+});
+
+app.post("/me/offmarket-invites/:id/messages", async (req, res) => {
+  const inv = await prisma.offmarketInvite.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [{ investorId: req.userId! }, { ownerId: req.userId! }]
+    }
+  });
+  if (!inv) return res.status(404).json({ error: "Einladung nicht gefunden" });
+  if (inv.status !== "ACCEPTED") {
+    return res.status(403).json({ error: "Chat erst nach Annahme freigegeben" });
+  }
+  const body = MessageBodySchema.parse(req.body);
+  const msg = await prisma.offmarketMessage.create({
+    data: {
+      inviteId: inv.id,
+      senderId: req.userId!,
+      body: body.body
+    }
+  });
+  res.status(201).json(msg);
+});
+
+// =====================================================================
+// Discovery — Owner durchsucht anonymisierte Investoren-Liste
+// =====================================================================
+
+// GET /offmarket/investors?city=&assetType=&minTicket=&maxTicket=
+app.get("/offmarket/investors", requireAuth, async (req, res) => {
+  const q = z
+    .object({
+      city: z.string().optional(),
+      assetType: z
+        .enum([
+          "MFH",
+          "COMMERCIAL",
+          "MIXED_USE",
+          "SINGLE_FAMILY",
+          "APARTMENT",
+          "LAND",
+          "OTHER"
+        ])
+        .optional(),
+      minTicket: z.coerce.number().int().nonnegative().optional(),
+      maxTicket: z.coerce.number().int().nonnegative().optional()
+    })
+    .parse(req.query);
+
+  const users = await prisma.user.findMany({
+    where: {
+      id: { not: req.userId! },
+      investorProfile: { visibility: { in: ["ON_REQUEST", "PUBLIC"] } }
+    },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      investorProfile: true,
+      trackrecordItems: { orderBy: [{ year: "desc" }], take: 3 }
+    },
+    take: 200
+  });
+
+  const filtered = users.filter((u) => {
+    const p = u.investorProfile;
+    if (!p) return false;
+    if (
+      q.assetType &&
+      p.preferredAssetTypes.length > 0 &&
+      !p.preferredAssetTypes.includes(q.assetType)
+    )
+      return false;
+    if (q.city && p.preferredRegions.length > 0) {
+      const cityLc = q.city.toLowerCase();
+      const ok = p.preferredRegions.some(
+        (r) => r.toLowerCase().includes(cityLc) || cityLc.includes(r.toLowerCase())
+      );
+      if (!ok) return false;
+    }
+    if (q.minTicket && p.maxTicketSize && p.maxTicketSize < q.minTicket) return false;
+    if (q.maxTicket && p.minTicketSize && p.minTicketSize > q.maxTicket) return false;
+    return true;
+  });
+
+  res.json(
+    filtered.map((u) => {
+      const p = u.investorProfile!;
+      const aff = computeAffordability({
+        equity: p.equity,
+        monthlyIncome: p.monthlyIncome,
+        monthlyDebt: p.monthlyDebt
+      });
+      return {
+        userId: u.id,
+        displayName: p.visibility === "PUBLIC" ? u.name : null,
+        role: u.role,
+        experienceYears: p.investmentExperienceYears,
+        bio: p.bio,
+        preferredAssetTypes: p.preferredAssetTypes,
+        preferredRegions: p.preferredRegions,
+        minTicketSize: p.minTicketSize,
+        maxTicketSize: p.maxTicketSize,
+        financingPreApproved: p.financingPreApproved,
+        financingNote: p.financingNote,
+        affordability: aff,
+        trackrecordCount: u.trackrecordItems.length,
+        trackrecordTop: u.trackrecordItems.map((t) => ({
+          type: t.type,
+          year: t.year,
+          location: t.location,
+          role: t.role
+        })),
+        visibility: p.visibility
+      };
+    })
+  );
+});
+
+// GET /offmarket/stats — Public Stats fuer Akquise-Landing (anonym)
+app.get("/offmarket/stats", async (_req, res) => {
+  // Kein Auth — wird vom Public Landing /offmarket-fuer-eigentuemer
+  // aufgerufen, zeigt aggregierte Zahlen.
+  const [investorCount, preApprovedCount, activeLeadsCount] = await Promise.all([
+    prisma.user.count({
+      where: {
+        investorProfile: { visibility: { in: ["ON_REQUEST", "PUBLIC"] } }
+      }
+    }),
+    prisma.investorProfile.count({
+      where: { financingPreApproved: true }
+    }),
+    prisma.offmarketLead.count({ where: { status: "ACTIVE" } })
+  ]);
+  const totalTicketAgg = await prisma.investorProfile.aggregate({
+    _sum: { maxTicketSize: true }
+  });
+  res.json({
+    investorCount,
+    preApprovedCount,
+    activeLeadsCount,
+    totalTicketSumEUR: totalTicketAgg._sum.maxTicketSize ?? 0
+  });
+});
+
+// /offmarket/* (oeffentlich-ish): /offmarket/stats darf ohne Auth, die
+// anderen Routen darunter brauchen requireAuth (siehe inline an jeder Route).
+// Wir mounten requireAuth nicht global auf /offmarket, damit /stats public bleibt.
+
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {
   console.log(`DealFlow AI API listening on http://localhost:${port}`);

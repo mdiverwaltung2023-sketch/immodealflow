@@ -1504,5 +1504,163 @@ export const SaleProcessDetailSchema = z.object({
 });
 export type SaleProcessDetailT = z.infer<typeof SaleProcessDetailSchema>;
 
+// --- Phase F (Offmarket-Layer) ---------------------------------
+
+export const OffmarketLeadStatusEnum = z.enum([
+  "DRAFT",
+  "ACTIVE",
+  "PAUSED",
+  "CLOSED"
+]);
+export type OffmarketLeadStatusT = z.infer<typeof OffmarketLeadStatusEnum>;
+export const OFFMARKET_LEAD_STATUS_LABELS: Record<OffmarketLeadStatusT, string> = {
+  DRAFT: "Entwurf",
+  ACTIVE: "Aktiv",
+  PAUSED: "Pausiert",
+  CLOSED: "Geschlossen"
+};
+
+export const OffmarketInviteStatusEnum = z.enum([
+  "PENDING",
+  "ACCEPTED",
+  "DECLINED",
+  "WITHDRAWN",
+  "EXPIRED"
+]);
+export type OffmarketInviteStatusT = z.infer<typeof OffmarketInviteStatusEnum>;
+export const OFFMARKET_INVITE_STATUS_LABELS: Record<OffmarketInviteStatusT, string> = {
+  PENDING: "Offen",
+  ACCEPTED: "Angenommen",
+  DECLINED: "Abgelehnt",
+  WITHDRAWN: "Zurückgezogen",
+  EXPIRED: "Abgelaufen"
+};
+
+export const OffmarketLeadSchema = z.object({
+  id: z.string(),
+  ownerId: z.string().optional(),
+  title: z.string(),
+  propertyType: AssetTypeEnum,
+  city: z.string(),
+  district: z.string().nullable().optional(),
+  postalCode: z.string().nullable().optional(),
+  fullAddress: z.string().nullable().optional(),
+  anonymizationLevel: AnonymizationLevelEnum,
+  approxArea: z.number(),
+  approxPrice: z.number(),
+  approxRent: z.number().nullable().optional(),
+  description: z.string(),
+  highlights: z.array(z.string()).default([]),
+  status: OffmarketLeadStatusEnum,
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+  _count: z.object({ invites: z.number() }).optional()
+});
+export type OffmarketLeadT = z.infer<typeof OffmarketLeadSchema>;
+
+export const OffmarketAnonLeadSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  propertyType: AssetTypeEnum,
+  location: z.string(),
+  city: z.string(),
+  district: z.string().nullable().optional(),
+  postalCode: z.string().nullable().optional(),
+  approxArea: z.number(),
+  approxPrice: z.number(),
+  approxRent: z.number().nullable().optional(),
+  description: z.string(),
+  highlights: z.array(z.string()).default([]),
+  status: OffmarketLeadStatusEnum,
+  createdAt: z.string()
+});
+export type OffmarketAnonLeadT = z.infer<typeof OffmarketAnonLeadSchema>;
+
+export const OffmarketInvestorMatchSchema = z.object({
+  userId: z.string(),
+  displayName: z.string().nullable().optional(),
+  role: UserRoleEnum,
+  score: z.number().optional(),
+  alreadyInvited: z.boolean().optional(),
+  experienceYears: z.number().optional(),
+  bio: z.string().nullable().optional(),
+  preferredAssetTypes: z.array(AssetTypeEnum).optional(),
+  preferredRegions: z.array(z.string()).optional(),
+  minTicketSize: z.number().nullable().optional(),
+  maxTicketSize: z.number().nullable().optional(),
+  financingPreApproved: z.boolean().optional(),
+  financingNote: z.string().nullable().optional(),
+  affordability: AffordabilitySchema.optional(),
+  trackrecordCount: z.number().optional(),
+  trackrecordTop: z
+    .array(
+      z.object({
+        type: AssetTypeEnum,
+        year: z.number(),
+        location: z.string(),
+        role: TrackrecordRoleEnum
+      })
+    )
+    .optional(),
+  visibility: ProfileVisibilityEnum.optional(),
+  profile: z
+    .object({
+      bio: z.string().nullable().optional(),
+      experienceYears: z.number(),
+      preferredAssetTypes: z.array(AssetTypeEnum),
+      preferredRegions: z.array(z.string()),
+      minTicketSize: z.number().nullable().optional(),
+      maxTicketSize: z.number().nullable().optional(),
+      financingPreApproved: z.boolean(),
+      financingNote: z.string().nullable().optional(),
+      affordability: AffordabilitySchema,
+      visibility: ProfileVisibilityEnum
+    })
+    .nullable()
+    .optional()
+});
+export type OffmarketInvestorMatchT = z.infer<typeof OffmarketInvestorMatchSchema>;
+
+export const OffmarketMatchResponseSchema = z.object({
+  lead: OffmarketLeadSchema,
+  matches: z.array(OffmarketInvestorMatchSchema)
+});
+
+export const OffmarketInviteListItemSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  status: OffmarketInviteStatusEnum,
+  ownerNote: z.string().nullable().optional(),
+  investorNote: z.string().nullable().optional(),
+  respondedAt: z.string().nullable().optional(),
+  messageCount: z.number().optional(),
+  lead: z.union([OffmarketLeadSchema, OffmarketAnonLeadSchema]),
+  owner: z.object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    email: z.string().optional(),
+    role: UserRoleEnum
+  })
+});
+export type OffmarketInviteListItemT = z.infer<typeof OffmarketInviteListItemSchema>;
+
+export const OffmarketMessageSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  inviteId: z.string(),
+  senderId: z.string(),
+  body: z.string(),
+  readAt: z.string().nullable().optional()
+});
+export type OffmarketMessageT = z.infer<typeof OffmarketMessageSchema>;
+
+export const OffmarketStatsSchema = z.object({
+  investorCount: z.number(),
+  preApprovedCount: z.number(),
+  activeLeadsCount: z.number(),
+  totalTicketSumEUR: z.number()
+});
+export type OffmarketStatsT = z.infer<typeof OffmarketStatsSchema>;
+
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.

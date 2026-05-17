@@ -28,10 +28,14 @@ type Section = {
     | "seller"
     | "landlord"
     | "rentSearch"
+    | "offmarketSeller"
+    | "offmarketInvestor"
     | "account"
     | "admin";
   title: string;
   items: Item[];
+  /** Optional gold/violet Akzent fuer Offmarket-Sektion */
+  accent?: "offmarket";
 };
 
 /* ---------- Mini-Icon-Set (inline SVGs) ---------- */
@@ -144,6 +148,25 @@ const IcKey = (
     <path d="M16 7l3 3" />
   </Icon>
 );
+const IcLock = (
+  <Icon>
+    <rect x="4" y="11" width="16" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 018 0v4" />
+  </Icon>
+);
+const IcRadar = (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <path d="M12 3v4" />
+  </Icon>
+);
+const IcEnvelope = (
+  <Icon>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M3 7l9 7 9-7" />
+  </Icon>
+);
 
 /* ---------- Sektionen ---------- */
 
@@ -212,6 +235,34 @@ const SECTION_ADMIN: Section = {
   ]
 };
 
+// --- Phase F (Offmarket-Layer) --------------------------------------
+//
+// Eigene Sektion mit goldenem Akzent — der Begriff "Offmarket" zieht
+// sich bewusst durch alle Items als Markenversprechen + Lead-Magnet
+// fuer eBay-Verkaufsgespraeche.
+
+const SECTION_OFFMARKET_SELLER: Section = {
+  id: "offmarketSeller",
+  title: "Offmarket · diskret verkaufen",
+  accent: "offmarket",
+  items: [
+    { href: "/offmarket", label: "Offmarket-Hub", icon: IcLock, exact: true },
+    { href: "/offmarket/leads", label: "Meine Offmarket-Inserate", icon: IcList },
+    { href: "/offmarket/leads/neu", label: "Offmarket-Inserat anlegen", icon: IcPlus },
+    { href: "/offmarket/investoren", label: "Investoren entdecken", icon: IcRadar }
+  ]
+};
+
+const SECTION_OFFMARKET_INVESTOR: Section = {
+  id: "offmarketInvestor",
+  title: "Offmarket · Vorab-Zugang",
+  accent: "offmarket",
+  items: [
+    { href: "/offmarket", label: "Offmarket-Hub", icon: IcLock, exact: true },
+    { href: "/offmarket/einladungen", label: "Offmarket-Einladungen", icon: IcEnvelope }
+  ]
+};
+
 /**
  * Phase L7 — saubere Trennung pro View-Mode. Jede View hat genau EINE
  * Rollen-Sektion (Investor / Verkäufer / Vermieter / Mieter) plus
@@ -222,11 +273,24 @@ const SECTION_ADMIN: Section = {
  * den für ihre Rolle erlaubten Sichten.
  */
 function sectionsForMode(mode: ViewMode): Section[] {
+  // Offmarket-Sektion wird parallel zum jeweiligen Haupt-Workflow
+  // eingeblendet: Investor -> Vorab-Zugang, Verkaeufer -> diskret verkaufen.
+  // Vermieter/Mieter sehen Offmarket nicht (passt nicht zum Use-Case).
   switch (mode) {
     case "INVESTOR":
-      return [SECTION_OVERVIEW, SECTION_INVESTOR, SECTION_ACCOUNT];
+      return [
+        SECTION_OVERVIEW,
+        SECTION_INVESTOR,
+        SECTION_OFFMARKET_INVESTOR,
+        SECTION_ACCOUNT
+      ];
     case "SELLER":
-      return [SECTION_OVERVIEW, SECTION_SELLER, SECTION_ACCOUNT];
+      return [
+        SECTION_OVERVIEW,
+        SECTION_SELLER,
+        SECTION_OFFMARKET_SELLER,
+        SECTION_ACCOUNT
+      ];
     case "LANDLORD":
       return [SECTION_OVERVIEW, SECTION_LANDLORD, SECTION_ACCOUNT];
     case "TENANT":
@@ -288,40 +352,80 @@ export function SideNav({
       </Link>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        {sections.map((section) => (
-          <div key={section.id}>
-            <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-              {section.title}
+        {sections.map((section) => {
+          const isOffmarket = section.accent === "offmarket";
+          return (
+            <div
+              key={section.id}
+              className={
+                isOffmarket
+                  ? "rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50/60 to-white px-1 py-2"
+                  : undefined
+              }
+            >
+              <div
+                className={
+                  isOffmarket
+                    ? "px-3 mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700"
+                    : "px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400"
+                }
+              >
+                {isOffmarket ? (
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500"
+                    style={{ boxShadow: '0 0 6px 1px rgba(245, 158, 11, 0.5)' }}
+                  />
+                ) : null}
+                <span>{section.title}</span>
+              </div>
+              <ul className="space-y-1">
+                {section.items.map((item) => {
+                  const active = isActive(pathname, item);
+                  if (isOffmarket) {
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={
+                            active
+                              ? 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-amber-100/80 text-amber-900'
+                              : 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-amber-50 hover:text-amber-900'
+                          }
+                        >
+                          <span className={active ? 'text-amber-600' : 'text-amber-500/80'}>
+                            {item.icon}
+                          </span>
+                          <span>{item.label}</span>
+                        </Link>
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={
+                          active
+                            ? 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-indigo-50 text-indigo-700'
+                            : 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                        }
+                      >
+                        <span className={active ? 'text-indigo-600' : 'text-zinc-400'}>
+                          {item.icon}
+                        </span>
+                        <span>{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-            <ul className="space-y-1">
-              {section.items.map((item) => {
-                const active = isActive(pathname, item);
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={
-                        active
-                          ? "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-indigo-50 text-indigo-700"
-                          : "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                      }
-                    >
-                      <span className={active ? "text-indigo-600" : "text-zinc-400"}>
-                        {item.icon}
-                      </span>
-                      <span>{item.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
-      {/* Plan-Block am Sidebar-Footer: Free zeigt CTA, Pro zeigt Badge */}
       <div className="border-t border-zinc-200 px-4 py-4">
-        {plan === "FREE" ? (
+        {plan === 'FREE' ? (
           <Link
             href="/pricing"
             className="block rounded-lg bg-gradient-to-br from-indigo-600 to-violet-700 p-3 text-white shadow-sm transition hover:shadow-md"
@@ -329,9 +433,9 @@ export function SideNav({
             <div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-200">
               Beobachter
             </div>
-            <div className="mt-0.5 text-sm font-semibold">Investor Club starten →</div>
+            <div className="mt-0.5 text-sm font-semibold">Investor Club starten</div>
             <div className="mt-1 text-[10px] text-indigo-100/90">
-              Off-Market-Vorsprung · KI-Bietlimit · 19 €/Monat
+              Offmarket-Vorsprung KI-Bietlimit 19 EUR pro Monat
             </div>
           </Link>
         ) : (
@@ -353,7 +457,7 @@ export function SideNav({
           </div>
         )}
         <div className="mt-3 text-[10px] text-zinc-400">
-          © {new Date().getFullYear()} Infinity Oikos
+          (c) {new Date().getFullYear()} Infinity Oikos
         </div>
       </div>
     </aside>
