@@ -5,9 +5,11 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { MeSchema, type Me } from "@/lib/api";
 
+// Fallback auf Live-Backend falls die env-var im Vercel-Build fehlte.
+const DEFAULT_API_BASE = "https://api.infinityoikos.com";
+
 function baseUrl() {
-  const url = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!url) throw new Error("NEXT_PUBLIC_API_BASE_URL fehlt");
+  const url = process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE;
   return url.replace(/\/+$/, "");
 }
 
@@ -47,13 +49,6 @@ export async function apiPost<T>(
   return schema.parse(json);
 }
 
-/**
- * Holt den eingeloggten User und redirectet auf /onboarding, wenn das
- * Onboarding noch nicht abgeschlossen ist. Auf allen geschützten Pages
- * (Dashboard, Property, Auctions, New) ganz oben aufrufen.
- *
- * NICHT auf /onboarding selbst aufrufen — sonst Redirect-Loop.
- */
 export async function requireOnboardedUser(): Promise<Me> {
   const me = await apiGet("/me", MeSchema);
   if (!me.onboardingCompletedAt) {

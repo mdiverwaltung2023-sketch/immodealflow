@@ -3,7 +3,13 @@
 import { useAuth } from "@clerk/nextjs";
 import { useCallback } from "react";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
+// Fallback auf die Live-Backend-Domain falls NEXT_PUBLIC_API_BASE_URL
+// im Vercel-Build nicht gesetzt war. Verhindert, dass relative Pfade
+// versehentlich auf die Vercel-Frontend-Domain gehen (-> 404).
+const DEFAULT_API_BASE = "https://api.infinityoikos.com";
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE
+).replace(/\/+$/, "");
 
 /**
  * Hook für Client-Components, der `fetch` mit dem Clerk-Bearer-Token
@@ -18,7 +24,6 @@ export function useApiFetch() {
       const token = await getToken();
       const headers = new Headers(init?.headers);
       if (token) headers.set("Authorization", `Bearer ${token}`);
-      // JSON-Default falls Body gesetzt aber kein Content-Type
       if (init?.body && !headers.has("Content-Type")) {
         headers.set("Content-Type", "application/json");
       }
