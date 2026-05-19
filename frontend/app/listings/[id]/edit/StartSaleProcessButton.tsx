@@ -4,21 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApiFetch } from "@/lib/client-fetch";
-import { Button, Input, Textarea, Label } from "@/components/ui";
-import { SALE_STAGE_LABELS, type SaleStageT } from "@/lib/api";
+import {
+  SALE_STAGE_LABELS,
+  SALE_STAGE_ORDER,
+  SALE_DOC_LABELS,
+  SALE_DOC_ORDER,
+  type SaleStageT
+} from "@/lib/api";
 
 /**
- * Phase J4 — Off-Market-Verkauf direkt vom Inserat aus starten.
+ * Phase M1 — Verkaufsabwicklung als Werbemittel.
  *
- * Holt /me/sale-processes?listingId=... beim Mount.
- * - Existiert ein aktiver Prozess (nicht ABGESCHLOSSEN/ABGEBROCHEN):
- *   zeigt Status + Direkt-Link.
- * - Sonst: Button "Off-Market-Verkauf starten" oeffnet Modal mit
- *   optionalem Kaufpreis + Notizen.
+ * Statt einem Start-Modal mit Kaufpreis-Eingabe zeigt diese Karte
+ * dauerhaft, was der Verkaufs-Workflow leistet:
+ *   - 13 Pipeline-Stationen als horizontaler Stepper-Preview
+ *   - 14 Dokumenten-Slots als Liste
+ * Ein einziger Klick startet die Pipeline (ohne Kaufpreis-Pflicht);
+ * Kaufpreis und Notizen werden anschliessend in der Verkaufs-Seite
+ * gepflegt.
  *
- * buyerId wird in V1 leer gelassen — Marco kann den Kaeufer-Namen
- * in die Notiz schreiben. Sobald V2 ein Buyer-Lookup-Feature hat,
- * koennen wir das via PATCH nachtragen.
+ * Wenn eine Pipeline schon laeuft, wird Status + Direkt-Link gezeigt.
  */
 
 type ActiveProc = {
@@ -33,13 +38,8 @@ export function StartSaleProcessButton({ listingId }: { listingId: string }) {
 
   const [loaded, setLoaded] = useState(false);
   const [active, setActive] = useState<ActiveProc | null>(null);
-
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  const [price, setPrice] = useState("");
-  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -79,20 +79,11 @@ export function StartSaleProcessButton({ listingId }: { listingId: string }) {
     setBusy(true);
     setErr(null);
     try {
-      const body: Record<string, unknown> = {};
-      if (notes.trim()) body.notes = notes.trim();
-      if (price.trim()) {
-        const p = Number(price);
-        if (!Number.isFinite(p) || p < 0) {
-          setErr("Preis muss eine positive Zahl sein.");
-          setBusy(false);
-          return;
-        }
-        body.agreedPrice = Math.round(p);
-      }
+      // Kein Modal, kein Preis: direkt mit leerem Body anlegen.
+      // agreedPrice + Notizen pflegt der Verkaeufer in /sales/[id].
       const res = await apiFetch(`/me/listings/${listingId}/sale-processes`, {
         method: "POST",
-        body: JSON.stringify(body)
+        body: JSON.stringify({})
       });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
@@ -149,90 +140,75 @@ export function StartSaleProcessButton({ listingId }: { listingId: string }) {
     );
   }
 
+  // --- Werbe-Sicht: zeigt Pipeline + Dokumenten-Slots schon VOR dem Start ---
   return (
-    <>
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600">
-            <span className="text-lg">📁</span>
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+          <span className="text-lg">📁</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-zinc-900">
+            Verkaufsabwicklung — geführter Prozess in 13 Stationen
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-zinc-900">
-              Verkaufsabwicklung
+          <div className="mt-1 text-xs text-zinc-600">
+            Vom akzeptierten Interesse bis zur Eigentumsumschreibung — strukturiert
+            mit Audit-Verlauf, 14 Dokumenten-Slots und Freigabe-Links für
+            Kaufinteressenten. Starte jederzeit, auch ohne fixen Kaufpreis.
+          </div>
+
+          {/* Pipeline-Preview (horizontaler Stepper, read-only) */}
+          <div className="mt-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Pipeline-Stationen
             </div>
-            <div className="mt-1 text-xs text-zinc-600">
-              Off-Market-Verkauf? Starte hier eine Pipeline mit Stationen
-              (Besichtigung → Notar → Übergabe), Notizen und Dokumenten-Upload —
-              ohne dass jemand über den Marketplace anfragen muss.
+            <ol className="mt-2 flex flex-wrap gap-1">
+              {SALE_STAGE_ORDER.map((stage, idx) => (
+                <li key={stage}>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] text-zinc-600">
+                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-zinc-300 text-[9px] font-bold text-white">
+                      {idx + 1}
+                    </span>
+                    {SALE_STAGE_LABELS[stage]}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Dokumenten-Slots-Preview */}
+          <div className="mt-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Dokumenten-Slots — gezielt freigebbar an Kaufinteressenten
             </div>
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
-              >
-                Off-Market-Verkauf starten
-              </button>
+            <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-zinc-600 md:grid-cols-3">
+              {SALE_DOC_ORDER.map((kind) => (
+                <li key={kind} className="truncate">• {SALE_DOC_LABELS[kind]}</li>
+              ))}
+            </ul>
+          </div>
+
+          {err ? (
+            <div className="mt-3 rounded bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {err}
             </div>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={start}
+              disabled={busy}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {busy ? "Starte …" : "Verkaufsabwicklung starten"}
+            </button>
+            <span className="text-[11px] text-zinc-500">
+              kein Kaufpreis nötig — pflegst du später
+            </span>
           </div>
         </div>
       </div>
-
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => !busy && setOpen(false)}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-base font-semibold text-zinc-900">
-              Off-Market-Verkauf starten
-            </div>
-            <div className="mt-1 text-xs text-zinc-500">
-              Beide Felder sind optional. Du kannst sie später anpassen.
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <div>
-                <Label>Vereinbarter Kaufpreis (EUR, optional)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="z. B. 850000"
-                />
-              </div>
-              <div>
-                <Label>Notiz (optional)</Label>
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="z. B. Käufer Familie Müller, Finanzierung Sparkasse, Bonität geprüft"
-                />
-              </div>
-            </div>
-
-            {err ? (
-              <div className="mt-3 rounded bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                {err}
-              </div>
-            ) : null}
-
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-                Abbrechen
-              </Button>
-              <Button onClick={start} disabled={busy}>
-                {busy ? "Starte …" : "Verkauf starten"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
+    </div>
   );
 }

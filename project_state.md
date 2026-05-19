@@ -243,9 +243,61 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase F — Offmarket-Layer fertig (lokal)**
+## Aktuelle Phase: **Phase M1 — Verkaufsabwicklung 2.0 (Datenmodell + Entkopplung)**
+
+### Phase M1 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 1
+
+> Ausloeser: Marco moechte die Verkaufsabwicklung als Werbemittel
+> transparent VOR der Kaufpreis-Eingabe zeigen, die Pipeline grafisch
+> als Stepper darstellen und einen Mechanismus haben, mit dem
+> Dokumente an einen konkreten Kaufinteressenten freigegeben werden
+> koennen — auch ohne Marketplace-Inquiry und ohne Account.
+>
+> Vollkonzept inkl. Phasenplan: `phase_M_concept.md` im Repo-Root.
+
+- ✅ **Prisma:** neues Modell `BuyerDocAccess` (Token-basierte
+  Dokumenten-Freigabe pro Listing). Felder: `token` (unique, 256 bit
+  hex), `allowedDocKinds: SaleDocKind[]`, `expiresAt?`, `revokedAt?`,
+  `accessCount`, `lastAccessedAt`, `buyerLabel?`, `buyerEmail?`,
+  `inquiryId?`, `buyerUserId?`. Migration
+  `20260519120000_buyer_doc_access_m1`. User-Relations
+  `BuyerAccessSeller` und `BuyerAccessBuyer` hinzugefuegt, Listing
+  und Inquiry haben jeweils ein neues Inverse-Field.
+- ✅ **Backend Endpoints:**
+  - `GET /me/listings/:listingId/buyer-access` — Liste aller Freigaben
+  - `POST /me/listings/:listingId/buyer-access` — Freigabe erstellen
+    (Body: `allowedDocKinds[]`, optional `buyerLabel`, `buyerEmail`,
+    `inquiryId`, `expiresAt`, `notes`)
+  - `PATCH /me/buyer-access/:id` — aktualisieren / widerrufen / unrevoken
+  - `DELETE /me/buyer-access/:id` — hart loeschen
+  - `GET /public/buyer-access/:token` — Kaeufer-Sicht **ohne Auth**;
+    gibt anonymisiertes Listing + freigegebene Dokumente zurueck;
+    erhoeht `accessCount` + `lastAccessedAt`; antwortet 404 bei
+    `revokedAt`/`expiresAt` ueberschritten / unbekannt.
+- ✅ **UI-Entkopplung von Kaufpreis:** `StartSaleProcessButton.tsx`
+  zeigt jetzt eine *Werbe-Sicht* mit Pipeline-Preview (13 Stationen
+  als horizontale Chips) und einer Liste aller 14 Dokumenten-Slots —
+  schon BEVOR die Pipeline gestartet wurde. Klick auf "Verkaufsabwicklung
+  starten" legt direkt einen `SaleProcess` an (ohne Modal, ohne
+  Kaufpreis-Pflichtfeld) und navigiert auf `/sales/:id`. Preis +
+  Notizen pflegt der Verkaeufer dort weiterhin ueber `ProcessFields`.
+- ✅ **Frontend-Schemas:** `BuyerDocAccessSchema`,
+  `BuyerDocAccessListSchema`, `PublicBuyerAccessSchema` in
+  `frontend/lib/api.ts`. Noch keine UI-Komponenten — folgen in M2.
+- ✅ **BATs:** `101_phase-m1-buyer-doc-access.bat` (Lockfile-Sync +
+  Prisma generate + Migration + Status), `102_commit-phase-m1.bat`
+  (git commit/push).
+- ⚠️ **Phase M2 ausstehend:** Tab "Verkaufsabwicklung" pro Inserat im
+  Verkaeufer-Edit; UI fuer Freigabe-Erstellung (Modal mit Checkboxen
+  pro Doc-Kind, Ablauf, Buyer-Label); Public-Route `/zugang/[token]`;
+  optional grafische Pipeline-Darstellung statt Grid in `/sales/[id]`.
+- ⚠️ **Phase M3 ausstehend (optional):** Auto-SaleProcess bei erstem
+  Dokumenten-Upload, Notification bei erstem Token-Abruf, Auto-Fill
+  von Freigaben aus Inquiry-Kontext.
 
 ### Phase F (2026-05-17) — Offmarket-Layer (additives Zusatzfeature)
+
+### Phase F (2026-05-17) — Offmarket-Layer (additives Zusatzfeature) [zuvor aktuell]
 
 **Konzept:** Eigener Bereich `Offmarket` parallel zum bestehenden
 Marketplace. Eigentuemer legen diskrete Offmarket-Inserate an, die
@@ -574,6 +626,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-19  | Phase M1: BuyerDocAccess (Token-Freigabe) + Werbe-Sicht der Pipeline, Kaufpreis-Entkopplung |
 | 2026-05-17  | Phase F: Offmarket-Layer (Lead/Invite/Message + Discovery + Wizard + 1:1-Chat + Akquise-Landing) |
 | 2026-05-07  | Phase E: Bewertungssystem (beidseitig, Gegendarstellung, rechtliche Hinweise) |
 | 2026-05-07  | Phase D: Inquiry-Flow (Profil-Auszug bei Anfrage, Accept/Reject, fullAddress-Freigabe) |

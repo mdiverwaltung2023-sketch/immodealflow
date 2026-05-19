@@ -295,6 +295,8 @@ model User {
   saleProcessesAsBuyer  SaleProcess[]    @relation("BuyerProcesses")
   saleStageEntries      SaleStageEntry[] @relation("StageBy")
   uploadedSaleDocs      SaleDocument[]   @relation("DocUploads")
+  buyerAccessGranted    BuyerDocAccess[] @relation("BuyerAccessSeller")
+  buyerAccessReceived   BuyerDocAccess[] @relation("BuyerAccessBuyer")
   rentalUnits           RentalUnit[]
   rentalApplicationsSent RentalApplication[] @relation("RentalApplicationsSent")
   tenantProfile         TenantProfile?
@@ -597,6 +599,7 @@ model Listing {
   images           ListingImage[]
   inquiries        Inquiry[]
   saleProcesses    SaleProcess[]
+  buyerAccesses    BuyerDocAccess[]
   marketAnalysis   MarketAnalysis?
   offerEvaluations OfferEvaluation[]
 
@@ -645,6 +648,7 @@ model Inquiry {
   ratings          Rating[]
   saleProcess      SaleProcess?
   offerEvaluations OfferEvaluation[]
+  buyerAccesses    BuyerDocAccess[]
 
   // Doppelte PENDING-Inquiries vom selben Investor werden im Backend verhindert,
   // nicht via DB-Constraint — sonst könnte er nach REJECTED nicht erneut anfragen.
@@ -757,6 +761,56 @@ model SaleDocument {
 
   @@unique([processId, kind])
   @@index([processId])
+}
+
+// Phase M1 — Token-basierte Dokumenten-Freigabe an einen Kaufinteressenten.
+// Verkaeufer erzeugt pro Interessent einen Link, waehlt freigegebene
+// Dokumenten-Kategorien (SaleDocKind[]) und teilt den Link per Mail / WhatsApp.
+// Kaeufer oeffnet den Link OHNE Account und sieht nur die freigegebenen
+// Dokumente. Anonymisierung des Listings respektiert anonymizationLevel.
+//
+// Bewusst am Listing aufgehaengt (nicht am SaleProcess), damit Pre-Sale-
+// Freigaben (vor Besichtigung / Kaufpreis-Angebot) ohne aktiven SaleProcess
+// funktionieren. Dokumente werden ueber den SaleProcess des gleichen
+// Listings serviert; existiert kein Process, ist die Liste leer.
+model BuyerDocAccess {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  sellerId  String
+  seller    User     @relation("BuyerAccessSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // Optional: bereits zugeordneter Marketplace-Interessent / Kaeufer.
+  inquiryId   String?
+  inquiry     Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+  buyerUserId String?
+  buyerUser   User?    @relation("BuyerAccessBuyer", fields: [buyerUserId], references: [id], onDelete: SetNull)
+
+  // Freitext-Label fuer die Verkaeufer-Uebersicht ("Familie Mueller, Termin 25.05.").
+  buyerLabel String?
+  buyerEmail String?
+  notes      String?
+
+  // 256 bit hex (64 Zeichen) zufaellig. Unique.
+  token       String   @unique
+
+  // Welche Dokumenten-Kategorien sind freigegeben?
+  allowedDocKinds SaleDocKind[]
+
+  // Ablauf / Revoke
+  expiresAt DateTime?
+  revokedAt DateTime?
+
+  // Audit
+  lastAccessedAt DateTime?
+  accessCount    Int       @default(0)
+
+  @@index([listingId, sellerId])
+  @@index([sellerId, revokedAt])
 }
 
 // Phase K — KI-Marktanalyse (TEIL 1 des Prompts).

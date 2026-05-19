@@ -1504,6 +1504,52 @@ export const SaleProcessDetailSchema = z.object({
 });
 export type SaleProcessDetailT = z.infer<typeof SaleProcessDetailSchema>;
 
+// --- Phase M1 (Token-Freigabe an Kaufinteressenten) ------------
+
+export const BuyerDocAccessSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  buyerLabel: z.string().nullable().optional(),
+  buyerEmail: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  token: z.string(),
+  allowedDocKinds: z.array(SaleDocKindEnum),
+  expiresAt: z.string().nullable().optional(),
+  revokedAt: z.string().nullable().optional(),
+  lastAccessedAt: z.string().nullable().optional(),
+  accessCount: z.number(),
+  inquiryId: z.string().nullable().optional(),
+  buyerUserId: z.string().nullable().optional()
+});
+export type BuyerDocAccessT = z.infer<typeof BuyerDocAccessSchema>;
+
+export const BuyerDocAccessListSchema = z.array(BuyerDocAccessSchema);
+
+/** Public-Antwort, wenn ein Kaufinteressent den Token-Link oeffnet. */
+export const PublicBuyerAccessSchema = z.object({
+  buyerLabel: z.string().nullable().optional(),
+  allowedDocKinds: z.array(SaleDocKindEnum),
+  expiresAt: z.string().nullable().optional(),
+  listing: z.object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string(),
+    propertyType: z.string(),
+    city: z.string(),
+    postalCode: z.string().nullable().optional(),
+    district: z.string().nullable().optional(),
+    fullAddress: z.string().nullable().optional(),
+    askingPrice: z.number(),
+    totalArea: z.number()
+  }),
+  documents: z.array(SaleDocumentSchema.omit({ processId: true }).extend({
+    processId: z.string().optional()
+  })),
+  pipelineExists: z.boolean()
+});
+export type PublicBuyerAccessT = z.infer<typeof PublicBuyerAccessSchema>;
+
 // --- Phase F (Offmarket-Layer) ---------------------------------
 
 export const OffmarketLeadStatusEnum = z.enum([

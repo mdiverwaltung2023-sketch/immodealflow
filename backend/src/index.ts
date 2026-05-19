@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { z } from "zod";
 import Stripe from "stripe";
+import { randomBytes } from "node:crypto";
 import { prisma } from "./lib/prisma.js";
 import {
   computeFullAnalysis,
@@ -3251,6 +3252,276 @@ app.delete("/me/sale-processes/:id/documents/:kind", async (req, res) => {
     where: { processId: owned.id, kind: kindParse.data }
   });
   return res.json({ ok: true });
+});
+
+// =========================================================
+// Verkaufsabwicklung 2.0 — Token-Freigaben (Phase M1)
+// =========================================================
+//
+// Verkaeufer erzeugt pro Kaufinteressent einen Token-Link. Kaeufer
+// oeffnet den Link OHNE Account und sieht nur die freigegebenen
+// Dokumenten-Kategorien. Anonymisierung des Listings bleibt erhalten.
+
+/** 256-bit zufaelliger Token, hex-codiert (64 Zeichen). */
+function makeAccessToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
+/** Anonymisierte Listing-Sicht fuer Kaufinteressent (vor Vollfreigabe). */
+function listingPublicView(l: {
+  id: string;
+  title: string;
+  description: string;
+  propertyType: string;
+  city: string;
+  postalCode: string | null;
+  district: string | null;
+  fullAddress: string | null;
+  anonymizationLevel: string;
+  askingPrice: number;
+  totalArea: number;
+}) {
+  // Spiegel-Logik zu anonymizeListing() aber liefert das pro
+  // Verkaeufer freigegebene Bild — Token = vorbereitende
+  // Vorab-Information, nicht Voll-Adresszugriff.
+  const showFull = l.anonymizationLevel === "FULL_ADDRESS";
+  const showDistrict =
+    showFull || l.anonymizationLevel === "DISTRICT_ONLY";
+  return {
+    id: l.id,
+    title: l.title,
+    description: l.description,
+    propertyType: l.propertyType,
+    city: l.city,
+    postalCode: showFull ? l.postalCode : null,
+    district: showDistrict ? l.district : null,
+    fullAddress: showFull ? l.fullAddress : null,
+    askingPrice: l.askingPrice,
+    totalArea: l.totalArea
+  };
+}
+
+const AllowedDocKindsSchema = z.array(SaleDocKindEnum).min(1).max(20);
+
+// GET /me/listings/:listingId/buyer-access — Freigaben eines eigenen Listings
+app.get("/me/listings/:listingId/buyer-access", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.listingId, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden oder nicht deins." });
+
+  const accesses = await prisma.buyerDocAccess.findMany({
+    where: { listingId: listing.id, sellerId: req.userId! },
+    orderBy: [{ createdAt: "desc" }],
+    select: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      buyerLabel: true,
+      buyerEmail: true,
+      notes: true,
+      token: true,
+      allowedDocKinds: true,
+      expiresAt: true,
+      revokedAt: true,
+      lastAccessedAt: true,
+      accessCount: true,
+      inquiryId: true,
+      buyerUserId: true
+    }
+  });
+  return res.json(accesses);
+});
+
+// POST /me/listings/:listingId/buyer-access — Freigabe erstellen
+app.post("/me/listings/:listingId/buyer-access", async (req, res) => {
+  const body = z
+    .object({
+      allowedDocKinds: AllowedDocKindsSchema,
+      buyerLabel: z.string().max(200).nullable().optional(),
+      buyerEmail: z.string().email().max(200).nullable().optional(),
+      notes: z.string().max(2000).nullable().optional(),
+      inquiryId: z.string().min(1).max(40).nullable().optional(),
+      expiresAt: z.string().nullable().optional()
+    })
+    .parse(req.body ?? {});
+
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.listingId, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden oder nicht deins." });
+
+  // optional: Inquiry-Plausibilitaet pruefen
+  let buyerUserId: string | null = null;
+  if (body.inquiryId) {
+    const inq = await prisma.inquiry.findFirst({
+      where: { id: body.inquiryId, listingId: listing.id },
+      select: { id: true, investorId: true }
+    });
+    if (!inq) return res.status(400).json({ error: "Inquiry passt nicht zu diesem Listing." });
+    buyerUserId = inq.investorId;
+  }
+
+  let expiresDate: Date | null = null;
+  if (body.expiresAt) {
+    const d = new Date(body.expiresAt);
+    if (Number.isNaN(d.getTime())) {
+      return res.status(400).json({ error: "expiresAt ist kein gueltiges Datum." });
+    }
+    expiresDate = d;
+  }
+
+  const access = await prisma.buyerDocAccess.create({
+    data: {
+      listingId: listing.id,
+      sellerId: req.userId!,
+      inquiryId: body.inquiryId ?? null,
+      buyerUserId,
+      buyerLabel: body.buyerLabel ?? null,
+      buyerEmail: body.buyerEmail ?? null,
+      notes: body.notes ?? null,
+      token: makeAccessToken(),
+      allowedDocKinds: body.allowedDocKinds,
+      expiresAt: expiresDate
+    }
+  });
+  return res.json(access);
+});
+
+// PATCH /me/buyer-access/:id — Felder aktualisieren / widerrufen
+app.patch("/me/buyer-access/:id", async (req, res) => {
+  const body = z
+    .object({
+      allowedDocKinds: AllowedDocKindsSchema.optional(),
+      buyerLabel: z.string().max(200).nullable().optional(),
+      buyerEmail: z.string().email().max(200).nullable().optional(),
+      notes: z.string().max(2000).nullable().optional(),
+      expiresAt: z.string().nullable().optional(),
+      revoke: z.boolean().optional()
+    })
+    .parse(req.body ?? {});
+
+  const owned = await prisma.buyerDocAccess.findFirst({
+    where: { id: req.params.id, sellerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Freigabe nicht gefunden." });
+
+  const data: Record<string, unknown> = {};
+  if (body.allowedDocKinds !== undefined) data.allowedDocKinds = body.allowedDocKinds;
+  if (body.buyerLabel !== undefined) data.buyerLabel = body.buyerLabel;
+  if (body.buyerEmail !== undefined) data.buyerEmail = body.buyerEmail;
+  if (body.notes !== undefined) data.notes = body.notes;
+  if (body.expiresAt !== undefined) {
+    if (body.expiresAt === null) {
+      data.expiresAt = null;
+    } else {
+      const d = new Date(body.expiresAt);
+      if (Number.isNaN(d.getTime())) {
+        return res.status(400).json({ error: "expiresAt ist kein gueltiges Datum." });
+      }
+      data.expiresAt = d;
+    }
+  }
+  if (body.revoke === true) {
+    data.revokedAt = new Date();
+  } else if (body.revoke === false) {
+    data.revokedAt = null;
+  }
+
+  const updated = await prisma.buyerDocAccess.update({
+    where: { id: owned.id },
+    data
+  });
+  return res.json(updated);
+});
+
+// DELETE /me/buyer-access/:id — Freigabe hart entfernen
+app.delete("/me/buyer-access/:id", async (req, res) => {
+  const owned = await prisma.buyerDocAccess.findFirst({
+    where: { id: req.params.id, sellerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Freigabe nicht gefunden." });
+  await prisma.buyerDocAccess.delete({ where: { id: owned.id } });
+  return res.json({ ok: true });
+});
+
+// GET /public/buyer-access/:token — Kaeufer-Sicht, KEIN Auth
+// 404 wenn unbekannt, widerrufen oder abgelaufen.
+app.get("/public/buyer-access/:token", async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!/^[a-f0-9]{32,128}$/.test(token)) {
+    return res.status(404).json({ error: "Nicht gefunden." });
+  }
+  const access = await prisma.buyerDocAccess.findUnique({
+    where: { token },
+    include: {
+      listing: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          propertyType: true,
+          city: true,
+          postalCode: true,
+          district: true,
+          fullAddress: true,
+          anonymizationLevel: true,
+          askingPrice: true,
+          totalArea: true,
+          saleProcesses: {
+            select: {
+              id: true,
+              currentStage: true,
+              documents: {
+                select: {
+                  id: true,
+                  kind: true,
+                  url: true,
+                  filename: true,
+                  sizeBytes: true,
+                  createdAt: true
+                }
+              }
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 1
+          }
+        }
+      }
+    }
+  });
+  if (!access) return res.status(404).json({ error: "Nicht gefunden." });
+  if (access.revokedAt) return res.status(404).json({ error: "Freigabe widerrufen." });
+  if (access.expiresAt && access.expiresAt.getTime() < Date.now()) {
+    return res.status(404).json({ error: "Freigabe abgelaufen." });
+  }
+
+  // Audit aktualisieren (fire-and-forget bzgl. Antwortzeit)
+  await prisma.buyerDocAccess.update({
+    where: { id: access.id },
+    data: {
+      lastAccessedAt: new Date(),
+      accessCount: { increment: 1 }
+    }
+  });
+
+  // Dokumente filtern: nur die freigegebenen Kategorien
+  const proc = access.listing.saleProcesses[0] ?? null;
+  const allowed = new Set(access.allowedDocKinds);
+  const documents = (proc?.documents ?? []).filter((d) => allowed.has(d.kind));
+
+  return res.json({
+    buyerLabel: access.buyerLabel,
+    allowedDocKinds: access.allowedDocKinds,
+    expiresAt: access.expiresAt,
+    listing: listingPublicView(access.listing),
+    documents,
+    pipelineExists: !!proc
+  });
 });
 
 // =========================================================
