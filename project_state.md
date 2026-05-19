@@ -243,7 +243,53 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase M2 — Verkaufsabwicklung 2.0 (UI + Public-Page)**
+## Aktuelle Phase: **Phase M3 — Notifications + Auto-Fill + bunte Pipeline-Icons**
+
+### Phase M3 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 3
+
+> Aufbauend auf M2: Notification-Pfad, Inquiry-Auto-Fill und visuelle
+> Aufwertung der Pipeline. Zusatz-Wunsch von Marco: bunte Icons pro
+> Stage im horizontalen Stepper.
+
+- ✅ **Prisma:** Modell `UserNotification` (kind, title, body, link,
+  payloadJson, readAt) + Enum `UserNotificationKind` (4 Werte). Migration
+  `20260519180000_notifications_m3`. Indizes auf `(userId, readAt,
+  createdAt)` und `(userId, kind)`.
+- ✅ **Backend-Hook:** `GET /public/buyer-access/:token` legt beim ersten
+  Abruf (`wasFirstAccess = accessCount === 0`) eine
+  `FIRST_BUYER_ACCESS`-Notification fuer den Verkaeufer an. Fire-and-
+  forget — ein Notify-Fehler darf den Public-Endpoint nie blockieren.
+- ✅ **Notification-Endpoints:**
+  - `GET /me/notifications?unreadOnly&limit` (default 50, max 200,
+    Antwort: `{ items, unreadCount }`)
+  - `PATCH /me/notifications/:id` — idempotent als gelesen markieren
+  - `POST /me/notifications/mark-all-read`
+- ✅ **Inquiry-Auto-Fill:** `POST /me/listings/:listingId/buyer-access`
+  akzeptiert optional `inquiryId` und befuellt `buyerLabel`/`buyerEmail`
+  aus dem Investor-Profil der Inquiry, wenn die Felder nicht explizit
+  mitgegeben wurden. Verkaeufer wird im Modal um den Inquiry-Bezug
+  gefragt (Dropdown).
+- ✅ **Frontend `NotificationBell`-Komponente:** sitzt im TopBar,
+  pollt alle 30 s `/me/notifications?unreadOnly=true&limit=1`, zeigt
+  roten Badge mit Unread-Count, klick fuehrt auf `/benachrichtigungen`.
+- ✅ **Page `/benachrichtigungen`:** Liste der letzten 100
+  Notifications mit Read/Unread-State, „Alle als gelesen markieren"-
+  Button, Deep-Link auf den Original-Kontext (z.B. zurueck zum
+  Listing-Edit).
+- ✅ **`BuyerAccessManager`-Modal**: neuer Dropdown „Aus Anfrage
+  uebernehmen". Wenn ausgewaehlt, werden Buyer-Label und Email
+  automatisch aus dem Investor-Profil gefuellt (Werte ueberschreibbar).
+- ✅ **Bunte Pipeline-Icons** (Wunsch von Marco):
+  `components/SaleStageVisual.tsx` mit 13 Inline-SVG-Icons (Handshake,
+  Eye, Chat, Lock, Document-Edit, Calendar, Stamp, Shield-Check,
+  Euro-Banknote, Key, Certificate, Trophy, X-Circle) und einer
+  Farbpalette `SALE_STAGE_TONES` von Indigo (Anfang) ueber Gelb
+  (Kaufpreis) bis Rose (Abgeschlossen), Zinc fuer Abgebrochen.
+  Genutzt im horizontalen Stepper auf `/sales/[id]` (44px-Knoten mit
+  Icon, Done-Tick-Overlay), in der Mobile-Liste und in der Werbe-Sicht
+  des `StartSaleProcessButton` (farbige Pillen mit Icon).
+- ✅ **BATs:** `105_phase-m3-migrate.bat` (Lockfile + prisma generate +
+  migrate dev + frontend build), `106_commit-phase-m3.bat`.
 
 ### Phase M2 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 2
 
@@ -665,6 +711,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-19  | Phase M3: Notifications + Inquiry-Auto-Fill + bunte Pipeline-Icons |
 | 2026-05-19  | Phase M2: BuyerAccessManager + /zugang/[token]-Page + horizontaler Pipeline-Stepper |
 | 2026-05-19  | Phase M1: BuyerDocAccess (Token-Freigabe) + Werbe-Sicht der Pipeline, Kaufpreis-Entkopplung |
 | 2026-05-17  | Phase F: Offmarket-Layer (Lead/Invite/Message + Discovery + Wizard + 1:1-Chat + Akquise-Landing) |

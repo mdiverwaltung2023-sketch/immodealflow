@@ -284,6 +284,13 @@ function AccessRow({
   );
 }
 
+type InquiryOption = {
+  id: string;
+  status: string;
+  investorName: string | null;
+  investorEmail: string | null;
+};
+
 function CreateModal({
   listingId,
   onClose,
@@ -302,6 +309,59 @@ function CreateModal({
   const [buyerEmail, setBuyerEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [expiresInDays, setExpiresInDays] = useState<string>("");
+
+  // Phase M3 — optionaler Inquiry-Bezug fuer Auto-Fill der Buyer-Daten.
+  const [inquiries, setInquiries] = useState<InquiryOption[] | null>(null);
+  const [inquiryId, setInquiryId] = useState<string>("");
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const res = await apiFetch(`/me/listings/${listingId}/inquiries`);
+        if (!res.ok) {
+          if (live) setInquiries([]);
+          return;
+        }
+        // Response-Schape: { listingStatus, inquiries: [...] }
+        // — wir nehmen nur, was wir brauchen.
+        const json = (await res.json()) as {
+          inquiries?: Array<{
+            id: string;
+            status: string;
+            investor?: { name?: string | null; email?: string | null };
+            investorSnapshot?: { name?: string | null; email?: string | null };
+          }>;
+        };
+        const arr = json.inquiries ?? [];
+        if (!live) return;
+        setInquiries(
+          arr.map((i) => ({
+            id: i.id,
+            status: i.status,
+            investorName:
+              i.investor?.name ?? i.investorSnapshot?.name ?? null,
+            investorEmail:
+              i.investor?.email ?? i.investorSnapshot?.email ?? null
+          }))
+        );
+      } catch {
+        if (live) setInquiries([]);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [apiFetch, listingId]);
+
+  function pickInquiry(id: string) {
+    setInquiryId(id);
+    const sel = inquiries?.find((i) => i.id === id);
+    if (sel) {
+      if (!buyerLabel.trim() && sel.investorName) setBuyerLabel(sel.investorName);
+      if (!buyerEmail.trim() && sel.investorEmail) setBuyerEmail(sel.investorEmail);
+    }
+  }
 
   // Erfolgs-Sicht
   const [createdLink, setCreatedLink] = useState<string | null>(null);
@@ -337,6 +397,7 @@ function CreateModal({
       };
       if (buyerLabel.trim()) body.buyerLabel = buyerLabel.trim();
       if (buyerEmail.trim()) body.buyerEmail = buyerEmail.trim();
+      if (inquiryId) body.inquiryId = inquiryId;
       if (notes.trim()) body.notes = notes.trim();
       if (expiresInDays.trim()) {
         const days = Number(expiresInDays);
@@ -430,6 +491,30 @@ function CreateModal({
         ) : (
           <>
             <div className="space-y-4 p-5">
+              {inquiries === null ? null : inquiries.length > 0 ? (
+                <div>
+                  <Label>Aus Anfrage übernehmen (optional)</Label>
+                  <select
+                    value={inquiryId}
+                    onChange={(e) => pickInquiry(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">— Keine, manuell ausfüllen —</option>
+                    {inquiries.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {(i.investorName ?? "Unbekannt") +
+                          (i.investorEmail ? ` · ${i.investorEmail}` : "") +
+                          ` · ${i.status}`}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-1 text-[10px] text-zinc-400">
+                    Wenn ausgewählt, werden Buyer-Label + Email automatisch
+                    befüllt — du kannst sie unten überschreiben.
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <div className="flex items-baseline justify-between">
                   <Label>Freigegebene Kategorien</Label>

@@ -5,6 +5,7 @@ import { UserButton } from "@clerk/nextjs";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { PlanBadge } from "@/components/PlanBadge";
+import { NotificationBell } from "@/components/NotificationBell";
 import type { UserPlanT, UserRoleT } from "@/lib/api";
 
 /**
@@ -37,6 +38,7 @@ export function TopBar({
         </div>
 
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <span className="hidden md:inline-flex">
             <PlanBadge plan={plan} />
           </span>

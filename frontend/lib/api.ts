@@ -1550,6 +1550,42 @@ export const PublicBuyerAccessSchema = z.object({
 });
 export type PublicBuyerAccessT = z.infer<typeof PublicBuyerAccessSchema>;
 
+// --- Phase M3 (Notifications) ----------------------------------
+
+export const UserNotificationKindEnum = z.enum([
+  "FIRST_BUYER_ACCESS",
+  "REPEAT_BUYER_ACCESS",
+  "INQUIRY_RECEIVED",
+  "SALE_STAGE_CHANGED"
+]);
+export type UserNotificationKindT = z.infer<typeof UserNotificationKindEnum>;
+
+export const USER_NOTIFICATION_KIND_LABELS: Record<UserNotificationKindT, string> = {
+  FIRST_BUYER_ACCESS: "Käufer hat Link geöffnet",
+  REPEAT_BUYER_ACCESS: "Erneuter Abruf",
+  INQUIRY_RECEIVED: "Neue Anfrage",
+  SALE_STAGE_CHANGED: "Verkaufsstation aktualisiert"
+};
+
+export const UserNotificationSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  userId: z.string(),
+  kind: UserNotificationKindEnum,
+  title: z.string(),
+  body: z.string().nullable().optional(),
+  link: z.string().nullable().optional(),
+  payloadJson: z.unknown().nullable().optional(),
+  readAt: z.string().nullable().optional()
+});
+export type UserNotificationT = z.infer<typeof UserNotificationSchema>;
+
+export const UserNotificationListResponseSchema = z.object({
+  items: z.array(UserNotificationSchema),
+  unreadCount: z.number().int().nonnegative()
+});
+export type UserNotificationListResponseT = z.infer<typeof UserNotificationListResponseSchema>;
+
 // --- Phase F (Offmarket-Layer) ---------------------------------
 
 export const OffmarketLeadStatusEnum = z.enum([

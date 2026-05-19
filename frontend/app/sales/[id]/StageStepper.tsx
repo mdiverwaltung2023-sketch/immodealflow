@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApiFetch } from "@/lib/client-fetch";
 import { Button } from "@/components/ui";
 import { SALE_STAGE_LABELS, type SaleStageT } from "@/lib/api";
+import { SaleStageIcon, SALE_STAGE_TONES } from "@/components/SaleStageVisual";
 
 /**
  * Klickbarer Stage-Stepper. Aktive Stage wird hervorgehoben; alle vorherigen
@@ -58,49 +59,49 @@ export function StageStepper({
 
   return (
     <div className="space-y-4">
-      {/* Desktop: horizontaler Stepper mit Connector-Linien */}
+      {/* Desktop: horizontaler Stepper mit bunten Stage-Icons + Connector-Linien */}
       <div className="hidden md:block">
         <ol className="flex min-w-full items-start gap-0 overflow-x-auto pb-2">
           {allStages.map((stage, idx) => {
             const isCurrent = !isCancelled && stage === currentStage;
             const isDone = !isCancelled && idx < currentIdx;
             const isLast = idx === allStages.length - 1;
+            const tone = SALE_STAGE_TONES[stage];
+            const nodeClasses = isCurrent
+              ? `${tone.bg} text-white ring-2 ${tone.ring} ring-offset-2`
+              : isDone
+                ? `${tone.bg} text-white ring-2 ${tone.ring} ring-offset-2 opacity-90`
+                : `bg-white ${tone.fg} ring-2 ring-zinc-200 ring-offset-2 group-hover:ring-zinc-300`;
+            const labelClasses = isCurrent
+              ? "font-semibold text-zinc-900"
+              : isDone
+                ? "text-zinc-700"
+                : "text-zinc-500";
             return (
               <li key={stage} className="flex min-w-0 grow items-start">
-                {/* Knoten */}
                 <button
                   type="button"
                   onClick={() => setPickerStage(stage)}
                   disabled={busy}
                   className="group flex shrink-0 flex-col items-center gap-1 px-1 disabled:opacity-50"
-                  style={{ width: "84px" }}
+                  style={{ width: "92px" }}
                 >
                   <span
-                    className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold shadow-sm ring-2 ring-offset-2 transition ${
-                      isCurrent
-                        ? "bg-indigo-600 text-white ring-indigo-300"
-                        : isDone
-                          ? "bg-emerald-500 text-white ring-emerald-200"
-                          : "bg-white text-zinc-500 ring-zinc-200 group-hover:ring-zinc-300"
-                    }`}
+                    className={`relative flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition ${nodeClasses}`}
                   >
-                    {isDone ? "✓" : idx + 1}
+                    <SaleStageIcon stage={stage} className="h-5 w-5" />
+                    {isDone ? (
+                      <span className="absolute -bottom-1 -right-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white shadow">
+                        ✓
+                      </span>
+                    ) : null}
                   </span>
-                  <span
-                    className={`text-center text-[10px] leading-tight ${
-                      isCurrent
-                        ? "font-semibold text-indigo-900"
-                        : isDone
-                          ? "text-emerald-700"
-                          : "text-zinc-500"
-                    }`}
-                  >
+                  <span className={`text-center text-[10px] leading-tight ${labelClasses}`}>
                     {SALE_STAGE_LABELS[stage]}
                   </span>
                 </button>
-                {/* Connector-Linie */}
                 {!isLast ? (
-                  <div className="mt-[18px] h-0.5 grow shrink min-w-[8px]">
+                  <div className="mt-[20px] h-0.5 grow shrink min-w-[8px]">
                     <div
                       className={`h-full w-full rounded ${
                         !isCancelled && idx < currentIdx
@@ -116,11 +117,12 @@ export function StageStepper({
         </ol>
       </div>
 
-      {/* Mobile: vertikale Karten-Liste (unverändert kompakt) */}
+      {/* Mobile: vertikale Karten-Liste mit Stage-Icons */}
       <ol className="space-y-1.5 md:hidden">
         {allStages.map((stage, idx) => {
           const isCurrent = !isCancelled && stage === currentStage;
           const isDone = !isCancelled && idx < currentIdx;
+          const tone = SALE_STAGE_TONES[stage];
           return (
             <li key={stage}>
               <button
@@ -129,22 +131,26 @@ export function StageStepper({
                 disabled={busy}
                 className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition disabled:opacity-50 ${
                   isCurrent
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-900 font-semibold"
+                    ? `${tone.pillBg} border-current ${tone.pillText} font-semibold`
                     : isDone
                       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                       : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50"
                 }`}
               >
                 <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
                     isCurrent
-                      ? "bg-indigo-600 text-white"
+                      ? `${tone.bg} text-white`
                       : isDone
                         ? "bg-emerald-500 text-white"
-                        : "bg-zinc-200 text-zinc-500"
+                        : `bg-white ${tone.fg} ring-1 ring-zinc-200`
                   }`}
                 >
-                  {isDone ? "✓" : idx + 1}
+                  {isDone ? (
+                    <span className="text-[11px] font-bold">✓</span>
+                  ) : (
+                    <SaleStageIcon stage={stage} className="h-4 w-4" />
+                  )}
                 </span>
                 <span className="truncate">{SALE_STAGE_LABELS[stage]}</span>
               </button>

@@ -11,6 +11,7 @@ import {
   SALE_DOC_ORDER,
   type SaleStageT
 } from "@/lib/api";
+import { SaleStageIcon, SALE_STAGE_TONES } from "@/components/SaleStageVisual";
 
 /**
  * Phase M1 — Verkaufsabwicklung als Werbemittel.
@@ -157,22 +158,25 @@ export function StartSaleProcessButton({ listingId }: { listingId: string }) {
             Kaufinteressenten. Starte jederzeit, auch ohne fixen Kaufpreis.
           </div>
 
-          {/* Pipeline-Preview (horizontaler Stepper, read-only) */}
+          {/* Pipeline-Preview mit bunten Stage-Icons */}
           <div className="mt-4">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
               Pipeline-Stationen
             </div>
-            <ol className="mt-2 flex flex-wrap gap-1">
-              {SALE_STAGE_ORDER.map((stage, idx) => (
-                <li key={stage}>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] text-zinc-600">
-                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-zinc-300 text-[9px] font-bold text-white">
-                      {idx + 1}
+            <ol className="mt-2 flex flex-wrap gap-1.5">
+              {SALE_STAGE_ORDER.map((stage) => {
+                const tone = SALE_STAGE_TONES[stage];
+                return (
+                  <li key={stage}>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border ${tone.pillBg} ${tone.pillText} px-2 py-1 text-[10px] font-medium`}
+                    >
+                      <SaleStageIcon stage={stage} className="h-3.5 w-3.5" />
+                      {SALE_STAGE_LABELS[stage]}
                     </span>
-                    {SALE_STAGE_LABELS[stage]}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
           </div>
 

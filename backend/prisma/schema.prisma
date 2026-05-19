@@ -141,6 +141,16 @@ enum ApplicantRating {
 // Phase J1 — Dokumenten-Kategorien rund um den Immobilienverkauf.
 // Pro Process+Kind genau ein Dokument (Re-Upload ueberschreibt).
 // "SONSTIGES" ist der Catch-all fuer alles was nicht passt.
+// Phase M3 — Notification-Typen.
+// FIRST_BUYER_ACCESS: erster Token-Abruf einer BuyerDocAccess
+// FUTURE_*: Platzhalter, falls Marco spaeter weitere Events einbaut
+enum UserNotificationKind {
+  FIRST_BUYER_ACCESS
+  REPEAT_BUYER_ACCESS
+  INQUIRY_RECEIVED
+  SALE_STAGE_CHANGED
+}
+
 enum SaleDocKind {
   GRUNDBUCH
   ENERGIEAUSWEIS
@@ -297,6 +307,7 @@ model User {
   uploadedSaleDocs      SaleDocument[]   @relation("DocUploads")
   buyerAccessGranted    BuyerDocAccess[] @relation("BuyerAccessSeller")
   buyerAccessReceived   BuyerDocAccess[] @relation("BuyerAccessBuyer")
+  notifications         UserNotification[]
   rentalUnits           RentalUnit[]
   rentalApplicationsSent RentalApplication[] @relation("RentalApplicationsSent")
   tenantProfile         TenantProfile?
@@ -811,6 +822,30 @@ model BuyerDocAccess {
 
   @@index([listingId, sellerId])
   @@index([sellerId, revokedAt])
+}
+
+// Phase M3 — In-App-Notification fuer den Verkaeufer.
+// payloadJson speichert event-spezifische Daten (z.B. buyerLabel,
+// accessId, listingTitle) als unstrukturiertes JSON.
+// link ist optional und zeigt auf die Stelle in der App, wo der
+// User mehr Kontext findet.
+model UserNotification {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind      UserNotificationKind
+  title     String
+  body      String?
+  link      String?
+  payloadJson Json?
+
+  readAt    DateTime?
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, kind])
 }
 
 // Phase K — KI-Marktanalyse (TEIL 1 des Prompts).

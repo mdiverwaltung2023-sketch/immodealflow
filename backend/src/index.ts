@@ -3335,6 +3335,8 @@ app.get("/me/listings/:listingId/buyer-access", async (req, res) => {
 });
 
 // POST /me/listings/:listingId/buyer-access — Freigabe erstellen
+// Phase M3: wenn inquiryId mitgegeben wird und buyerLabel/buyerEmail fehlen,
+// werden die aus dem Investor-Profil der Inquiry abgeleitet.
 app.post("/me/listings/:listingId/buyer-access", async (req, res) => {
   const body = z
     .object({
@@ -3353,15 +3355,23 @@ app.post("/me/listings/:listingId/buyer-access", async (req, res) => {
   });
   if (!listing) return res.status(404).json({ error: "Listing nicht gefunden oder nicht deins." });
 
-  // optional: Inquiry-Plausibilitaet pruefen
+  // optional: Inquiry-Plausibilitaet pruefen + Auto-Fill der Buyer-Daten
   let buyerUserId: string | null = null;
+  let autoLabel: string | null = null;
+  let autoEmail: string | null = null;
   if (body.inquiryId) {
     const inq = await prisma.inquiry.findFirst({
       where: { id: body.inquiryId, listingId: listing.id },
-      select: { id: true, investorId: true }
+      select: {
+        id: true,
+        investorId: true,
+        investor: { select: { name: true, email: true } }
+      }
     });
     if (!inq) return res.status(400).json({ error: "Inquiry passt nicht zu diesem Listing." });
     buyerUserId = inq.investorId;
+    autoLabel = inq.investor?.name ?? null;
+    autoEmail = inq.investor?.email ?? null;
   }
 
   let expiresDate: Date | null = null;
@@ -3379,8 +3389,8 @@ app.post("/me/listings/:listingId/buyer-access", async (req, res) => {
       sellerId: req.userId!,
       inquiryId: body.inquiryId ?? null,
       buyerUserId,
-      buyerLabel: body.buyerLabel ?? null,
-      buyerEmail: body.buyerEmail ?? null,
+      buyerLabel: body.buyerLabel ?? autoLabel ?? null,
+      buyerEmail: body.buyerEmail ?? autoEmail ?? null,
       notes: body.notes ?? null,
       token: makeAccessToken(),
       allowedDocKinds: body.allowedDocKinds,
@@ -3388,6 +3398,61 @@ app.post("/me/listings/:listingId/buyer-access", async (req, res) => {
     }
   });
   return res.json(access);
+});
+
+// =========================================================
+// Notifications (Phase M3)
+// =========================================================
+
+// GET /me/notifications — eigene Notifications
+//   ?unreadOnly=true  -> nur ungelesene
+//   ?limit=50         -> default 50, max 200
+app.get("/me/notifications", async (req, res) => {
+  const q = z
+    .object({
+      unreadOnly: z.coerce.boolean().optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional()
+    })
+    .parse(req.query);
+  const limit = q.limit ?? 50;
+
+  const where: Record<string, unknown> = { userId: req.userId! };
+  if (q.unreadOnly) where.readAt = null;
+
+  const [items, unreadCount] = await Promise.all([
+    prisma.userNotification.findMany({
+      where: where as never,
+      orderBy: [{ createdAt: "desc" }],
+      take: limit
+    }),
+    prisma.userNotification.count({
+      where: { userId: req.userId!, readAt: null }
+    })
+  ]);
+  return res.json({ items, unreadCount });
+});
+
+// PATCH /me/notifications/:id — als gelesen markieren (idempotent)
+app.patch("/me/notifications/:id", async (req, res) => {
+  const owned = await prisma.userNotification.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+    select: { id: true, readAt: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Notification nicht gefunden." });
+  const updated = await prisma.userNotification.update({
+    where: { id: owned.id },
+    data: { readAt: owned.readAt ?? new Date() }
+  });
+  return res.json(updated);
+});
+
+// POST /me/notifications/mark-all-read — alle ungelesenen markieren
+app.post("/me/notifications/mark-all-read", async (req, res) => {
+  const r = await prisma.userNotification.updateMany({
+    where: { userId: req.userId!, readAt: null },
+    data: { readAt: new Date() }
+  });
+  return res.json({ updated: r.count });
 });
 
 // PATCH /me/buyer-access/:id — Felder aktualisieren / widerrufen
@@ -3500,7 +3565,8 @@ app.get("/public/buyer-access/:token", async (req, res) => {
     return res.status(404).json({ error: "Freigabe abgelaufen." });
   }
 
-  // Audit aktualisieren (fire-and-forget bzgl. Antwortzeit)
+  // Audit aktualisieren
+  const wasFirstAccess = access.accessCount === 0;
   await prisma.buyerDocAccess.update({
     where: { id: access.id },
     data: {
@@ -3508,6 +3574,35 @@ app.get("/public/buyer-access/:token", async (req, res) => {
       accessCount: { increment: 1 }
     }
   });
+
+  // Phase M3 — Notification an den Verkaeufer (nur beim ersten Abruf).
+  // Spaeter koennen weitere Events (z.B. REPEAT_BUYER_ACCESS nach > N Tagen)
+  // hier eingebunden werden. Fire-and-forget — ein Fehler beim Notify darf
+  // den Public-Endpoint nie blockieren.
+  if (wasFirstAccess) {
+    try {
+      const buyerLabel = access.buyerLabel ?? "Ein Kaufinteressent";
+      await prisma.userNotification.create({
+        data: {
+          userId: access.sellerId,
+          kind: "FIRST_BUYER_ACCESS",
+          title: `${buyerLabel} hat deine Dokumenten-Freigabe geöffnet`,
+          body: `Für „${access.listing.title}" — ${access.allowedDocKinds.length} Kategorie(n) freigegeben.`,
+          link: `/listings/${access.listingId}/edit`,
+          payloadJson: {
+            accessId: access.id,
+            listingId: access.listingId,
+            listingTitle: access.listing.title,
+            buyerLabel: access.buyerLabel,
+            buyerEmail: access.buyerEmail,
+            allowedDocKinds: access.allowedDocKinds
+          }
+        }
+      });
+    } catch {
+      /* leise */
+    }
+  }
 
   // Dokumente filtern: nur die freigegebenen Kategorien
   const proc = access.listing.saleProcesses[0] ?? null;
