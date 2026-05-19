@@ -182,6 +182,7 @@ const SECTION_INVESTOR: Section = {
   items: [
     { href: "/marketplace", label: "Marketplace", icon: IcStore },
     { href: "/inquiries", label: "Meine Anfragen", icon: IcInbox },
+    { href: "/empfangene-freigaben", label: "Erhaltene Unterlagen", icon: IcInbox },
     { href: "/auctions", label: "Versteigerungen", icon: IcGavel },
     { href: "/new", label: "Objekt beobachten", icon: IcChart },
     { href: "/bookmarklet", label: "Bookmarklet", icon: IcBookmark }
@@ -194,7 +195,8 @@ const SECTION_SELLER: Section = {
   items: [
     { href: "/listings", label: "Meine Inserate", icon: IcList },
     { href: "/listings/new", label: "Inserat anlegen", icon: IcPlus },
-    { href: "/sales", label: "Verkaufsabwicklung", icon: IcBriefcase }
+    { href: "/sales", label: "Verkaufsabwicklung", icon: IcBriefcase },
+    { href: "/freigaben", label: "Dokumenten-Freigaben", icon: IcInbox }
   ]
 };
 

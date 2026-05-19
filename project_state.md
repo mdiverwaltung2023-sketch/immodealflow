@@ -243,7 +243,45 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase M3 — Notifications + Auto-Fill + bunte Pipeline-Icons**
+## Aktuelle Phase: **Phase M4 — Discoverability + Investor-Direkt-Sicht**
+
+### Phase M4 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 4
+
+> Aufbauend auf M3: Marco hatte den BuyerAccessManager auf der Listing-
+> Edit-Seite nicht gefunden (sechs Karten weit unten). Plus: Investoren
+> mit Account sollen die Unterlagen direkt in der App sehen, nicht nur
+> via Token-Link.
+
+- ✅ **Backend `GET /me/buyer-access`** — globale Liste aller eigenen
+  Freigaben ueber alle Inserate, mit eingebetteter Listing-Info.
+  `?activeOnly=true` filtert Widerrufen/Abgelaufen aus.
+- ✅ **Backend `GET /me/buyer-access-received`** — Investor-Sicht:
+  alle Freigaben in denen ich `buyerUserId` bin (nicht widerrufen, nicht
+  abgelaufen). Liefert Listing-Header + freigegebene Dokumente direkt.
+- ✅ **Auto-Bind im Public-Endpoint**: wenn ein eingeloggter Investor
+  einen Token-Link oeffnet, wird `buyerUserId` automatisch gesetzt
+  (sofern noch leer). Damit taucht die Freigabe ab dem zweiten Aufruf
+  direkt unter „Erhaltene Unterlagen" in der App-Shell auf. Clerk-
+  Token wird via `verifyToken()` aus dem Authorization-Header gelesen,
+  Fehler stillschweigend ignoriert (Public-Endpoint bleibt funktional).
+- ✅ **Frontend `BuyerAccessManager`** zusaetzlich auf `/sales/[id]`
+  eingebunden — Dokumente hochladen und freigeben in derselben Ansicht.
+- ✅ **Page `/freigaben`** mit Filter (Alle/Aktiv/Widerrufen+Abgelaufen),
+  Liste aller Freigaben ueber alle Inserate, Klick fuehrt zurueck zum
+  Inserat.
+- ✅ **Page `/empfangene-freigaben`** (Investor): Inline-Sicht aller
+  empfangenen Freigaben mit Listing-Header, direkten Download-Links
+  zu den Dokumenten und Marketplace-Deep-Link. Keine Token-URL noetig.
+- ✅ **Sidebar erweitert:**
+  - `SECTION_SELLER` bekommt `Dokumenten-Freigaben` → `/freigaben`
+  - `SECTION_INVESTOR` bekommt `Erhaltene Unterlagen` → `/empfangene-freigaben`
+- ✅ **Dashboard-Card** `BuyerAccessDashboardCard`: 5 letzte aktive
+  Freigaben auf `SellerView`, mit Direkt-Link auf `/freigaben`.
+- ✅ **Schemas** in `frontend/lib/api.ts`:
+  `BuyerDocAccessWithListingSchema`, `ReceivedBuyerAccessSchema`.
+- ✅ **BATs:** `107_phase-m4-build.bat`, `108_commit-phase-m4.bat`.
+- ⚠️ Keine Schema-/Migration-Aenderung — reines Feature-Add oben auf
+  dem M1-Datenmodell. `npm run build` reicht.
 
 ### Phase M3 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 3
 
@@ -711,6 +749,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-19  | Phase M4: BuyerAccessManager auf /sales/[id] + /freigaben + /empfangene-freigaben + Sidebar + Auto-Bind |
 | 2026-05-19  | Phase M3: Notifications + Inquiry-Auto-Fill + bunte Pipeline-Icons |
 | 2026-05-19  | Phase M2: BuyerAccessManager + /zugang/[token]-Page + horizontaler Pipeline-Stepper |
 | 2026-05-19  | Phase M1: BuyerDocAccess (Token-Freigabe) + Werbe-Sicht der Pipeline, Kaufpreis-Entkopplung |

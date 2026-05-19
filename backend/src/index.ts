@@ -3303,6 +3303,108 @@ function listingPublicView(l: {
 
 const AllowedDocKindsSchema = z.array(SaleDocKindEnum).min(1).max(20);
 
+// GET /me/buyer-access — alle eigenen Freigaben ueber alle Inserate
+// (Phase M4 — globale Verkaeufer-Uebersicht)
+//   ?activeOnly=true   -> filtert revoked / expired aus
+//   ?limit=20          -> default 100, max 200
+app.get("/me/buyer-access", async (req, res) => {
+  const q = z
+    .object({
+      activeOnly: z.coerce.boolean().optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional()
+    })
+    .parse(req.query);
+  const where: Record<string, unknown> = { sellerId: req.userId! };
+  if (q.activeOnly) {
+    where.revokedAt = null;
+    // expiresAt < now ODER null
+    where.OR = [
+      { expiresAt: null },
+      { expiresAt: { gt: new Date() } }
+    ];
+  }
+  const items = await prisma.buyerDocAccess.findMany({
+    where: where as never,
+    orderBy: [{ createdAt: "desc" }],
+    take: q.limit ?? 100,
+    include: {
+      listing: { select: { id: true, title: true, city: true, district: true } }
+    }
+  });
+  return res.json(items);
+});
+
+// GET /me/buyer-access-received — Investor-Sicht: alle Freigaben,
+// in denen ich (req.userId) als buyerUserId gebunden bin.
+//   Liefert direkt die freigegebenen Dokumente (statt nur Token-Link).
+//   Verwendet auch fuer den InvestorEmpfaenger-Dashboard.
+app.get("/me/buyer-access-received", async (req, res) => {
+  const accesses = await prisma.buyerDocAccess.findMany({
+    where: {
+      buyerUserId: req.userId!,
+      revokedAt: null,
+      OR: [
+        { expiresAt: null },
+        { expiresAt: { gt: new Date() } }
+      ]
+    },
+    orderBy: [{ updatedAt: "desc" }],
+    include: {
+      listing: {
+        select: {
+          id: true,
+          title: true,
+          city: true,
+          district: true,
+          postalCode: true,
+          fullAddress: true,
+          anonymizationLevel: true,
+          askingPrice: true,
+          totalArea: true,
+          saleProcesses: {
+            select: {
+              id: true,
+              documents: {
+                select: {
+                  id: true,
+                  kind: true,
+                  url: true,
+                  filename: true,
+                  sizeBytes: true,
+                  createdAt: true
+                }
+              }
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 1
+          }
+        }
+      }
+    }
+  });
+
+  // Dokumente pro Access filtern auf allowedDocKinds
+  const enriched = accesses.map((a) => {
+    const proc = a.listing.saleProcesses[0] ?? null;
+    const allowed = new Set(a.allowedDocKinds);
+    const documents = (proc?.documents ?? []).filter((d) => allowed.has(d.kind));
+    return {
+      id: a.id,
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt,
+      allowedDocKinds: a.allowedDocKinds,
+      expiresAt: a.expiresAt,
+      lastAccessedAt: a.lastAccessedAt,
+      accessCount: a.accessCount,
+      buyerLabel: a.buyerLabel,
+      listing: listingPublicView(a.listing),
+      documents,
+      pipelineExists: !!proc
+    };
+  });
+  return res.json(enriched);
+});
+
 // GET /me/listings/:listingId/buyer-access — Freigaben eines eigenen Listings
 app.get("/me/listings/:listingId/buyer-access", async (req, res) => {
   const listing = await prisma.listing.findFirst({
@@ -3567,11 +3669,39 @@ app.get("/public/buyer-access/:token", async (req, res) => {
 
   // Audit aktualisieren
   const wasFirstAccess = access.accessCount === 0;
+  // Phase M4 — Auto-Bind: wenn ein eingeloggter Investor (Clerk-Token im
+  // Authorization-Header) den Public-Link oeffnet und noch kein
+  // buyerUserId gesetzt ist, knuepfen wir die Freigabe an ihn. Damit
+  // taucht sie ab dem zweiten Mal auch unter /me/buyer-access-received
+  // direkt in der App-Shell auf.
+  let autoBoundBuyerUserId: string | null = null;
+  if (!access.buyerUserId) {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const { verifyToken } = await import("@clerk/backend");
+        const claims = await verifyToken(authHeader.slice(7), {
+          secretKey: process.env.CLERK_SECRET_KEY!
+        });
+        const clerkId = (claims as { sub?: string })?.sub ?? null;
+        if (clerkId) {
+          const user = await prisma.user.findUnique({
+            where: { clerkId },
+            select: { id: true }
+          });
+          if (user) autoBoundBuyerUserId = user.id;
+        }
+      } catch {
+        /* leise — ungueltiges Token wird einfach ignoriert */
+      }
+    }
+  }
   await prisma.buyerDocAccess.update({
     where: { id: access.id },
     data: {
       lastAccessedAt: new Date(),
-      accessCount: { increment: 1 }
+      accessCount: { increment: 1 },
+      ...(autoBoundBuyerUserId ? { buyerUserId: autoBoundBuyerUserId } : {})
     }
   });
 

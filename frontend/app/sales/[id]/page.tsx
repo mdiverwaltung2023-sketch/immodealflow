@@ -9,6 +9,7 @@ import { Card } from "@/components/ui";
 import { StageStepper } from "./StageStepper";
 import { DocumentCenter } from "./DocumentCenter";
 import { ProcessFields } from "./ProcessFields";
+import { BuyerAccessManager } from "@/app/listings/[id]/edit/BuyerAccessManager";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,8 @@ export default async function SaleProcessDetailPage({
       <Card title="Dokumente">
         <DocumentCenter processId={process.id} initialDocs={process.documents} />
       </Card>
+
+      <BuyerAccessManager listingId={process.listing.id} />
 
       {process.stageLog.length > 0 ? (
         <Card title={`Verlauf (${process.stageLog.length})`}>

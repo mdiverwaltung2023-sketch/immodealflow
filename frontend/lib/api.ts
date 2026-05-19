@@ -1526,6 +1526,46 @@ export type BuyerDocAccessT = z.infer<typeof BuyerDocAccessSchema>;
 
 export const BuyerDocAccessListSchema = z.array(BuyerDocAccessSchema);
 
+/** Globale Verkaeufer-Sicht: Freigabe + eingebettete Listing-Info. */
+export const BuyerDocAccessWithListingSchema = BuyerDocAccessSchema.extend({
+  listing: z.object({
+    id: z.string(),
+    title: z.string(),
+    city: z.string(),
+    district: z.string().nullable().optional()
+  })
+});
+export type BuyerDocAccessWithListingT = z.infer<typeof BuyerDocAccessWithListingSchema>;
+
+/** Investor-Sicht: empfangene Freigabe inkl. Dokumente direkt. */
+export const ReceivedBuyerAccessSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  allowedDocKinds: z.array(SaleDocKindEnum),
+  expiresAt: z.string().nullable().optional(),
+  lastAccessedAt: z.string().nullable().optional(),
+  accessCount: z.number(),
+  buyerLabel: z.string().nullable().optional(),
+  listing: z.object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string().optional(),
+    propertyType: z.string().optional(),
+    city: z.string(),
+    postalCode: z.string().nullable().optional(),
+    district: z.string().nullable().optional(),
+    fullAddress: z.string().nullable().optional(),
+    askingPrice: z.number(),
+    totalArea: z.number()
+  }),
+  documents: z.array(SaleDocumentSchema.omit({ processId: true }).extend({
+    processId: z.string().optional()
+  })),
+  pipelineExists: z.boolean()
+});
+export type ReceivedBuyerAccessT = z.infer<typeof ReceivedBuyerAccessSchema>;
+
 /** Public-Antwort, wenn ein Kaufinteressent den Token-Link oeffnet. */
 export const PublicBuyerAccessSchema = z.object({
   buyerLabel: z.string().nullable().optional(),

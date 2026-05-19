@@ -9,6 +9,7 @@ import {
   type InquiryReceivedT,
   type SaleStageT
 } from "@/lib/api";
+import { BuyerAccessDashboardCard } from "@/components/BuyerAccessDashboardCard";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", {
@@ -279,6 +280,9 @@ export function SellerView({
           </div>
         )}
       </div>
+
+      {/* Phase M4 — Aktive Dokumenten-Freigaben */}
+      <BuyerAccessDashboardCard />
     </div>
   );
 }
