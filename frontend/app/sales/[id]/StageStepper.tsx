@@ -58,7 +58,66 @@ export function StageStepper({
 
   return (
     <div className="space-y-4">
-      <ol className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      {/* Desktop: horizontaler Stepper mit Connector-Linien */}
+      <div className="hidden md:block">
+        <ol className="flex min-w-full items-start gap-0 overflow-x-auto pb-2">
+          {allStages.map((stage, idx) => {
+            const isCurrent = !isCancelled && stage === currentStage;
+            const isDone = !isCancelled && idx < currentIdx;
+            const isLast = idx === allStages.length - 1;
+            return (
+              <li key={stage} className="flex min-w-0 grow items-start">
+                {/* Knoten */}
+                <button
+                  type="button"
+                  onClick={() => setPickerStage(stage)}
+                  disabled={busy}
+                  className="group flex shrink-0 flex-col items-center gap-1 px-1 disabled:opacity-50"
+                  style={{ width: "84px" }}
+                >
+                  <span
+                    className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold shadow-sm ring-2 ring-offset-2 transition ${
+                      isCurrent
+                        ? "bg-indigo-600 text-white ring-indigo-300"
+                        : isDone
+                          ? "bg-emerald-500 text-white ring-emerald-200"
+                          : "bg-white text-zinc-500 ring-zinc-200 group-hover:ring-zinc-300"
+                    }`}
+                  >
+                    {isDone ? "✓" : idx + 1}
+                  </span>
+                  <span
+                    className={`text-center text-[10px] leading-tight ${
+                      isCurrent
+                        ? "font-semibold text-indigo-900"
+                        : isDone
+                          ? "text-emerald-700"
+                          : "text-zinc-500"
+                    }`}
+                  >
+                    {SALE_STAGE_LABELS[stage]}
+                  </span>
+                </button>
+                {/* Connector-Linie */}
+                {!isLast ? (
+                  <div className="mt-[18px] h-0.5 grow shrink min-w-[8px]">
+                    <div
+                      className={`h-full w-full rounded ${
+                        !isCancelled && idx < currentIdx
+                          ? "bg-emerald-400"
+                          : "bg-zinc-200"
+                      }`}
+                    />
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      {/* Mobile: vertikale Karten-Liste (unverändert kompakt) */}
+      <ol className="space-y-1.5 md:hidden">
         {allStages.map((stage, idx) => {
           const isCurrent = !isCancelled && stage === currentStage;
           const isDone = !isCancelled && idx < currentIdx;

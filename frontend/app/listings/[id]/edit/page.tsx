@@ -5,6 +5,7 @@ import { ListingEditor } from "./ListingEditor";
 import { FeatureCheckoutButton } from "./FeatureCheckoutButton";
 import { CoinHighlightButton } from "./CoinHighlightButton";
 import { StartSaleProcessButton } from "./StartSaleProcessButton";
+import { BuyerAccessManager } from "./BuyerAccessManager";
 import { MarketAnalysisCard } from "./MarketAnalysisCard";
 import { OfferEvaluationCard } from "./OfferEvaluationCard";
 import Link from "next/link";
@@ -67,6 +68,8 @@ export default async function ListingEditPage({
       <CoinHighlightButton listingId={listing.id} />
 
       <StartSaleProcessButton listingId={listing.id} />
+
+      <BuyerAccessManager listingId={listing.id} />
 
       <MarketAnalysisCard listingId={listing.id} />
 

@@ -1,0 +1,100 @@
+=== npm install ===
+
+up to date, audited 563 packages in 7s
+
+185 packages are looking for funding
+  run `npm fund` for details
+
+8 vulnerabilities (3 moderate, 5 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+=== RC 0 ===
+
+=== cd frontend && next build ===
+
+> build
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/36) ...
+   Generating static pages (9/36) 
+   Generating static pages (18/36) 
+   Generating static pages (27/36) 
+ ✓ Generating static pages (36/36)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ƒ /                                    2.75 kB        98.8 kB
+├ ƒ /_not-found                          877 B          88.2 kB
+├ ƒ /admin/broker-leads                  3.34 kB         146 kB
+├ ƒ /admin/coins                         2.56 kB         145 kB
+├ ƒ /api/upload-document                 0 B                0 B
+├ ƒ /api/upload-image                    0 B                0 B
+├ ƒ /auctions                            1.18 kB         122 kB
+├ ƒ /auctions/import                     3.72 kB         155 kB
+├ ƒ /bookmarklet                         3.41 kB         116 kB
+├ ƒ /bookmarklet/error                   1.18 kB         122 kB
+├ ƒ /bookmarklet/receive                 0 B                0 B
+├ ƒ /coins                               3.87 kB         155 kB
+├ ƒ /dashboard                           5.43 kB         161 kB
+├ ƒ /inquiries                           1.18 kB         122 kB
+├ ƒ /inquiries/[id]                      3.19 kB         155 kB
+├ ƒ /listings                            4.17 kB         156 kB
+├ ƒ /listings/[id]/edit                  14.5 kB         166 kB
+├ ƒ /listings/[id]/inquiries             4.75 kB         156 kB
+├ ƒ /listings/new                        4.92 kB         156 kB
+├ ƒ /marketplace                         5.71 kB         161 kB
+├ ƒ /marketplace/[id]                    3.78 kB         159 kB
+├ ƒ /me/applications-sent                1.18 kB         122 kB
+├ ƒ /mieten                              1.4 kB         97.4 kB
+├ ƒ /new                                 3.1 kB          146 kB
+├ ƒ /offmarket                           192 B          96.2 kB
+├ ƒ /offmarket-fuer-eigentuemer          192 B          96.2 kB
+├ ƒ /offmarket/einladungen               192 B          96.2 kB
+├ ƒ /offmarket/einladungen/[id]          2.99 kB         154 kB
+├ ƒ /offmarket/investoren                3.7 kB          155 kB
+├ ƒ /offmarket/leads                     192 B          96.2 kB
+├ ƒ /offmarket/leads/[id]                4.28 kB         156 kB
+├ ƒ /offmarket/leads/[id]/edit           5.04 kB         156 kB
+├ ƒ /offmarket/leads/neu                 3.56 kB         146 kB
+├ ƒ /onboarding                          3.36 kB         146 kB
+├ ƒ /pricing                             2.94 kB         130 kB
+├ ƒ /profile                             8.79 kB         160 kB
+├ ƒ /property/[id]                       5.71 kB         157 kB
+├ ƒ /property/[id]/edit                  2.48 kB         154 kB
+├ ƒ /rental-marketplace                  1.18 kB         122 kB
+├ ƒ /rental-marketplace/[id]             4.21 kB         156 kB
+├ ƒ /rentals                             1.18 kB         122 kB
+├ ƒ /rentals/[id]                        4.65 kB         162 kB
+├ ƒ /rentals/[id]/applications/[appId]   3.42 kB         155 kB
+├ ƒ /rentals/new                         310 B           149 kB
+├ ƒ /sales                               1.18 kB         122 kB
+├ ƒ /sales/[id]                          4.85 kB         156 kB
+├ ƒ /sign-in/[[...sign-in]]              596 B           129 kB
+├ ƒ /sign-up/[[...sign-up]]              596 B           129 kB
+├ ƒ /verkaufen                           7.38 kB         103 kB
+└ ƒ /zugang/[token]                      192 B          96.2 kB
++ First Load JS shared by all            87.3 kB
+  ├ chunks/2364-92ce86f2fcad76ef.js      31.7 kB
+  ├ chunks/618f8807-1ae457615a767a99.js  53.6 kB
+  └ other shared chunks (total)          1.99 kB
+
+
+ƒ Middleware                             78.6 kB
+
+ƒ  (Dynamic)  server-rendered on demand
+
+=== RC 0 ===

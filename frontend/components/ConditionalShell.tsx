@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 const MARKETING_PATHS = [
   "/mieten",
   "/verkaufen",
-  "/offmarket-fuer-eigentuemer"
+  "/offmarket-fuer-eigentuemer",
+  "/zugang"
 ];
 
 function isMarketingPath(pathname: string): boolean {

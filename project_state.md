@@ -243,7 +243,46 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase M1 — Verkaufsabwicklung 2.0 (Datenmodell + Entkopplung)**
+## Aktuelle Phase: **Phase M2 — Verkaufsabwicklung 2.0 (UI + Public-Page)**
+
+### Phase M2 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 2
+
+> Aufbauend auf M1: jetzt das UI fuer den Verkaeufer (Freigaben pflegen)
+> und die Kaeufer-Sicht als Public-Page. Plus grafische horizontale
+> Pipeline im Sales-Detail.
+
+- ✅ **Frontend `BuyerAccessManager.tsx`** auf `/listings/[id]/edit`:
+  Card zeigt alle Freigaben des Inserats mit Status (Aktiv / Widerrufen
+  / Abgelaufen), `accessCount`, `lastAccessedAt`, freigegebenen
+  Kategorien als Chips und einem kopierbaren Link. Aktionen: Link kopieren,
+  Widerrufen, Reaktivieren, Loeschen.
+- ✅ **Create-Modal** mit Multi-Checkbox ueber alle 14 `SaleDocKind`-
+  Kategorien (Alle/Keine-Shortcut), Buyer-Label, Buyer-Email, Ablauf in
+  Tagen, interne Notiz. Erfolgs-Sicht zeigt Token-Link direkt mit
+  Copy-Button + Vorschau-Link.
+- ✅ **Public-Page `/zugang/[token]`** (`frontend/app/zugang/[token]/page.tsx`):
+  Server-Component, kein Clerk-Auth, fetcht
+  `GET /public/buyer-access/:token` und zeigt Listing-Header (anonymisiert
+  je nach `anonymizationLevel`), Liste freigegebener Dokumente mit
+  direkten Download-Links und Hinweis auf freigegebene-aber-noch-nicht-
+  hochgeladene Kategorien. Bei revoked/expired/unbekannt freundlicher
+  404-Hinweis.
+- ✅ **Middleware + ConditionalShell** erweitert: `/zugang(.*)` ist
+  jetzt public (kein Clerk-Schutz) und nutzt das Marketing-Layout
+  (kein Sidebar).
+- ✅ **Horizontaler Pipeline-Stepper** auf `/sales/[id]`:
+  Desktop-Ansicht zeigt jetzt 13 Stationen in einer horizontalen
+  Reihe mit gruenen Connector-Linien zwischen erledigten Stationen,
+  Knoten als runde 36-px-Badges mit Ring-Highlight fuer Current/Done.
+  Mobile bleibt bei der bewaehrten Karten-Liste (Auto-Switch via
+  `md:`-Breakpoint).
+- ✅ **BATs:** `103_phase-m2-buyer-access-ui.bat` (Lockfile + Lint /
+  Type-Check), `104_commit-phase-m2.bat` (git commit/push).
+- ⚠️ Keine Schema-/Migration-Aenderung — reines Frontend-Feature
+  oben auf dem M1-Datenmodell.
+- ⚠️ Phase M3 ausstehend (optional): Auto-SaleProcess bei erstem
+  Doc-Upload, In-App-Notification beim ersten Token-Abruf,
+  Auto-Fill der Freigabe aus Inquiry-Kontext.
 
 ### Phase M1 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 1
 
@@ -626,6 +665,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-19  | Phase M2: BuyerAccessManager + /zugang/[token]-Page + horizontaler Pipeline-Stepper |
 | 2026-05-19  | Phase M1: BuyerDocAccess (Token-Freigabe) + Werbe-Sicht der Pipeline, Kaufpreis-Entkopplung |
 | 2026-05-17  | Phase F: Offmarket-Layer (Lead/Invite/Message + Discovery + Wizard + 1:1-Chat + Akquise-Landing) |
 | 2026-05-07  | Phase E: Bewertungssystem (beidseitig, Gegendarstellung, rechtliche Hinweise) |
