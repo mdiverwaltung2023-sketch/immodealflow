@@ -3354,6 +3354,8 @@ app.get("/me/buyer-access-received", async (req, res) => {
         select: {
           id: true,
           title: true,
+          description: true,
+          propertyType: true,
           city: true,
           district: true,
           postalCode: true,
