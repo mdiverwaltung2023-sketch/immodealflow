@@ -28,6 +28,7 @@ import {
 } from "./lib/claude.js";
 import { extractTextFromPdfBase64 } from "./lib/pdf.js";
 import { requireAuth } from "./lib/auth.js";
+import { verifyToken } from "@clerk/backend";
 import {
   countActiveListings,
   countInquiriesLast30d,
@@ -3314,17 +3315,16 @@ app.get("/me/buyer-access", async (req, res) => {
       limit: z.coerce.number().int().min(1).max(200).optional()
     })
     .parse(req.query);
-  const where: Record<string, unknown> = { sellerId: req.userId! };
-  if (q.activeOnly) {
-    where.revokedAt = null;
-    // expiresAt < now ODER null
-    where.OR = [
-      { expiresAt: null },
-      { expiresAt: { gt: new Date() } }
-    ];
-  }
   const items = await prisma.buyerDocAccess.findMany({
-    where: where as never,
+    where: {
+      sellerId: req.userId!,
+      ...(q.activeOnly
+        ? {
+            revokedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }]
+          }
+        : {})
+    },
     orderBy: [{ createdAt: "desc" }],
     take: q.limit ?? 100,
     include: {
@@ -3677,13 +3677,13 @@ app.get("/public/buyer-access/:token", async (req, res) => {
   let autoBoundBuyerUserId: string | null = null;
   if (!access.buyerUserId) {
     const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith("Bearer ")) {
+    const secret = process.env.CLERK_SECRET_KEY;
+    if (authHeader?.startsWith("Bearer ") && secret) {
       try {
-        const { verifyToken } = await import("@clerk/backend");
         const claims = await verifyToken(authHeader.slice(7), {
-          secretKey: process.env.CLERK_SECRET_KEY!
+          secretKey: secret
         });
-        const clerkId = (claims as { sub?: string })?.sub ?? null;
+        const clerkId = claims?.sub ?? null;
         if (clerkId) {
           const user = await prisma.user.findUnique({
             where: { clerkId },
