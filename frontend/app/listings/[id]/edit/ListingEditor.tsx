@@ -3,6 +3,24 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useApiFetch } from "@/lib/client-fetch";
 import { uploadImageToBlob } from "@/lib/upload-image";
@@ -724,6 +742,59 @@ function ImageUploadSection({
     setItems((prev) => prev.filter((it) => it.id !== id));
   }
 
+  // --- Drag-and-Drop Reihenfolge (Kanban-Style) ---
+  //
+  // Sensoren mit Activation-Constraint, damit ein normaler Klick auf
+  // den Loeschen-Button nicht versehentlich einen Drag startet:
+  // - Pointer (Maus/Stylus): Drag startet erst nach 8 px Bewegung
+  // - Touch: Drag startet nach 200 ms Druecken + max 5 px Toleranz —
+  //   das ist das klassische "Press-and-Hold-and-Drag" Kanban-Pattern
+  // - Keyboard: Pfeiltasten + Space fuer Accessibility
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 }
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = images.findIndex((i) => i.id === active.id);
+    const newIndex = images.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(images, oldIndex, newIndex);
+
+    // Optimistic UI — Marco sieht die neue Reihenfolge sofort
+    onChange(() => reordered);
+
+    // Backend nachziehen
+    try {
+      const res = await apiFetch(`/me/listings/${listingId}/images/reorder`, {
+        method: "PATCH",
+        body: JSON.stringify({ orderedIds: reordered.map((i) => i.id) })
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(
+          `Reihenfolge speichern fehlgeschlagen (${res.status}) ${txt.slice(0, 200)}`
+        );
+      }
+      // Backend liefert den finalen Stand mit aktualisierten sortOrder-Werten
+      const updated = (await res.json()) as ListingImageT[];
+      onChange(() => updated);
+    } catch (e) {
+      // Rollback bei Fehler
+      onChange(() => images);
+      setError(e instanceof Error ? e.message : "Reihenfolge nicht gespeichert");
+    }
+  }
+
   return (
     <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
       <div>
@@ -860,29 +931,121 @@ function ImageUploadSection({
       {images.length === 0 ? (
         <div className="text-sm text-zinc-500">Noch keine Bilder.</div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {images.map((img) => (
-            <div
-              key={img.id}
-              className="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white"
+        <>
+          <div className="text-xs text-zinc-500">
+            <span className="font-medium text-zinc-700">Tipp:</span> Bilder per
+            Drag-and-Drop verschieben — am Desktop klicken und ziehen, am
+            Smartphone/Tablet kurz draufdruecken (~0,2 s) und dann ziehen. Das
+            erste Bild ist das Cover.
+          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={images.map((i) => i.id)}
+              strategy={rectSortingStrategy}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.url}
-                alt={img.alt ?? ""}
-                className="aspect-video w-full object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => deleteImage(img.id)}
-                className="absolute right-1 top-1 rounded-md border border-zinc-200 bg-white/90 px-2 py-1 text-[10px] text-rose-600 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50"
-              >
-                Loeschen
-              </button>
-            </div>
-          ))}
-        </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {images.map((img, index) => (
+                  <SortableImageCard
+                    key={img.id}
+                    image={img}
+                    isCover={index === 0}
+                    onDelete={() => deleteImage(img.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Einzelne Bildkachel, die per Drag-and-Drop sortiert werden kann.
+ *
+ * UX-Details:
+ *  - Drag-Listener (attributes + listeners) liegen auf der GANZEN Karte
+ *    minus dem Loeschen-Button — damit kann Marco ueberall im Bild
+ *    anpacken, aber der Loeschen-Button bleibt klickbar (er macht
+ *    stopPropagation).
+ *  - Activation-Constraint im Sensor (siehe oben) sorgt dafuer, dass ein
+ *    versehentlicher Klick KEIN Drag startet — erst Bewegung oder
+ *    Press-and-Hold loest ihn aus.
+ *  - Beim Ziehen: leicht ausgeblendet + cursor:grabbing.
+ *  - Cover-Badge (links oben) auf dem ersten Bild.
+ */
+function SortableImageCard({
+  image,
+  isCover,
+  onDelete
+}: {
+  image: ListingImageT;
+  isCover: boolean;
+  onDelete: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: image.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`group relative touch-none select-none overflow-hidden rounded-lg border bg-white ${
+        isDragging
+          ? "border-indigo-400 ring-2 ring-indigo-300 cursor-grabbing"
+          : "border-zinc-200 cursor-grab hover:border-zinc-300"
+      }`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={image.url}
+        alt={image.alt ?? ""}
+        draggable={false}
+        className="pointer-events-none aspect-video w-full object-cover"
+      />
+
+      {isCover ? (
+        <div className="absolute left-1 top-1 rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow">
+          Cover
+        </div>
+      ) : null}
+
+      {/* Drag-Handle-Hinweis-Icon, sichtbar im Hover */}
+      <div className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/40 px-1.5 py-0.5 text-[10px] text-white opacity-0 transition group-hover:opacity-100">
+        Ziehen
+      </div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="absolute right-1 top-1 rounded-md border border-zinc-200 bg-white/90 px-2 py-1 text-[10px] text-rose-600 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50"
+      >
+        Loeschen
+      </button>
     </div>
   );
 }

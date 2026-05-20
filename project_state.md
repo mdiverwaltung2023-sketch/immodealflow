@@ -170,6 +170,7 @@ Auth-geschützt (`requireAuth`):
 | DELETE  | `/me/listings/:id`                | Listing samt Bildern löschen                           |
 | POST    | `/me/listings/:id/images`         | Bild-URL anhängen (Frontend hat schon hochgeladen)     |
 | DELETE  | `/me/listings/:listingId/images/:imageId` | Bild entfernen                                 |
+| PATCH   | `/me/listings/:id/images/reorder` | Bild-Reihenfolge neu setzen (`{orderedIds: string[]}`); erstes Bild = Cover |
 | GET     | `/marketplace`                    | Aktive Listings, anonymisiert; Filter `?city=&type=&priceMin=&priceMax=&areaMin=` |
 | GET     | `/marketplace/:id`                | Listing-Detail, anonymisiert + `myInquiry` + `isOwner` |
 | POST    | `/me/inquiries`                   | Investor stellt Anfrage (body: listingId, message)     |
@@ -244,7 +245,46 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase M5 — Hotfix Bilder-Upload + Listing-Dedup (2026-05-20)**
+## Aktuelle Phase: **Phase M5.1 — Bild-Reihenfolge per Drag-and-Drop (2026-05-20)**
+
+### Phase M5.1 (2026-05-20) — Bild-Reihenfolge per Drag-and-Drop (Kanban)
+
+> Wunsch von Marco direkt nach Phase M5: "Noch besser waere es wenn man
+> die Bilder in der Uebersicht mit Bild druecken und halten verschieben
+> koennte, Kanban-Style."
+
+- ✅ **Backend `PATCH /me/listings/:id/images/reorder`** — Body
+  `{orderedIds: string[]}`. Validiert Set-Gleichheit gegen bestehende
+  ImageIDs (kein Reinschmuggeln fremder IDs, keine Duplikate, keine
+  fehlenden), dann `prisma.$transaction` mit `update`-Statements,
+  die `sortOrder = 0..N-1` setzen. Liefert die aktualisierte Liste
+  zurueck.
+- ✅ **Frontend `SortableImageCard`** in `ListingEditor.tsx` —
+  basiert auf `@dnd-kit/sortable` (+ `@dnd-kit/core`, `@dnd-kit/utilities`).
+  Drei Sensoren mit Activation-Constraints:
+  - **PointerSensor** (Maus/Stylus): Drag startet erst nach 8 px Bewegung
+    — schuetzt vor versehentlichem Drag beim normalen Klicken.
+  - **TouchSensor**: Drag startet nach 200 ms Druecken + 5 px Toleranz —
+    klassisches "Press-and-Hold-and-Drag" Kanban-Pattern. Marco kann
+    am Smartphone kurz draufdruecken und dann ziehen.
+  - **KeyboardSensor**: Pfeiltasten + Space fuer Accessibility.
+- ✅ **UX:**
+  - Cover-Badge auf Position 0 (Indigo, links oben).
+  - Hover-Hinweis "Ziehen" unten links.
+  - Cursor-grab im Idle, grabbing waehrend Drag.
+  - Optimistic UI: Marco sieht die neue Reihenfolge sofort; Backend
+    wird im Hintergrund nachgezogen; Rollback bei Fehler.
+  - Loeschen-Button macht `e.stopPropagation()` + `onPointerDown` stop
+    — damit der Click NICHT als Drag-Start interpretiert wird.
+  - `touch-none select-none` auf der Karte verhindert Browser-Default-
+    Scroll auf Touch-Geraeten waehrend des Drags.
+- ✅ **3 neue npm-Deps:** `@dnd-kit/core` ^6.3.1,
+  `@dnd-kit/sortable` ^10.0.0, `@dnd-kit/utilities` ^3.2.2 (zusammen
+  ~25 kB gzipped, Industrie-Standard fuer React-DnD, voll Touch-tauglich).
+- ✅ **BAT:** `110_image-reorder.bat` (npm install + Backend tsc +
+  Frontend build + commit + push).
+- ⚠️ Keine Schema-/Migration-Aenderung — `sortOrder` existierte schon
+  am `ListingImage`-Modell.
 
 ### Phase M5 (2026-05-20) — Hotfix Bilder-Upload + Listing-Dedup
 
@@ -812,6 +852,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-20  | Phase M5.1: Bild-Reihenfolge per Drag-and-Drop (Kanban via @dnd-kit) + Backend-Reorder-Endpoint + Cover-Badge |
 | 2026-05-20  | Phase M5 Hotfix: Listing-Dedup-Window + Client-Upload via @vercel/blob/client + Multi-Select + Compression + Custom-Domain infinityoikos.com |
 | 2026-05-19  | Phase M4: BuyerAccessManager auf /sales/[id] + /freigaben + /empfangene-freigaben + Sidebar + Auto-Bind |
 | 2026-05-19  | Phase M3: Notifications + Inquiry-Auto-Fill + bunte Pipeline-Icons |

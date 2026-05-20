@@ -1950,6 +1950,69 @@ app.delete("/me/listings/:listingId/images/:imageId", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// PATCH /me/listings/:id/images/reorder — Reihenfolge aller Bilder eines
+// Inserats neu setzen.
+//
+// Body: { orderedIds: string[] } — die Image-IDs in der gewuenschten
+// Anzeige-Reihenfolge. Das erste Bild wird Cover-Bild (sortOrder 0).
+//
+// Validierung:
+//   - Listing gehoert dem User (Owner-Filter)
+//   - `orderedIds` enthaelt GENAU alle ImageIDs des Listings (Set-Gleichheit)
+//     — verhindert, dass jemand fremde Image-IDs reinschiebt oder welche
+//     vergisst
+//
+// Update laeuft als Transaction; bei einem Fehler bleibt die alte
+// Reihenfolge erhalten.
+app.patch("/me/listings/:id/images/reorder", async (req, res) => {
+  const body = z
+    .object({
+      orderedIds: z.array(z.string().min(1)).min(1).max(200)
+    })
+    .parse(req.body);
+
+  const owned = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    include: { images: { select: { id: true } } }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+
+  const existingIds = new Set(owned.images.map((i) => i.id));
+  const submittedIds = new Set(body.orderedIds);
+
+  if (submittedIds.size !== body.orderedIds.length) {
+    return res.status(400).json({ error: "orderedIds enthaelt Duplikate" });
+  }
+  if (existingIds.size !== submittedIds.size) {
+    return res.status(400).json({
+      error: `orderedIds muss alle ${existingIds.size} Bild-IDs enthalten, hat ${submittedIds.size}`
+    });
+  }
+  for (const id of submittedIds) {
+    if (!existingIds.has(id)) {
+      return res.status(400).json({
+        error: `Bild-ID ${id} gehoert nicht zu diesem Inserat`
+      });
+    }
+  }
+
+  // Transaction: alle sortOrder-Werte in einem Rutsch setzen.
+  await prisma.$transaction(
+    body.orderedIds.map((imageId, index) =>
+      prisma.listingImage.update({
+        where: { id: imageId },
+        data: { sortOrder: index }
+      })
+    )
+  );
+
+  const updated = await prisma.listingImage.findMany({
+    where: { listingId: owned.id },
+    orderBy: { sortOrder: "asc" }
+  });
+  return res.json(updated);
+});
+
 // --- Inquiries (Push D) ----------------------------------------
 
 const InquiryStatusEnum = z.enum(["PENDING", "ACCEPTED", "REJECTED", "WITHDRAWN"]);
