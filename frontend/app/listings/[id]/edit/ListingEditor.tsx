@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useApiFetch } from "@/lib/client-fetch";
+import { uploadImageToBlob } from "@/lib/upload-image";
 import {
   ASSET_TYPE_LABELS,
   AssetTypeEnum,
@@ -96,6 +98,8 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [paywall, setPaywall] = useState<{ message: string; upgradeTo: string } | null>(null);
+  // Doppel-Submit-Sperre (synchron, im Gegensatz zu busy/setBusy).
+  const savingRef = useRef(false);
 
   function intOrNull(s: string): number | null {
     if (!s.trim()) return null;
@@ -113,6 +117,8 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true;
     setError(null);
     setSaved(null);
     setPaywall(null);
@@ -187,6 +193,7 @@ export function ListingEditor({ initial }: { initial: ListingT }) {
       setError(e instanceof Error ? e.message : "Fehler");
     } finally {
       setBusy(false);
+      savingRef.current = false;
     }
   }
 
@@ -586,6 +593,27 @@ function FieldGroup({
   );
 }
 
+/**
+ * Pro-File-Upload-State. Wird in einer Liste unter der Drop-Zone angezeigt.
+ * Erfolgreiche Uploads werden nach 4 s automatisch entfernt; Fehler
+ * bleiben stehen, bis Marco sie wegklickt.
+ */
+type UploadItem = {
+  id: string;
+  name: string;
+  status: "compressing" | "uploading" | "registering" | "done" | "error";
+  percent: number;
+  error?: string;
+  sizeOriginal: number;
+  sizeFinal?: number;
+};
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function ImageUploadSection({
   listingId,
   images,
@@ -593,91 +621,251 @@ function ImageUploadSection({
 }: {
   listingId: string;
   images: ListingImageT[];
-  onChange: (next: ListingImageT[]) => void;
+  onChange: React.Dispatch<React.SetStateAction<ListingImageT[]>>;
 }) {
   const apiFetch = useApiFetch();
+  const { user, isLoaded } = useUser();
   const fileInput = useRef<HTMLInputElement | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [items, setItems] = useState<UploadItem[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
 
-  async function uploadFile(file: File) {
-    setError(null);
-    setInfo(null);
-    setBusy(true);
+  function patchItem(id: string, patch: Partial<UploadItem>) {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }
+
+  async function uploadOne(file: File, item: UploadItem) {
+    if (!user) return;
     try {
-      // 1. Upload zu Vercel Blob via Frontend-Route
-      const form = new FormData();
-      form.append("file", file);
-      const up = await fetch("/api/upload-image", { method: "POST", body: form });
-      if (!up.ok) {
-        const j = await up.json().catch(() => ({}));
-        throw new Error(j.error ?? `Upload fehlgeschlagen (${up.status})`);
-      }
-      const { url } = (await up.json()) as { url: string };
+      patchItem(item.id, { status: "uploading", percent: 0 });
+      const result = await uploadImageToBlob({
+        file,
+        userId: user.id,
+        onProgress: (pct) => patchItem(item.id, { percent: pct })
+      });
 
-      // 2. URL ans Backend hängen
+      patchItem(item.id, {
+        status: "registering",
+        percent: 100,
+        sizeFinal: result.finalSize
+      });
+
       const res = await apiFetch(`/me/listings/${listingId}/images`, {
         method: "POST",
-        body: JSON.stringify({ url, alt: file.name })
+        body: JSON.stringify({ url: result.url, alt: file.name })
       });
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        throw new Error(`Bild-Registrierung fehlgeschlagen (${res.status}) ${txt.slice(0, 200)}`);
+        throw new Error(
+          `Registrierung fehlgeschlagen (${res.status}) ${txt.slice(0, 200)}`
+        );
       }
       const img = (await res.json()) as ListingImageT;
-      onChange([...images, img]);
-      setInfo(`Hochgeladen: ${file.name}`);
+      // Funktional-Form: schliesst stale-closure-Bug bei parallelen Uploads aus.
+      onChange((prev) => [...prev, img]);
+      patchItem(item.id, { status: "done" });
+      // Erfolgreiche Items nach 4 s aus der Liste raus
+      setTimeout(() => {
+        setItems((prev) => prev.filter((it) => it.id !== item.id));
+      }, 4000);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Fehler");
-    } finally {
-      setBusy(false);
-      if (fileInput.current) fileInput.current.value = "";
+      const msg = e instanceof Error ? e.message : "Upload-Fehler";
+      patchItem(item.id, { status: "error", error: msg });
     }
   }
 
-  async function deleteImage(imageId: string) {
-    if (!confirm("Bild löschen?")) return;
-    const res = await apiFetch(`/me/listings/${listingId}/images/${imageId}`, { method: "DELETE" });
-    if (!res.ok) {
-      alert("Löschen fehlgeschlagen");
+  async function startUploads(files: FileList | File[] | null) {
+    if (!files) return;
+    setError(null);
+    if (!isLoaded) return;
+    if (!user) {
+      setError("Bitte einloggen, dann erneut versuchen.");
       return;
     }
-    onChange(images.filter((i) => i.id !== imageId));
+    const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    const rejected = Array.from(files).length - arr.length;
+    if (rejected > 0) {
+      setError(`${rejected} Datei(en) ueberprungen — nur Bilder erlaubt.`);
+    }
+    if (arr.length === 0) return;
+
+    const newItems: UploadItem[] = arr.map((f) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      name: f.name,
+      status: "compressing",
+      percent: 0,
+      sizeOriginal: f.size
+    }));
+    setItems((prev) => [...prev, ...newItems]);
+
+    // Parallel hochladen — Browser parallelisiert HTTP/2-Verbindungen
+    // ohnehin auf max ~6 pro Origin, das reicht fuer typische 3-10
+    // Bilder pro Inserat.
+    await Promise.all(arr.map((f, i) => uploadOne(f, newItems[i])));
+
+    // File-Input zuruecksetzen, damit dieselbe Datei nochmal gewaehlt
+    // werden koennte (Browser ignoriert sonst onChange).
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  async function deleteImage(imageId: string) {
+    if (!confirm("Bild loeschen?")) return;
+    const res = await apiFetch(`/me/listings/${listingId}/images/${imageId}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) {
+      alert("Loeschen fehlgeschlagen");
+      return;
+    }
+    onChange((prev) => prev.filter((i) => i.id !== imageId));
+  }
+
+  function dismissError(id: string) {
+    setItems((prev) => prev.filter((it) => it.id !== id));
   }
 
   return (
     <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm font-semibold text-zinc-900">Bilder ({images.length})</div>
-          <div className="mt-1 text-xs text-zinc-500">
-            Bilder bis 4 MB. Werden auf Vercel Blob gespeichert.
-            Falls Vercel Blob noch nicht aktiviert ist, kommt eine Hinweis-Meldung beim Upload.
-          </div>
+      <div>
+        <div className="text-sm font-semibold text-zinc-900">
+          Bilder ({images.length})
+        </div>
+        <div className="mt-1 text-xs text-zinc-500">
+          Mehrere Bilder gleichzeitig moeglich. Werden client-seitig auf
+          max. 2560 px komprimiert (JPEG q=0.85) und direkt zu Vercel Blob
+          hochgeladen — kein 4-MB-Limit mehr.
+        </div>
+      </div>
+
+      {/* Drop-Zone */}
+      <label
+        onDragEnter={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          startUploads(e.dataTransfer.files);
+        }}
+        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition ${
+          dragOver
+            ? "border-indigo-500 bg-indigo-50"
+            : "border-zinc-300 bg-white hover:border-zinc-400"
+        }`}
+      >
+        <svg
+          className="h-8 w-8 text-zinc-400"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+        <div className="text-sm font-medium text-zinc-700">
+          Bilder hier ablegen oder{" "}
+          <span className="text-indigo-600 underline">durchsuchen</span>
+        </div>
+        <div className="text-xs text-zinc-500">
+          JPG, PNG, WebP, AVIF, GIF — mehrere Dateien gleichzeitig
         </div>
         <input
           ref={fileInput}
           type="file"
           accept="image/*"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) uploadFile(f);
-          }}
-          disabled={busy}
-          className="text-xs text-zinc-700 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-indigo-700"
+          multiple
+          onChange={(e) => startUploads(e.target.files)}
+          className="sr-only"
         />
-      </div>
+      </label>
 
       {error ? <div className="text-xs text-rose-600">{error}</div> : null}
-      {info ? <div className="text-xs text-emerald-700">{info}</div> : null}
+
+      {/* Aktive + abgeschlossene Uploads */}
+      {items.length > 0 ? (
+        <ul className="space-y-2">
+          {items.map((it) => (
+            <li
+              key={it.id}
+              className="rounded-lg border border-zinc-200 bg-white p-2 text-xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate font-medium text-zinc-800">
+                  {it.name}
+                </span>
+                <span
+                  className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold ${
+                    it.status === "done"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : it.status === "error"
+                        ? "bg-rose-100 text-rose-800"
+                        : "bg-indigo-100 text-indigo-800"
+                  }`}
+                >
+                  {it.status === "compressing" && "Komprimiere…"}
+                  {it.status === "uploading" && `${it.percent}%`}
+                  {it.status === "registering" && "Speichere…"}
+                  {it.status === "done" && "Fertig ✓"}
+                  {it.status === "error" && "Fehler"}
+                </span>
+                {it.status === "error" ? (
+                  <button
+                    type="button"
+                    onClick={() => dismissError(it.id)}
+                    className="text-rose-600 hover:underline"
+                  >
+                    schliessen
+                  </button>
+                ) : null}
+              </div>
+              {it.status === "uploading" || it.status === "registering" ? (
+                <div className="mt-1 h-1 w-full overflow-hidden rounded bg-zinc-100">
+                  <div
+                    className="h-full bg-indigo-500 transition-all"
+                    style={{
+                      width: `${it.status === "registering" ? 100 : it.percent}%`
+                    }}
+                  />
+                </div>
+              ) : null}
+              {it.status === "done" && it.sizeFinal != null ? (
+                <div className="mt-1 text-[10px] text-zinc-500">
+                  {formatBytes(it.sizeOriginal)} →{" "}
+                  {formatBytes(it.sizeFinal)} (
+                  {Math.round((1 - it.sizeFinal / it.sizeOriginal) * 100)}%
+                  kleiner)
+                </div>
+              ) : null}
+              {it.status === "error" && it.error ? (
+                <div className="mt-1 text-[11px] text-rose-700">{it.error}</div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {images.length === 0 ? (
         <div className="text-sm text-zinc-500">Noch keine Bilder.</div>
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {images.map((img) => (
-            <div key={img.id} className="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white">
+            <div
+              key={img.id}
+              className="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={img.url}
@@ -687,9 +875,9 @@ function ImageUploadSection({
               <button
                 type="button"
                 onClick={() => deleteImage(img.id)}
-                className="absolute right-1 top-1 rounded-md bg-white/90 border border-zinc-200 px-2 py-1 text-[10px] text-rose-600 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50"
+                className="absolute right-1 top-1 rounded-md border border-zinc-200 bg-white/90 px-2 py-1 text-[10px] text-rose-600 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50"
               >
-                Löschen
+                Loeschen
               </button>
             </div>
           ))}

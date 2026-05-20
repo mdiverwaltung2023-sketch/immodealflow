@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useApiFetch } from "@/lib/client-fetch";
@@ -100,9 +100,16 @@ export function NewListingForm() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ref-basierte Doppel-Submit-Sperre: greift SYNCHRON, anders als
+  // setBusy(true) (React-State-Update ist async). Damit kann ein zweiter
+  // Klick zwischen erstem Klick und der ersten Re-Render-Pass nicht mehr
+  // durchrutschen. Backend hat zusaetzlich ein 60-Sek-Dedup-Window —
+  // Belt + Suspenders gegen versehentliche Duplikate.
+  const submittingRef = useRef(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     setError(null);
 
     if (!title.trim() || !city.trim()) {
@@ -120,6 +127,7 @@ export function NewListingForm() {
       return;
     }
 
+    submittingRef.current = true;
     setBusy(true);
     try {
       const vacancyParsed = floatOrNull(vacancyRate);
@@ -178,6 +186,10 @@ export function NewListingForm() {
       router.push(`/listings/${json.id}/edit`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Fehler");
+      // Bei Fehler die Sperre wieder loesen, damit Marco einen neuen
+      // Versuch starten kann. Bei Erfolg bleibt sie zu (router.push
+      // verlaesst die Seite, neuer Mount = neuer Ref).
+      submittingRef.current = false;
     } finally {
       setBusy(false);
     }

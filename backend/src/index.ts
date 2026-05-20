@@ -1721,6 +1721,31 @@ app.get("/me/listings", async (req, res) => {
 app.post("/me/listings", async (req, res) => {
   const body = ListingCreateSchema.parse(req.body);
   const { availableFrom, features, highlights, tenantSectors, ...rest } = body;
+
+  // --- Dedup-Window (Phase M5 — 2026-05-20) ----------------------------
+  // Schutz gegen Doppel-Submit (Doppelklick, Enter-Taste, Mobile Double-Tap):
+  // Wenn derselbe Owner in den letzten 60 Sekunden ein Listing mit
+  // identischem Title + askingPrice + totalArea angelegt hat, geben wir
+  // das bestehende zurueck statt ein zweites zu erzeugen. Marco hatte
+  // ein versehentliches Duplikat — die Frontend-Sperre via useState war
+  // nicht zuverlaessig genug.
+  const dedupWindowMs = 60_000;
+  const recentDuplicate = await prisma.listing.findFirst({
+    where: {
+      ownerId: req.userId!,
+      title: rest.title,
+      askingPrice: rest.askingPrice,
+      totalArea: rest.totalArea,
+      createdAt: { gte: new Date(Date.now() - dedupWindowMs) }
+    },
+    orderBy: { createdAt: "desc" },
+    include: { images: { orderBy: { sortOrder: "asc" } } }
+  });
+  if (recentDuplicate) {
+    return res.json(recentDuplicate);
+  }
+  // ---------------------------------------------------------------------
+
   const data = {
     ownerId: req.userId!,
     ...rest,

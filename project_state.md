@@ -4,10 +4,10 @@
 > Repo-/Code-Pfad: `ImmoDealFlow` (intern; bleibt aus Pragmatismus erhalten).
 > Frühere Arbeitsnamen: DealFlow AI, ImmoDealFlow.
 >
-> Stand: **2026-05-07** (Phase E + Rebranding). Diese Datei ist die Single
-> Source of Truth für den aktuellen Projektstand. Bei jeder substanziellen
-> Änderung (neuer Endpoint, neuer Deploy, neuer Bug, Status-Update) hier
-> nachziehen.
+> Stand: **2026-05-20** (Phase M5 — Hotfix Bilder-Upload + Listing-Dedup).
+> Diese Datei ist die Single Source of Truth für den aktuellen Projektstand.
+> Bei jeder substanziellen Änderung (neuer Endpoint, neuer Deploy, neuer
+> Bug, Status-Update) hier nachziehen.
 
 ---
 
@@ -17,7 +17,8 @@
 
 | Service     | URL                                                                                | Status  |
 |-------------|------------------------------------------------------------------------------------|---------|
-| Frontend    | https://immodealflow-frontend.vercel.app                                           | ✅ live |
+| Frontend    | https://infinityoikos.com (Custom-Domain, seit 2026-05-20)                         | ✅ live |
+| Frontend (Vercel-Default) | https://immodealflow-frontend.vercel.app                             | ✅ live |
 | Backend     | https://dealflow-ai-backend-production.up.railway.app                              | ✅ live |
 | Health      | https://dealflow-ai-backend-production.up.railway.app/health → `{"ok":true}`        | ✅      |
 | GitHub-Repo | https://github.com/mdiverwaltung2023-sketch/immodealflow                           | ✅      |
@@ -243,7 +244,66 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase M4 — Discoverability + Investor-Direkt-Sicht**
+## Aktuelle Phase: **Phase M5 — Hotfix Bilder-Upload + Listing-Dedup (2026-05-20)**
+
+### Phase M5 (2026-05-20) — Hotfix Bilder-Upload + Listing-Dedup
+
+> Ausloeser: Marco hat heute ein Inserat angelegt und folgendes erlebt:
+> (a) das Inserat wurde versehentlich doppelt angelegt, (b) Bilder-Upload
+> war einzeln-only, sehr langsam und der zweite Versuch endete in HTTP 413
+> ("Upload fehlgeschlagen").
+
+**Bug 1 — Doppeleingabe bei Listing-Create**
+
+- Ursache: `disabled={busy}` am Submit-Button greift erst nach dem React-
+  Re-Render. Ein zweiter Klick (Doppelklick, Enter-Taste, Mobile
+  Double-Tap) rutscht durch das Race-Window und triggert einen zweiten
+  `POST /me/listings`. Backend hatte keinerlei Dedup.
+- Fix Backend (`backend/src/index.ts`): 60-Sek-Dedup-Window in
+  `POST /me/listings` — wenn derselbe Owner in den letzten 60 Sek ein
+  Listing mit identischem Title + askingPrice + totalArea angelegt hat,
+  geben wir das bestehende zurueck statt ein zweites zu erzeugen.
+- Fix Frontend (`NewListingForm.tsx`, `ListingEditor.tsx`): synchroner
+  `useRef`-Guard zusaetzlich zum `useState`-Busy-Flag. Damit faengt der
+  Client das Race-Window vor dem fetch ab; Backend-Dedup ist Belt +
+  Suspenders.
+
+**Bug 2 — Bilder-Upload langsam, Single-File-only, 413 bei Smartphone-Fotos**
+
+- Ursache: alte Route `/api/upload-image` machte Server-Side-Upload
+  durch eine Vercel-Function. Damit: (a) hartes 4-MB-Body-Limit (typische
+  iPhone/Android-Fotos sind 4-8 MB → 413), (b) Doppel-Hop Browser →
+  Function → Blob = langsam, (c) `<input>` hatte kein `multiple`.
+- Fix neue Route (`frontend/app/api/blob-upload/route.ts`): Token-Handler
+  fuer `@vercel/blob/client` `upload()` mittels `handleUpload()`.
+  Validiert Clerk-Auth, beschraenkt Pfad-Prefix auf `listings/<userId>/`,
+  signiert 60-Sek-gueltige Upload-Tokens. Datei laeuft NICHT mehr durch
+  die Function — Browser spricht direkt mit Blob-Store. Bis 25 MB pro
+  File, kein 4-MB-Function-Limit.
+- Fix Helper (`frontend/lib/upload-image.ts`): client-seitige Compression
+  via Canvas (max 2560 px lange Kante, JPEG q=0.85) — drueckt typische
+  Smartphone-Fotos von 4-8 MB auf 300-700 KB ohne sichtbaren
+  Qualitaetsverlust. Wenn Komprimierung nicht spart (bereits kleine
+  Bilder), wird das Original verwendet. Danach `upload()` aus
+  `@vercel/blob/client` mit `onUploadProgress`-Callback fuer die UI.
+- Fix UI (`ListingEditor.tsx` → `ImageUploadSection`):
+  - `multiple`-Attribut + Drag-and-Drop-Zone
+  - parallele Uploads (Promise.all)
+  - Pro-File-Status (Komprimiere / Uploadest XX% / Speichere / Fertig /
+    Fehler) mit Progressbar
+  - Funktional-Form von `setImages` als `onChange` — schliesst
+    stale-closure-Bug bei parallelen Uploads
+  - Erfolgreiche Items verschwinden nach 4 s; Fehler-Items bleiben mit
+    Schliessen-Button
+- Alte Route `/api/upload-image` bleibt vorerst als Fallback fuer
+  Offmarket-, Rental- und Tenant-Profil-Bilder (Migration spaeter).
+- BAT: `109_fix-listing-dup-and-uploads.bat` macht lokalen Build
+  (Backend tsc + Frontend next build), committet und pusht.
+
+**Marco-Schritt:** Doppel-Inserat von heute manuell ueber `/listings`
+loeschen (das bleibt liegen — der Fix verhindert nur kuenftige Duplikate).
+Bei kuenftigen Uploads: Drag-and-Drop von mehreren Bildern in die
+gestrichelte Zone, oder Klick → System-Dialog mit Multi-Select.
 
 ### Phase M4 (2026-05-19) — Verkaufsabwicklung 2.0, Schritt 4
 
@@ -737,9 +797,12 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
   `/me`-Call — pragmatisch, könnte später per Layout/Cache optimiert werden
 - Profil-Sichtbarkeit ist nur gespeichert, noch nicht durchgesetzt — Enforcement
   kommt erst in Phase D mit dem Inquiry-Flow
-- Bilder-Upload nutzt Server-Side-Upload (4 MB Limit pro Datei wegen Vercel
-  Serverless Body-Limit). Für größere Dateien später Client-Upload-Pattern
-  mit `handleUpload` von `@vercel/blob/client` umstellen.
+- Bilder-Upload fuer LISTINGS ist seit Phase M5 (2026-05-20) auf
+  Client-Upload via `@vercel/blob/client` umgestellt (kein 4-MB-Limit,
+  Multi-Select, clientseitige JPEG-Komprimierung). Die alte Route
+  `/api/upload-image` bleibt als Fallback fuer Offmarket-, Rental- und
+  Tenant-Profil-Bilder bestehen — sollte bei Gelegenheit ebenfalls
+  migriert werden (Tech-Debt).
 - Marketplace-Karten zeigen aktuell `owner.name` ohne Sichtbarkeits-Check —
   fixen wir mit Phase D (Profil-Visibility wird dann durchgesetzt).
 - Keine Tests (weder Backend noch Frontend)
@@ -749,6 +812,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-05-20  | Phase M5 Hotfix: Listing-Dedup-Window + Client-Upload via @vercel/blob/client + Multi-Select + Compression + Custom-Domain infinityoikos.com |
 | 2026-05-19  | Phase M4: BuyerAccessManager auf /sales/[id] + /freigaben + /empfangene-freigaben + Sidebar + Auto-Bind |
 | 2026-05-19  | Phase M3: Notifications + Inquiry-Auto-Fill + bunte Pipeline-Icons |
 | 2026-05-19  | Phase M2: BuyerAccessManager + /zugang/[token]-Page + horizontaler Pipeline-Stepper |
