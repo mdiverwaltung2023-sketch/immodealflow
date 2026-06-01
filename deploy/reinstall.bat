@@ -1,8 +1,8 @@
 @echo off
 REM ============================================================
-REM 99_clean-reinstall.bat
-REM Notfall-Skript: loescht alle node_modules und installiert neu.
-REM Nutzen, wenn etwas mit Dependencies kaputt ist.
+REM reinstall.bat  --  Notfall: Dependencies neu installieren
+REM Loescht node_modules (root, backend, frontend) + root-Lockfile
+REM und installiert frisch. Nutzen bei kaputten Dependencies.
 REM ============================================================
 
 cd /d "%~dp0\.."

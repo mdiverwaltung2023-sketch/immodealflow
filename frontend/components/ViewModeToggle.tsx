@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { UserRoleT } from "@/lib/api";
 import {
   VIEW_MODE_EVENT,
@@ -21,6 +22,7 @@ import {
  * bekommen alle 4 (Investor / Verkäufer / Vermieter / Mieter).
  */
 export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
+  const router = useRouter();
   const allowed = useMemo(() => getAllowedModes(userRole), [userRole]);
   const [mode, setMode] = useState<ViewMode>(defaultModeForRole(userRole));
   const [hydrated, setHydrated] = useState(false);
@@ -41,8 +43,21 @@ export function ViewModeToggle({ userRole }: { userRole: UserRoleT }) {
   if (allowed.length <= 1) return null;
 
   function pick(next: ViewMode) {
+    if (next === mode) return;
     setMode(next);
+    // Schreibt localStorage + feuert VIEW_MODE_EVENT (Sidebar + Dashboard
+    // hoeren mit).
     setViewMode(next);
+    // Marco erwartet, dass ein Rollen-Wechsel ihn direkt aufs passende
+    // Dashboard fuehrt — sonst friert die aktuelle Seite ein (z.B.
+    // Listing-Edit bleibt offen, waehrend die Sidebar Investor-Items
+    // zeigt). Wir navigieren auf /dashboard; DashboardSwitcher liest
+    // den neuen ViewMode aus localStorage und rendert die passende
+    // View (InvestorView / SellerView / LandlordView / TenantView).
+    // router.refresh() laedt zusaetzlich die Server-Component-Daten
+    // neu, damit z.B. Rollen-spezifische Listen frisch sind.
+    router.push("/dashboard");
+    router.refresh();
   }
 
   return (

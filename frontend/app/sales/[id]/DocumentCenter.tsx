@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { useApiFetch } from "@/lib/client-fetch";
+import { uploadDocumentToBlob } from "@/lib/upload-document";
 import {
   SALE_DOC_LABELS,
   SALE_DOC_ORDER,
@@ -56,7 +58,7 @@ export function DocumentCenter({
         ))}
       </div>
       <div className="pt-2 text-[10px] text-zinc-400">
-        Pro Kategorie genau eine Datei (Re-Upload überschreibt). Max 4 MB.
+        Pro Kategorie genau eine Datei (Re-Upload überschreibt). Max 50 MB.
         Erlaubt: PDF, DOCX, XLSX, JPG, PNG.
       </div>
     </div>
@@ -84,43 +86,42 @@ function DocSlot({
 }) {
   const router = useRouter();
   const apiFetch = useApiFetch();
+  const { user } = useUser();
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function startUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    if (!user?.id) {
+      setErr("Nicht eingeloggt - bitte Seite neu laden.");
+      return;
+    }
     setBusy(true);
+    setProgress(0);
     setErr(null);
     try {
-      // 1) Upload zu Vercel Blob via Next.js Route Handler (kein Auth-Token nötig,
-      // weil die Route via Clerk auth() den User selbst liest).
-      const fd = new FormData();
-      fd.append("file", f);
-      fd.append("kind", kind);
-      const upRes = await fetch("/api/upload-document", {
-        method: "POST",
-        body: fd
+      // 1) Direct-to-Blob-Upload via @vercel/blob/client. Die Datei laeuft
+      //    NICHT durch die Vercel-Function -> kein 4,5-MB-Body-Limit mehr
+      //    (frueherer "Upload-Fehler 413" / "Failed to fetch" bei grossen
+      //    Dokumenten wie gescannten Grundbuchauszuegen). Max 50 MB, vom
+      //    Token-Handler /api/blob-upload validiert.
+      const up = await uploadDocumentToBlob({
+        file: f,
+        userId: user.id,
+        kind,
+        onProgress: (p) => setProgress(p)
       });
-      if (!upRes.ok) {
-        const j = await upRes.json().catch(() => null);
-        setErr(j?.error ?? `Upload-Fehler (${upRes.status})`);
-        return;
-      }
-      const upJson = (await upRes.json()) as {
-        url: string;
-        filename: string;
-        sizeBytes: number;
-      };
       // 2) Backend-Eintrag (upsert pro processId+kind)
       const regRes = await apiFetch(`/me/sale-processes/${processId}/documents`, {
         method: "POST",
         body: JSON.stringify({
           kind,
-          url: upJson.url,
-          filename: upJson.filename,
-          sizeBytes: upJson.sizeBytes
+          url: up.url,
+          filename: up.filename,
+          sizeBytes: up.sizeBytes
         })
       });
       if (!regRes.ok) {
@@ -135,6 +136,7 @@ function DocSlot({
       setErr(e2 instanceof Error ? e2.message : "Fehler");
     } finally {
       setBusy(false);
+      setProgress(null);
       if (fileInput.current) fileInput.current.value = "";
     }
   }
@@ -209,7 +211,13 @@ function DocSlot({
             disabled={busy}
             className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
           >
-            {busy ? "…" : doc ? "Ersetzen" : "Hochladen"}
+            {busy
+              ? progress != null
+                ? `${progress}%`
+                : "…"
+              : doc
+                ? "Ersetzen"
+                : "Hochladen"}
           </button>
           {doc ? (
             <button

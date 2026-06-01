@@ -1,13 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 REM ============================================================
-REM 06_db-migrate-new.bat
-REM Erzeugt eine neue Prisma-Migration aus geaenderten
-REM Schema (backend/prisma/schema.prisma) und wendet sie sofort
-REM auf die in backend/.env hinterlegte DB an.
-REM
-REM Anders als 03_db-migrate.bat: fragt nach einem Migrationsnamen
-REM und ist fuer alle weiteren Migrationen nach der ersten gedacht.
+REM migrate.bat  --  Datenbank-Migration
+REM Erzeugt eine neue Prisma-Migration aus dem geaenderten
+REM Schema (backend/prisma/schema.prisma) und wendet sie auf
+REM die in backend/.env hinterlegte DB an.
+REM Danach mit push.bat deployen.
 REM ============================================================
 
 cd /d "%~dp0\..\backend"
@@ -17,11 +15,12 @@ echo.
 
 if not exist ".env" (
     echo FEHLER: backend\.env fehlt.
+    echo         Braucht DATABASE_URL. Vorlage: backend\.env.example
     pause
     exit /b 1
 )
 
-echo Migrationsname (kurz, snake_case, z.B. add_status_and_notes):
+echo Migrationsname (kurz, snake_case, z.B. add_doc_fields):
 set /p MIG_NAME="Name: "
 if "!MIG_NAME!"=="" (
     echo Kein Name angegeben - Abbruch.
@@ -44,6 +43,7 @@ call npx prisma migrate dev --name !MIG_NAME!
 if errorlevel 1 (
     echo.
     echo FEHLER bei prisma migrate dev.
+    echo Tipp: DATABASE_URL erreichbar? DB laeuft?
     pause
     exit /b 1
 )
@@ -51,7 +51,8 @@ if errorlevel 1 (
 echo.
 echo ============================================================
 echo  FERTIG. Migration angewandt.
-echo  Naechster Schritt: ggf. Backend redeployen via 05_git-commit-push.bat
+echo  Naechster Schritt: deploy\push.bat
 echo ============================================================
 echo.
 pause
+endlocal

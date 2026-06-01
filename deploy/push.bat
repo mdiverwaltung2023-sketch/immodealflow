@@ -1,9 +1,9 @@
 @echo off
 REM ============================================================
-REM 15_commit-phase-d.bat
-REM Commit + Push der kompletten Phase D
-REM (Inquiry-Modell + Backend-Endpoints + Frontend-Pages).
-REM Setzt voraus, dass 14_migrate-d1-inquiry.bat schon gelaufen ist.
+REM push.bat  --  HAUPT-SKRIPT fuer Deploys
+REM Commit + Push aller Aenderungen. Vercel und Railway
+REM deployen danach automatisch.
+REM Fuer jede Iteration (Feature, Bugfix, Doku) dieselbe BAT.
 REM ============================================================
 
 cd /d "%~dp0\.."
@@ -11,17 +11,20 @@ echo.
 echo === Projektordner: %CD% ===
 echo.
 
+if exist ".git\index.lock" del /F /Q ".git\index.lock"
+
 git status --short
 echo.
 
-git add -A
-if errorlevel 1 (
-    echo Fehler beim git add.
+set /p MSG="Commit-Message: "
+if "%MSG%"=="" (
+    echo Keine Message angegeben - Abbruch.
     pause
     exit /b 1
 )
 
-git commit -m "feat: Phase D - Inquiry-Flow (Verkaeufer sieht Investor-Profil bei Anfrage)"
+git add -A
+git commit -m "%MSG%"
 if errorlevel 1 (
     echo.
     echo Nichts zu committen oder Fehler. Pruefe Output.
@@ -40,10 +43,7 @@ if errorlevel 1 (
 echo.
 echo ============================================================
 echo  Commit + Push erfolgreich.
-echo  Railway baut jetzt automatisch (inkl. add_inquiry-Migration).
-echo  Vercel baut Frontend automatisch.
-echo  In 1-2 Minuten sollte /inquiries und /listings/<id>/inquiries
-echo  funktionieren.
+echo  Vercel (Frontend) und Railway (Backend) deployen automatisch.
 echo ============================================================
 echo.
 pause

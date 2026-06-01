@@ -506,6 +506,7 @@ export const SaleDocKindEnum = z.enum([
   "GRUNDBUCH",
   "ENERGIEAUSWEIS",
   "FLURKARTE",
+  "GRUNDRISS",
   "WOHNFLAECHENBERECHNUNG",
   "KAUFVERTRAG_ENTWURF",
   "KAUFVERTRAG_BEURKUNDET",
@@ -515,6 +516,7 @@ export const SaleDocKindEnum = z.enum([
   "TEILUNGSERKLAERUNG",
   "EIGENTUEMERVERSAMMLUNG_PROTOKOLL",
   "MIETVERTRAEGE",
+  "MIETAUFSTELLUNG",
   "MAKLERVERTRAG",
   "SONSTIGES"
 ]);
@@ -524,6 +526,7 @@ export const SALE_DOC_LABELS: Record<SaleDocKindT, string> = {
   GRUNDBUCH: "Grundbuchauszug",
   ENERGIEAUSWEIS: "Energieausweis",
   FLURKARTE: "Flurkarte / Lageplan",
+  GRUNDRISS: "Grundrisszeichnungen",
   WOHNFLAECHENBERECHNUNG: "Wohnflächenberechnung",
   KAUFVERTRAG_ENTWURF: "Kaufvertrag (Entwurf)",
   KAUFVERTRAG_BEURKUNDET: "Kaufvertrag (beurkundet)",
@@ -533,6 +536,7 @@ export const SALE_DOC_LABELS: Record<SaleDocKindT, string> = {
   TEILUNGSERKLAERUNG: "Teilungserklärung",
   EIGENTUEMERVERSAMMLUNG_PROTOKOLL: "Eigentümerversammlungs-Protokoll",
   MIETVERTRAEGE: "Mietverträge",
+  MIETAUFSTELLUNG: "Mietaufstellung",
   MAKLERVERTRAG: "Maklervertrag",
   SONSTIGES: "Sonstiges"
 };
@@ -541,10 +545,12 @@ export const SALE_DOC_ORDER: SaleDocKindT[] = [
   "GRUNDBUCH",
   "ENERGIEAUSWEIS",
   "FLURKARTE",
+  "GRUNDRISS",
   "WOHNFLAECHENBERECHNUNG",
   "TEILUNGSERKLAERUNG",
   "EIGENTUEMERVERSAMMLUNG_PROTOKOLL",
   "MIETVERTRAEGE",
+  "MIETAUFSTELLUNG",
   "MAKLERVERTRAG",
   "KAUFVERTRAG_ENTWURF",
   "KAUFVERTRAG_BEURKUNDET",
