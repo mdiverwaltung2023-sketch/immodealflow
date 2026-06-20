@@ -899,6 +899,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Admin-Lead-Uebersicht: GET /admin/financing-leads (handed-off Anfragen mit Investor/Objekt/Partner) + Seite /admin/financing-leads + Sidebar. Reine Leseansicht, keine Migration. |
 | 2026-06-20  | Phase P Stufe 2 — Lead-Uebergabe per Opt-in: FinancingRequest.partnerId/handedOffAt (Migration 20260620160000_financing_request_handoff) + POST /me/financing-requests/:id/handoff (Einwilligung erforderlich, Status AN_PARTNER) + Cockpit-Handoff-UI (RequestHandoff: passende Partner waehlen + Consent). Tippgeber — keine Vermittlung durch Oikos. |
 | 2026-06-20  | Phase P Partneroekosystem (Tippgeber): Modell FinancingPartner + Enum (Migration 20260620150000_financing_partners), Admin-CRUD + seed-demo, neutrales kriterienbasiertes Matching GET /properties/:id/financing-partners (Volumen/LTV/Region), Objekt-Panel "Passende Finanzierungspartner" + Admin-Seite /admin/financing-partners + Sidebar. KEINE Vermittlung durch Oikos. Lead-Uebergabe (Opt-in) = naechste Stufe. |
 | 2026-06-20  | Objekttiefe: Property + yearBuilt/condition/energyClass/units (Migration 20260620140000_property_object_depth, BuildingCondition/EnergyClass-Enums) + Zod (Create/Update) + PropertySchema + Edit-Formular (Objektdetails-Block) + Mappe-Anzeige (Sektion 2). |

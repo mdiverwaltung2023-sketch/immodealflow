@@ -1373,6 +1373,21 @@ app.post("/admin/financing-partners/seed-demo", async (req, res) => {
   return res.json(list);
 });
 
+// GET /admin/financing-leads — alle an Partner übergebenen Anfragen (Tracking).
+app.get("/admin/financing-leads", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const leads = await prisma.financingRequest.findMany({
+    where: { partnerId: { not: null } },
+    orderBy: { handedOffAt: "desc" },
+    include: {
+      property: { select: { id: true, title: true, location: true, price: true, rent: true } },
+      partner: { select: { id: true, name: true, type: true, contactEmail: true, contactPhone: true } },
+      owner: { select: { id: true, name: true, email: true } }
+    }
+  });
+  return res.json(leads);
+});
+
 // GET /properties/:id/financing-partners — neutrales, kriterienbasiertes Matching
 app.get("/properties/:id/financing-partners", async (req, res) => {
   const property = await prisma.property.findFirst({

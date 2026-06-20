@@ -275,6 +275,15 @@ export const PartnerMatchSchema = z.object({
 });
 export type PartnerMatchT = z.infer<typeof PartnerMatchSchema>;
 
+export const FinancingLeadSchema = z.object({
+  id: z.string(), createdAt: z.string(), handedOffAt: z.string().nullable(), status: FinancingRequestStatusEnum,
+  desiredLoanAmount: z.number().nullable(), note: z.string().nullable(), overall: LightEnum.nullable(), readinessScore: z.number().nullable(),
+  property: z.object({ id: z.string(), title: z.string(), location: z.string(), price: z.number(), rent: z.number() }).nullable(),
+  partner: z.object({ id: z.string(), name: z.string(), type: FinancingPartnerTypeEnum, contactEmail: z.string().nullable(), contactPhone: z.string().nullable() }).nullable(),
+  owner: z.object({ id: z.string(), name: z.string().nullable(), email: z.string() }).nullable()
+});
+export type FinancingLeadT = z.infer<typeof FinancingLeadSchema>;
+
 export const ImportExposeResponseSchema = z.object({
   title: z.string(),
   price: z.number(),

@@ -1,1 +1,1 @@
-Partner Stufe 2: Lead-Uebergabe per Opt-in (FinancingRequest -> Partner, Migration) + Cockpit-Handoff-UI
+Admin-Lead-Uebersicht: GET /admin/financing-leads + Seite /admin/financing-leads (uebergebene Anfragen: Investor/Objekt/Partner)
