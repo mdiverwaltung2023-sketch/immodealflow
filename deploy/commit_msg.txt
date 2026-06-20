@@ -1,1 +1,1 @@
-Partneroekosystem: FinancingPartner-Verzeichnis (Migration) + neutrales Matching + Admin-Pflege + Objekt-Panel
+Partner Stufe 2: Lead-Uebergabe per Opt-in (FinancingRequest -> Partner, Migration) + Cockpit-Handoff-UI

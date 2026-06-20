@@ -1309,8 +1309,14 @@ model FinancingRequest {
   desiredLoanAmount Int?    // gewünschtes Darlehensvolumen (EUR)
   note              String? // freie Notiz des Investors
 
+  // Phase P Stufe 2 — Lead-Übergabe an Partner (Opt-in / Tippgeber)
+  partnerId   String?
+  partner     FinancingPartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  handedOffAt DateTime?
+
   @@index([ownerId, status])
   @@index([propertyId])
+  @@index([partnerId])
 }
 
 // Phase P — Oikos Capital Layer: Finanzierungspartner (Verzeichnis).
@@ -1339,6 +1345,9 @@ model FinancingPartner {
   contactPhone String?
   website      String?
   note         String?
+
+  // Phase P Stufe 2 — übergebene Finanzierungsanfragen (Leads)
+  requests FinancingRequest[]
 
   @@index([active, type])
 }

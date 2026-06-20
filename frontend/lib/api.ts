@@ -244,7 +244,9 @@ export const FinancingRequestSchema = z.object({
   id: z.string(), createdAt: z.string(), updatedAt: z.string(), propertyId: z.string(),
   status: FinancingRequestStatusEnum, overall: LightEnum.nullable(), readinessScore: z.number().nullable(),
   desiredLoanAmount: z.number().nullable(), note: z.string().nullable(),
-  property: z.object({ id: z.string(), title: z.string(), location: z.string(), price: z.number(), rent: z.number() }).optional()
+  property: z.object({ id: z.string(), title: z.string(), location: z.string(), price: z.number(), rent: z.number() }).optional(),
+  handedOffAt: z.string().nullable().optional(),
+  partner: z.object({ id: z.string(), name: z.string(), type: z.enum(["BANK","SPARKASSE","VOLKSBANK","VERMITTLER","SPEZIALFINANZIERER","DEBT_FONDS"]), contactEmail: z.string().nullable(), contactPhone: z.string().nullable(), website: z.string().nullable() }).nullable().optional()
 });
 export type FinancingRequestT = z.infer<typeof FinancingRequestSchema>;
 

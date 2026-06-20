@@ -1201,10 +1201,44 @@ app.get("/me/financing-requests", async (req, res) => {
     where: { ownerId: req.userId! },
     orderBy: { createdAt: "desc" },
     include: {
-      property: { select: { id: true, title: true, location: true, price: true, rent: true } }
+      property: { select: { id: true, title: true, location: true, price: true, rent: true } },
+      partner: {
+        select: { id: true, name: true, type: true, contactEmail: true, contactPhone: true, website: true }
+      }
     }
   });
   return res.json(requests);
+});
+
+// POST /me/financing-requests/:id/handoff — Lead an Partner übergeben (Opt-in).
+// Tippgeber: stellt Kontakt her / leitet weiter — keine Vermittlung durch Oikos.
+app.post("/me/financing-requests/:id/handoff", async (req, res) => {
+  const body = z
+    .object({ partnerId: z.string().min(1), consent: z.literal(true) })
+    .safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({ error: "Einwilligung erforderlich oder ungültige Eingabe" });
+  }
+  const existing = await prisma.financingRequest.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  const partner = await prisma.financingPartner.findFirst({
+    where: { id: body.data.partnerId, active: true }
+  });
+  if (!partner) return res.status(404).json({ error: "Partner nicht gefunden" });
+
+  const updated = await prisma.financingRequest.update({
+    where: { id: req.params.id },
+    data: { partnerId: partner.id, handedOffAt: new Date(), status: "AN_PARTNER" },
+    include: {
+      property: { select: { id: true, title: true, location: true, price: true, rent: true } },
+      partner: {
+        select: { id: true, name: true, type: true, contactEmail: true, contactPhone: true, website: true }
+      }
+    }
+  });
+  return res.json(updated);
 });
 
 // PATCH /me/financing-requests/:id — Status / Notiz / Volumen aktualisieren.

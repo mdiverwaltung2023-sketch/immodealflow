@@ -14,6 +14,7 @@ import {
   type Light
 } from "@/lib/api";
 import { useApiFetch } from "@/lib/client-fetch";
+import { RequestHandoff } from "./RequestHandoff";
 
 const DOT: Record<Light, string> = {
   GREEN: "bg-emerald-500",
@@ -110,7 +111,8 @@ export function FinancingRequestsSection({ initial }: { initial: FinancingReques
       </div>
       <ul className="divide-y divide-zinc-100">
         {items.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <li key={r.id} className="px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 {r.overall ? (
@@ -142,6 +144,11 @@ export function FinancingRequestsSection({ initial }: { initial: FinancingReques
                   „{r.note}“
                 </div>
               ) : null}
+              {r.partner ? (
+                <div className="mt-0.5 text-xs font-medium text-emerald-700">
+                  → An {r.partner.name} übergeben{r.handedOffAt ? ` · ${formatDate(r.handedOffAt)}` : ""}{r.partner.contactEmail ? ` · ${r.partner.contactEmail}` : ""}
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-2">
@@ -171,6 +178,12 @@ export function FinancingRequestsSection({ initial }: { initial: FinancingReques
                 ×
               </button>
             </div>
+            </div>
+            {!r.partner && r.property?.id ? (
+              <div className="mt-2">
+                <RequestHandoff requestId={r.id} propertyId={r.property.id} onDone={(u) => setItems((prev) => prev.map((x) => (x.id === r.id ? u : x)))} />
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
