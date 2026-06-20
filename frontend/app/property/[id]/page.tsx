@@ -98,8 +98,14 @@ export default async function PropertyPage({ params }: { params: { id: string } 
       <Card title="Finanzierungs-Ampel (Oikos Capital Layer)">
         <div className="space-y-4">
           <FinancingReadinessPanel id={p.id} />
-          <div className="border-t border-zinc-100 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-4">
             <CreateFinancingRequestButton id={p.id} />
+            <Link
+              href={`/property/${p.id}/finanzierungsmappe`}
+              className="text-sm font-medium text-emerald-700 hover:underline"
+            >
+              Finanzierungsmappe öffnen →
+            </Link>
           </div>
         </div>
       </Card>
