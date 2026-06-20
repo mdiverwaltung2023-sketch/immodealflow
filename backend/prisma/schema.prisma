@@ -1152,6 +1152,12 @@ model Property {
   location  String
   size      Float
 
+  // Phase O+ — erweiterte Objektdaten (Capital Layer / Finanzierungsmappe)
+  yearBuilt   Int?
+  condition   BuildingCondition?
+  energyClass EnergyClass?
+  units       Int?
+
   status    DealStatus @default(WATCHING)
   dealType  DealType   @default(FREE_SALE)
 

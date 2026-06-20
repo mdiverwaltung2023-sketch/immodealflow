@@ -41,7 +41,11 @@ export const PropertySchema = z.object({
   location: z.string(),
   size: z.number(),
   status: DealStatusEnum,
-  dealType: z.enum(["FREE_SALE", "AUCTION"]).default("FREE_SALE")
+  dealType: z.enum(["FREE_SALE", "AUCTION"]).default("FREE_SALE"),
+  yearBuilt: z.number().nullable().optional(),
+  condition: z.enum(["NEW", "REFURBISHED", "MODERNIZED", "MAINTAINED", "NEEDS_RENOVATION"]).nullable().optional(),
+  energyClass: z.enum(["A_PLUS", "A", "B", "C", "D", "E", "F", "G", "H"]).nullable().optional(),
+  units: z.number().nullable().optional()
 });
 
 export const AnalysisSchema = z.object({

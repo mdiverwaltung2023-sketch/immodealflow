@@ -29,7 +29,11 @@ export default async function PropertyEditPage({ params }: { params: { id: strin
             rent: String(p.rent),
             location: p.location,
             size: String(p.size),
-            status: p.status
+            status: p.status,
+            yearBuilt: p.yearBuilt != null ? String(p.yearBuilt) : "",
+            units: p.units != null ? String(p.units) : "",
+            condition: p.condition ?? "",
+            energyClass: p.energyClass ?? ""
           }}
         />
       </Card>

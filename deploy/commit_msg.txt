@@ -1,1 +1,1 @@
-Finanzierungsmappe: Oikos Deal-Rating (A-D) Siegel + Druck-Feinschliff (Seitenumbrueche, Print-Fusszeile)
+Objekttiefe: Property um Baujahr/Zustand/Energieklasse/Einheiten erweitert (Migration) + Edit-Formular + Mappe-Anzeige

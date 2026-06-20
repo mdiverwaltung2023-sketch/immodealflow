@@ -4,6 +4,8 @@ import {
   FinancingReadinessSchema,
   InvestorProfileSchema,
   MARKET_RATING_LABELS,
+  BUILDING_CONDITION_LABELS,
+  ENERGY_CLASS_LABELS,
   type Light
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
@@ -223,6 +225,10 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
               <Row label="Bezeichnung" value={p.title} />
               <Row label="Lage" value={p.location} />
               <Row label="Fläche" value={`${p.size} m²`} />
+              {p.yearBuilt != null ? <Row label="Baujahr" value={String(p.yearBuilt)} /> : null}
+              {p.units != null ? <Row label="Einheiten" value={String(p.units)} /> : null}
+              {p.condition ? <Row label="Zustand" value={BUILDING_CONDITION_LABELS[p.condition]} /> : null}
+              {p.energyClass ? <Row label="Energieklasse" value={ENERGY_CLASS_LABELS[p.energyClass]} /> : null}
               <Row label="Kaufpreis" value={eur(p.price)} />
               <Row label="Kaufpreis / m²" value={`${eur(pricePerSqm)}`} />
               <Row label="Ist-Miete / Monat" value={eur(p.rent)} />

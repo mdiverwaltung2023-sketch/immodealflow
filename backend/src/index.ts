@@ -310,13 +310,38 @@ const DealStatusEnum = z.enum([
   "REJECTED"
 ]);
 
+// Phase O+ — erweiterte Objektdaten. Lokale Enums, da BuildingConditionEnum/
+// EnergyClassEnum erst weiter unten definiert sind (TDZ).
+const PropertyConditionEnum = z.enum([
+  "NEW",
+  "REFURBISHED",
+  "MODERNIZED",
+  "MAINTAINED",
+  "NEEDS_RENOVATION"
+]);
+const PropertyEnergyClassEnum = z.enum([
+  "A_PLUS",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H"
+]);
+
 const PropertyCreateSchema = z.object({
   title: z.string().min(1),
   price: z.number().int().positive(),
   rent: z.number().int().nonnegative(),
   location: z.string().min(1),
   size: z.number().positive(),
-  status: DealStatusEnum.optional()
+  status: DealStatusEnum.optional(),
+  yearBuilt: z.number().int().min(1800).max(2100).nullable().optional(),
+  condition: PropertyConditionEnum.nullable().optional(),
+  energyClass: PropertyEnergyClassEnum.nullable().optional(),
+  units: z.number().int().min(0).max(100000).nullable().optional()
 });
 
 const PropertyUpdateSchema = z.object({
@@ -325,7 +350,11 @@ const PropertyUpdateSchema = z.object({
   rent: z.number().int().nonnegative().optional(),
   location: z.string().min(1).optional(),
   size: z.number().positive().optional(),
-  status: DealStatusEnum.optional()
+  status: DealStatusEnum.optional(),
+  yearBuilt: z.number().int().min(1800).max(2100).nullable().optional(),
+  condition: PropertyConditionEnum.nullable().optional(),
+  energyClass: PropertyEnergyClassEnum.nullable().optional(),
+  units: z.number().int().min(0).max(100000).nullable().optional()
 });
 
 const NoteCreateSchema = z.object({

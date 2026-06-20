@@ -899,6 +899,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Objekttiefe: Property + yearBuilt/condition/energyClass/units (Migration 20260620140000_property_object_depth, BuildingCondition/EnergyClass-Enums) + Zod (Create/Update) + PropertySchema + Edit-Formular (Objektdetails-Block) + Mappe-Anzeige (Sektion 2). |
 | 2026-06-20  | Mappe: Oikos Deal-Rating (A-D) Siegel auf Deckblatt (computeDealRating: Rendite+Resilienz+Bankfaehigkeit+Markt) + Druck-Feinschliff (break-before-page je Hauptsektion, fixe Print-Fusszeile mit Objekt+Stand). |
 | 2026-06-20  | Fix Mappe-Optik: alle SVG-Diagramme responsiv (width 100% + viewBox) — kein Ueberlauf mehr ueber die Spalte/Seite (u. a. Marktvergleich-Range); Wert-Label am Rand sauber geankert. |
 | 2026-06-20  | Fix Mappe-Konsistenz: Mappe rechnet jetzt (wie die Ampel) IMMER aus Profil-Eigenkapital statt aus gespeicherter Analyse — Dashboard-DSCR/LTV/Cashflow stimmen mit der Bankfaehigkeits-Sektion ueberein. |
