@@ -197,3 +197,23 @@ export function returnMetrics(fa: FullAnalysis, netYield: number): ReturnMetrics
   const totalRoe = fa.equity > 0 ? ((annualCfAfterTax + annualTilgung) / fa.equity) * 100 : 0;
   return { cashOnCash, totalRoe, leverageGain: totalRoe - netYield };
 }
+
+export type DealGrade = "A" | "B" | "C" | "D";
+export type DealRating = { score: number; grade: DealGrade; label: string };
+
+export function computeDealRating(
+  netYield: number,
+  stress: { dscr: number }[],
+  readinessScore: number | null,
+  marketRating: "below_market" | "fair" | "above_market" | null
+): DealRating {
+  const cl = (n: number) => Math.max(0, Math.min(100, n));
+  const rendite = cl((netYield / 5) * 100);
+  const resilient = stress.length ? (stress.filter((s) => s.dscr >= 1.1).length / stress.length) * 100 : 50;
+  const bank = readinessScore != null ? readinessScore : 60;
+  const markt = marketRating === "below_market" ? 100 : marketRating === "fair" ? 70 : marketRating === "above_market" ? 40 : 65;
+  const score = Math.round(rendite * 0.3 + resilient * 0.25 + bank * 0.3 + markt * 0.15);
+  const grade: DealGrade = score >= 85 ? "A" : score >= 70 ? "B" : score >= 55 ? "C" : "D";
+  const label = grade === "A" ? "Exzellenter Deal" : grade === "B" ? "Solider Deal" : grade === "C" ? "Bedingt empfehlenswert" : "Kritischer Deal";
+  return { score, grade, label };
+}

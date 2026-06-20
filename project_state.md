@@ -899,6 +899,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Mappe: Oikos Deal-Rating (A-D) Siegel auf Deckblatt (computeDealRating: Rendite+Resilienz+Bankfaehigkeit+Markt) + Druck-Feinschliff (break-before-page je Hauptsektion, fixe Print-Fusszeile mit Objekt+Stand). |
 | 2026-06-20  | Fix Mappe-Optik: alle SVG-Diagramme responsiv (width 100% + viewBox) — kein Ueberlauf mehr ueber die Spalte/Seite (u. a. Marktvergleich-Range); Wert-Label am Rand sauber geankert. |
 | 2026-06-20  | Fix Mappe-Konsistenz: Mappe rechnet jetzt (wie die Ampel) IMMER aus Profil-Eigenkapital statt aus gespeicherter Analyse — Dashboard-DSCR/LTV/Cashflow stimmen mit der Bankfaehigkeits-Sektion ueberein. |
 | 2026-06-20  | Finanzierungsmappe v2 (Burggraben): Deckblatt + KPI-Dashboard + eigene SVG-Grafiken (Score-Donut, Cashflow-Balken, Tilgungsverlauf, Vermoegensprojektion, Stresstest-Balken, Markt-Range). Proprietaere Kennzahlen: Stresstest (Zins/Leerstand/Miete), Tilgungsplan + Restschuld, Vermoegensaufbau 15J, Eigenkapitalrendite/Leverage, Oikos-Bietlimit. Engine: finanzierungsmappe/compute.ts (mirror calc.ts) + charts.tsx. Reine Aufbereitung, keine Migration. |

@@ -16,7 +16,8 @@ import {
   amortization,
   stressTest,
   wealthProjection,
-  returnMetrics
+  returnMetrics,
+  computeDealRating
 } from "./compute";
 import {
   ScoreDonut,
@@ -53,9 +54,9 @@ const DOT: Record<Light, string> = {
   RED: "bg-rose-500"
 };
 
-function Section({ no, title, children }: { no: string; title: string; children: React.ReactNode }) {
+function Section({ no, title, children, pageBreak }: { no: string; title: string; children: React.ReactNode; pageBreak?: boolean }) {
   return (
-    <section className="mt-8 break-inside-avoid">
+    <section className={`mt-8 break-inside-avoid${pageBreak ? " break-before-page" : ""}`}>
       <div className="mb-3 flex items-center gap-3">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-xs font-bold text-white">
           {no}
@@ -121,6 +122,9 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
   const wealth = wealthProjection(p.price, fa.loan, asum.loanInterestRate, asum.loanRepaymentRate, APPRECIATION, 15);
   const wealth10 = wealth.find((w) => w.year === 10);
 
+  const rating = computeDealRating(fa.netYield, stress, readiness?.readinessScore ?? null, p.marketComparison?.rating ?? null);
+  const ratingColor = rating.grade === "A" ? "#059669" : rating.grade === "B" ? "#0d9488" : rating.grade === "C" ? "#f59e0b" : "#e11d48";
+
   const today = new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
   const pricePerSqm = p.size > 0 ? p.price / p.size : 0;
   const rentPerSqm = p.size > 0 ? p.rent / p.size : 0;
@@ -140,18 +144,28 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
       </div>
 
       <style>{`
+        #print-footer { display: none; }
         @media print {
-          @page { margin: 1.2cm; }
+          @page { margin: 1.4cm; }
           body * { visibility: hidden !important; }
           #mappe, #mappe * { visibility: visible !important; }
           #mappe { position: absolute; left: 0; top: 0; width: 100%; padding: 0; box-shadow: none; border: none; }
           .no-print { display: none !important; }
+          .break-before-page { break-before: page; }
+          #print-footer { display: block; position: fixed; bottom: 4px; left: 0; right: 0; text-align: center; font-size: 8px; color: #a1a1aa; }
         }
         #mappe { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       `}</style>
 
       <div id="mappe" className="mx-auto max-w-4xl space-y-1 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-700 p-8 text-white">
+          <div className="absolute right-6 top-6 z-10 flex flex-col items-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-lg">
+              <span className="text-4xl font-extrabold" style={{ color: ratingColor }}>{rating.grade}</span>
+            </div>
+            <div className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-100">Oikos Deal-Rating</div>
+            <div className="text-[11px] font-medium text-white">{rating.label}</div>
+          </div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.25em] text-emerald-100">
             Infinity Oikos · Capital Layer
           </div>
@@ -285,7 +299,7 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
           </div>
         </Section>
 
-        <Section no="4" title="Kapitaldienst & Tilgungsverlauf">
+        <Section no="4" title="Kapitaldienst & Tilgungsverlauf" pageBreak>
           <div className="grid gap-6 sm:grid-cols-5">
             <div className="sm:col-span-2">
               <Row label="Zins / Monat" value={eur(fa.monthlyInterest)} />
@@ -376,7 +390,7 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
         </Section>
 
         {readiness ? (
-          <Section no="7" title="Bankfähigkeits-Einschätzung">
+          <Section no="7" title="Bankfähigkeits-Einschätzung" pageBreak>
             <div className="mb-3 flex items-center gap-2">
               <MiniAmpel light={readiness.overall} />
               <span className="text-sm font-semibold text-zinc-900">{readiness.overallLabel}</span>
@@ -465,6 +479,8 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
             Finanzierungspartner. Angaben ohne Gewähr.
           </p>
         </div>
+
+        <div id="print-footer">Infinity Oikos · Capital Layer — {p.title} · Stand {today}</div>
       </div>
     </div>
   );
