@@ -4,7 +4,7 @@
 > Repo-/Code-Pfad: `ImmoDealFlow` (intern; bleibt aus Pragmatismus erhalten).
 > Frühere Arbeitsnamen: DealFlow AI, ImmoDealFlow.
 >
-> Stand: **2026-05-20** (Phase M5 — Hotfix Bilder-Upload + Listing-Dedup).
+> Stand: **2026-06-20** (Phase N — Oikos Capital Layer, Schritt 1: Financing Readiness).
 > Diese Datei ist die Single Source of Truth für den aktuellen Projektstand.
 > Bei jeder substanziellen Änderung (neuer Endpoint, neuer Deploy, neuer
 > Bug, Status-Update) hier nachziehen.
@@ -155,6 +155,7 @@ Auth-geschützt (`requireAuth`):
 
 | Methode | Pfad                              | Zweck                                                  |
 |---------|-----------------------------------|--------------------------------------------------------|
+| GET     | `/properties/:id/financing-readiness` | **Phase N** — Bankfaehigkeits-Ampel (live aus Property + Investor-Profil + letzter Analyse; keine DB-Tabelle, keine Vermittlung) |
 | GET     | `/me`                             | Aktueller User + `onboardingCompletedAt` + `legacyCount` |
 | PATCH   | `/me`                             | Felder updaten (Name, Rolle)                           |
 | POST    | `/me/complete-onboarding`         | Onboarding-Timestamp setzen (optional Rolle/Name mit)  |
@@ -245,7 +246,48 @@ Server-Components nutzen `lib/api-server.ts` mit `import "server-only"` und
 top-level `import { auth } from "@clerk/nextjs/server"`. Client-Components
 nutzen `lib/client-fetch.ts` mit `useApiFetch()` Hook.
 
-## Aktuelle Phase: **Phase M5.1 — Bild-Reihenfolge per Drag-and-Drop (2026-05-20)**
+## Aktuelle Phase: **Phase N — Oikos Capital Layer, Schritt 1: Financing Readiness (2026-06-20)**
+
+### Phase N (2026-06-20) — Oikos Capital Layer, Schritt 1: Financing-Readiness-Ampel
+
+> Erster Baustein der neuen Finanzierungsschicht („Oikos Capital Layer").
+> Vollkonzept: `Oikos_Capital_Layer_Konzept.docx` (Vision, Module, Regulatorik,
+> MVP-Roadmap). Dieser Schritt liefert das MVP-Kernstück: eine live berechnete
+> Bankfaehigkeits-Ampel auf der Property-Detailseite.
+
+**Regulatorik (bewusst erlaubnisfrei):** Reine Selbsteinschaetzung der
+allgemeinen Bankfaehigkeit aus vorhandenen Daten — KEINE Finanzierungs-
+beratung, keine Produktempfehlung, keine Vermittlung (kein § 34i/§ 34c GewO).
+Disclaimer wird vom Backend mitgeliefert und im UI angezeigt. Die spaetere
+Vermittlung/Beratung bleibt lizenzierten Partnern vorbehalten.
+
+**Backend**
+- `backend/src/lib/financing.ts` — `computeFinancingReadiness(price, rent, profile, storedAnalysis?)`.
+  Fuenf Kriterien je GREEN/YELLOW/RED: Eigenkapitalquote, Kapitaldienstdeckung
+  (DSCR), Bonitaet/Selbstauskunft, Beleihungsauslauf (LTV), Objekt-Score.
+  Gesamt-Ampel: Kern-Kriterien (EK/DSCR/Bonitaet/LTV) entscheiden ueber ROT;
+  sonst schlechteste Ampel. Liefert `readinessScore` (0–100), Massnahmenliste
+  und Disclaimer. Reuse von `lib/calc.ts` (computeFullAnalysis) und der
+  Affordability-Faustformel (40 % Einkommen, 5,8 % Annuitaet).
+- `GET /properties/:id/financing-readiness` (index.ts, Owner-Filter, laedt
+  InvestorProfile + letzte Analyse). Keine DB-Migration — live berechnet.
+
+**Frontend**
+- `frontend/lib/api.ts` — `FinancingReadinessSchema` + Typen (`Light`, Kriterien).
+- `frontend/app/property/[id]/FinancingReadinessPanel.tsx` — Client-Component,
+  laedt die Ampel via `useApiFetch`, rendert Gesamt-Ampel, Kriterien-Tabelle,
+  Massnahmen, Disclaimer; Hinweis + Link auf `/profile`, falls kein Profil.
+- `frontend/app/property/[id]/page.tsx` — neue Card „Finanzierungs-Ampel
+  (Oikos Capital Layer)".
+
+**Status / Verifikation**
+- ✅ Frontend `tsc --noEmit` sauber. ✅ Backend `tsc --noEmit` sauber bzgl. der
+  neuen Dateien (die einzigen offenen TS-Fehler betreffen einen veralteten
+  generierten Prisma-Client — `SaleDocKind`-Enumwerte; vor dem Build lokal
+  `npm run prisma:generate -w backend` ausfuehren, siehe `deploy/verify.bat`).
+- ⚠️ Naechste Capital-Layer-Schritte (laut Konzept): One-Click Financing
+  Package (PDF), Dokumenten-Checkliste, Banken-Matching (erst nach
+  aufsichtsrechtlicher Pruefung), Finanzierungsagent.
 
 ### Phase M5.1 (2026-05-20) — Bild-Reihenfolge per Drag-and-Drop (Kanban)
 
@@ -852,6 +894,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Phase N: Oikos Capital Layer Schritt 1 — Financing-Readiness-Ampel (lib/financing.ts + GET /properties/:id/financing-readiness + FinancingReadinessPanel) |
 | 2026-05-20  | Phase M5.1: Bild-Reihenfolge per Drag-and-Drop (Kanban via @dnd-kit) + Backend-Reorder-Endpoint + Cover-Badge |
 | 2026-05-20  | Phase M5 Hotfix: Listing-Dedup-Window + Client-Upload via @vercel/blob/client + Multi-Select + Compression + Custom-Domain infinityoikos.com |
 | 2026-05-19  | Phase M4: BuyerAccessManager auf /sales/[id] + /freigaben + /empfangene-freigaben + Sidebar + Auto-Bind |

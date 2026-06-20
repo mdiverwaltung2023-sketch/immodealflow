@@ -166,6 +166,37 @@ export const AuctionInfoSchema = z.object({
 
 export type AuctionInfoT = z.infer<typeof AuctionInfoSchema>;
 
+// --- Phase N — Oikos Capital Layer: Financing Readiness ----------
+export const LightEnum = z.enum(["GREEN", "YELLOW", "RED"]);
+export type Light = z.infer<typeof LightEnum>;
+
+export const ReadinessCriterionSchema = z.object({
+  key: z.enum(["equity", "dscr", "creditworthiness", "ltv", "objectScore"]),
+  label: z.string(),
+  light: LightEnum,
+  value: z.string(),
+  detail: z.string(),
+  measure: z.string().optional()
+});
+export type ReadinessCriterionT = z.infer<typeof ReadinessCriterionSchema>;
+
+export const FinancingReadinessSchema = z.object({
+  overall: LightEnum,
+  overallLabel: z.string(),
+  readinessScore: z.number(),
+  criteria: z.array(ReadinessCriterionSchema),
+  measures: z.array(z.string()),
+  basis: z.object({
+    usedStoredAnalysis: z.boolean(),
+    scenarioName: z.string().nullable(),
+    price: z.number(),
+    rent: z.number(),
+    hasProfile: z.boolean()
+  }),
+  disclaimer: z.string()
+});
+export type FinancingReadinessT = z.infer<typeof FinancingReadinessSchema>;
+
 export const ImportExposeResponseSchema = z.object({
   title: z.string(),
   price: z.number(),

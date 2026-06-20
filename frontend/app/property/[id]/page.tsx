@@ -8,6 +8,7 @@ import { PropertyHeaderActions } from "./PropertyHeaderActions";
 import { AnalysesPanel } from "./AnalysesPanel";
 import { MarketComparisonPanel } from "./MarketComparisonPanel";
 import { AuctionPanel } from "./AuctionPanel";
+import { FinancingReadinessPanel } from "./FinancingReadinessPanel";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -92,6 +93,10 @@ export default async function PropertyPage({ params }: { params: { id: string } 
           )}
         </Card>
       </div>
+
+      <Card title="Finanzierungs-Ampel (Oikos Capital Layer)">
+        <FinancingReadinessPanel id={p.id} />
+      </Card>
 
       <Card title="Marktvergleich (Claude)">
         <MarketComparisonPanel

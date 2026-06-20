@@ -11,6 +11,7 @@ import {
   DEFAULT_ASSUMPTIONS,
   type AnalysisAssumptions
 } from "./lib/calc.js";
+import { computeFinancingReadiness } from "./lib/financing.js";
 import {
   generateOfferWithClaude,
   extractPropertyFromText,
@@ -948,6 +949,60 @@ app.post("/properties/:id/recompute-bid-limit", async (req, res) => {
   });
 
   return res.json(updated);
+});
+
+// --- Phase N — Oikos Capital Layer, Schritt 1 ----------------------
+// GET /properties/:id/financing-readiness
+// Live berechnete Bankfaehigkeits-Ampel aus Property + Investor-Profil
+// + letzter Analyse. Keine DB-Tabelle, keine Vermittlung — reine
+// Selbsteinschaetzung (siehe Disclaimer in lib/financing.ts).
+app.get("/properties/:id/financing-readiness", async (req, res) => {
+  const { id } = req.params;
+
+  const property = await prisma.property.findFirst({
+    where: { id, ownerId: req.userId! },
+    include: { analyses: { orderBy: { createdAt: "desc" }, take: 1 } }
+  });
+  if (!property) return res.status(404).json({ error: "Not found" });
+  if (property.rent <= 0) {
+    return res.status(400).json({
+      error: "Keine Miete hinterlegt — Bankfaehigkeit nicht bewertbar"
+    });
+  }
+
+  const profile = await prisma.investorProfile.findUnique({
+    where: { userId: req.userId! }
+  });
+
+  const latest = property.analyses[0] ?? null;
+
+  const result = computeFinancingReadiness(
+    property.price,
+    property.rent,
+    profile
+      ? {
+          equity: profile.equity,
+          monthlyIncome: profile.monthlyIncome,
+          monthlyDebt: profile.monthlyDebt,
+          financingPreApproved: profile.financingPreApproved
+        }
+      : null,
+    latest
+      ? {
+          scenarioName: latest.scenarioName,
+          closingCosts: latest.closingCosts,
+          totalInvestment: latest.totalInvestment,
+          loan: latest.loan,
+          monthlyInterest: latest.monthlyInterest,
+          monthlyRepayment: latest.monthlyRepayment,
+          monthlyMaintenance: latest.monthlyMaintenance,
+          monthlyVacancyLoss: latest.monthlyVacancyLoss,
+          score: latest.score
+        }
+      : undefined
+  );
+
+  return res.json(result);
 });
 
 // /me — eingeloggter User selbst
