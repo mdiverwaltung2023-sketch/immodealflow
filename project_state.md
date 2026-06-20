@@ -899,6 +899,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Finanzierungsanfrage-Formular: Wunsch-Darlehensbetrag + Notiz beim Speichern (CreateFinancingRequestButton als Formular); Cockpit zeigt beide. Felder waren in DB/Backend schon vorhanden. |
 | 2026-06-20  | Unterlagen-Checkliste: Bank-Readiness-Checkliste in der Ampel (financing.ts -> checklist[]; Panel rendert vorhanden/fehlt/manuell) — zeigt konkret, welche Daten/Unterlagen fuer die Finanzierung fehlen. |
 | 2026-06-20  | Finanzierungsmappe: druck-/PDF-fertiges bankfaehiges Expose (/property/:id/finanzierungsmappe) — Objekt, Wirtschaftlichkeit, Kapitaldienst, Selbstauskunft, Bankfaehigkeit; Print-Button (@media print). Plus push.bat: Commit-Message automatisch aus deploy/commit_msg.txt. |
 | 2026-06-20  | Fix (Ampel-Konsistenz): Bankfaehigkeit rechnet jetzt IMMER aus dem tatsaechlichen Eigenkapital (Profil) statt aus einer gespeicherten Analyse — EK/DSCR/LTV widersprechen sich nicht mehr, Ergebnis springt nicht mehr. Objekt-Score jetzt leverage-neutral (Nettorendite) und zieht nur auf Gelb, nie auf Rot. |

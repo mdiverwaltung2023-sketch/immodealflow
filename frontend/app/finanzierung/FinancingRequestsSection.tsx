@@ -132,6 +132,16 @@ export function FinancingRequestsSection({ initial }: { initial: FinancingReques
                 {r.readinessScore != null ? `Score ${r.readinessScore}/100 • ` : ""}
                 angelegt {formatDate(r.createdAt)}
               </div>
+              {r.desiredLoanAmount != null ? (
+                <div className="mt-0.5 text-xs font-medium text-emerald-700">
+                  Wunsch-Darlehen: {eur(r.desiredLoanAmount)}
+                </div>
+              ) : null}
+              {r.note ? (
+                <div className="mt-0.5 max-w-md text-xs italic text-zinc-500">
+                  „{r.note}“
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-2">
