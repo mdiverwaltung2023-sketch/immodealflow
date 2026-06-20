@@ -899,6 +899,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Fix (Ampel-Konsistenz): Bankfaehigkeit rechnet jetzt IMMER aus dem tatsaechlichen Eigenkapital (Profil) statt aus einer gespeicherten Analyse — EK/DSCR/LTV widersprechen sich nicht mehr, Ergebnis springt nicht mehr. Objekt-Score jetzt leverage-neutral (Nettorendite) und zieht nur auf Gelb, nie auf Rot. |
 | 2026-06-20  | Phase O: Persistente Finanzierungsanfrage (NEUE Tabelle FinancingRequest + Migration) — Speichern-Button am Objekt + Status-Liste im Cockpit (POST/GET/PATCH/DELETE /me/financing-requests). **Migration: 20260620120000_financing_requests — laeuft via `prisma migrate deploy` beim Railway-Start.** |
 | 2026-06-20  | Phase N+: Finanzierung als eigene Sidebar-Sektion (gruener Akzent) + Cockpit-Seite /finanzierung (GET /me/financing/overview) — Portfolio-weite Bankfaehigkeits-Ampel |
 | 2026-06-20  | Phase N: Oikos Capital Layer Schritt 1 — Financing-Readiness-Ampel (lib/financing.ts + GET /properties/:id/financing-readiness + FinancingReadinessPanel) |

@@ -92,13 +92,6 @@ function pct(ratio: number): string {
   return `${(ratio * 100).toFixed(1).replace(".", ",")} %`;
 }
 
-// Wahl der schlechtesten Ampel aus einer Liste.
-function worst(lights: Light[]): Light {
-  if (lights.includes("RED")) return "RED";
-  if (lights.includes("YELLOW")) return "YELLOW";
-  return "GREEN";
-}
-
 // Affordability-Faustformel (analog computeAffordability im Backend):
 // 40 % Netto-Einkommen minus laufende Verbindlichkeiten als max. Kapitaldienst,
 // daraus per Annuität (5,8 % p. a.) das maximale Darlehen.
@@ -125,55 +118,29 @@ export function computeFinancingReadiness(
   price: number,
   rent: number,
   profile: ProfileInput,
-  stored?: Partial<Metrics> & { scenarioName?: string | null }
+  _stored?: Partial<Metrics> & { scenarioName?: string | null }
 ): FinancingReadinessResult {
-  // 1) Metriken bestimmen — gespeicherte Analyse bevorzugen, sonst Standard.
-  const hasStored =
-    stored != null &&
-    stored.loan != null &&
-    stored.monthlyInterest != null &&
-    stored.monthlyRepayment != null;
+  // 1) Metriken IMMER konsistent aus dem TATSÄCHLICHEN Eigenkapital ableiten.
+  const usedStoredAnalysis = false;
+  const scenarioName: string | null = null;
 
-  let metrics: Metrics;
-  let usedStoredAnalysis = false;
-  let scenarioName: string | null = null;
-
-  if (hasStored) {
-    usedStoredAnalysis = true;
-    scenarioName = stored!.scenarioName ?? null;
-    metrics = {
-      closingCosts: stored!.closingCosts ?? price * DEFAULT_ASSUMPTIONS.closingCostsRate,
-      totalInvestment:
-        stored!.totalInvestment ?? price * (1 + DEFAULT_ASSUMPTIONS.closingCostsRate),
-      loan: stored!.loan!,
-      monthlyInterest: stored!.monthlyInterest!,
-      monthlyRepayment: stored!.monthlyRepayment!,
-      monthlyMaintenance:
-        stored!.monthlyMaintenance ?? rent * DEFAULT_ASSUMPTIONS.maintenanceRate,
-      monthlyVacancyLoss:
-        stored!.monthlyVacancyLoss ?? rent * DEFAULT_ASSUMPTIONS.vacancyRate,
-      score: stored!.score ?? 0
-    };
-  } else {
-    // Standard-Analyse. Wenn Eigenkapital bekannt ist, leiten wir die
-    // EK-Quote daraus ab (realistischer als die 20 %-Default).
-    const assumptions: AnalysisAssumptions = { ...DEFAULT_ASSUMPTIONS };
-    const totalInvestmentDefault = price * (1 + DEFAULT_ASSUMPTIONS.closingCostsRate);
-    if (profile?.equity != null && totalInvestmentDefault > 0) {
-      assumptions.equityRatio = clampRatio(profile.equity / totalInvestmentDefault, 0.05, 0.95);
-    }
-    const a = computeFullAnalysis(price, rent, assumptions);
-    metrics = {
-      closingCosts: a.closingCosts,
-      totalInvestment: a.totalInvestment,
-      loan: a.loan,
-      monthlyInterest: a.monthlyInterest,
-      monthlyRepayment: a.monthlyRepayment,
-      monthlyMaintenance: a.monthlyMaintenance,
-      monthlyVacancyLoss: a.monthlyVacancyLoss,
-      score: a.score
-    };
+  const assumptions: AnalysisAssumptions = { ...DEFAULT_ASSUMPTIONS };
+  const totalInvestmentDefault = price * (1 + DEFAULT_ASSUMPTIONS.closingCostsRate);
+  if (profile?.equity != null && totalInvestmentDefault > 0) {
+    assumptions.equityRatio = clampRatio(profile.equity / totalInvestmentDefault, 0.05, 0.95);
   }
+  const a = computeFullAnalysis(price, rent, assumptions);
+  const metrics: Metrics = {
+    closingCosts: a.closingCosts,
+    totalInvestment: a.totalInvestment,
+    loan: a.loan,
+    monthlyInterest: a.monthlyInterest,
+    monthlyRepayment: a.monthlyRepayment,
+    monthlyMaintenance: a.monthlyMaintenance,
+    monthlyVacancyLoss: a.monthlyVacancyLoss,
+    score: a.score
+  };
+  const objectScore = clampInt((a.netYield / 5) * 100, 0, 100);
 
   const criteria: ReadinessCriterion[] = [];
 
@@ -301,7 +268,7 @@ export function computeFinancingReadiness(
 
   // --- Kriterium 5: Objekt-Score (IRS-Proxy) -------------------------
   {
-    const score = metrics.score;
+    const score = objectScore;
     let light: Light;
     let measure: string | undefined;
     if (score >= 70) {
@@ -325,6 +292,7 @@ export function computeFinancingReadiness(
 
   // --- Gesamt-Ampel --------------------------------------------------
   // Kern-Kriterien (EK, DSCR, Bonität, LTV) entscheiden über ROT.
+  const objectLight = criteria.find((c) => c.key === "objectScore")!.light;
   const core: Light[] = [
     criteria.find((c) => c.key === "equity")!.light,
     criteria.find((c) => c.key === "dscr")!.light,
@@ -334,8 +302,10 @@ export function computeFinancingReadiness(
   let overall: Light;
   if (core.includes("RED")) {
     overall = "RED";
+  } else if (core.includes("YELLOW")) {
+    overall = "YELLOW";
   } else {
-    overall = worst(criteria.map((c) => c.light));
+    overall = objectLight === "GREEN" ? "GREEN" : "YELLOW";
   }
 
   const overallLabel =
