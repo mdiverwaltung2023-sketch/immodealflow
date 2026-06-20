@@ -1,1 +1,1 @@
-Capital Layer: Finanzierungsanfrage mit Wunsch-Darlehensbetrag + Notiz
+Finanzierungsmappe v2: Deckblatt, KPI-Dashboard, SVG-Grafiken, Stresstest, Tilgungsplan, Vermoegensprojektion, Leverage/ROE

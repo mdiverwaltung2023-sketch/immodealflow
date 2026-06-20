@@ -899,6 +899,7 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Finanzierungsmappe v2 (Burggraben): Deckblatt + KPI-Dashboard + eigene SVG-Grafiken (Score-Donut, Cashflow-Balken, Tilgungsverlauf, Vermoegensprojektion, Stresstest-Balken, Markt-Range). Proprietaere Kennzahlen: Stresstest (Zins/Leerstand/Miete), Tilgungsplan + Restschuld, Vermoegensaufbau 15J, Eigenkapitalrendite/Leverage, Oikos-Bietlimit. Engine: finanzierungsmappe/compute.ts (mirror calc.ts) + charts.tsx. Reine Aufbereitung, keine Migration. |
 | 2026-06-20  | Finanzierungsanfrage-Formular: Wunsch-Darlehensbetrag + Notiz beim Speichern (CreateFinancingRequestButton als Formular); Cockpit zeigt beide. Felder waren in DB/Backend schon vorhanden. |
 | 2026-06-20  | Unterlagen-Checkliste: Bank-Readiness-Checkliste in der Ampel (financing.ts -> checklist[]; Panel rendert vorhanden/fehlt/manuell) — zeigt konkret, welche Daten/Unterlagen fuer die Finanzierung fehlen. |
 | 2026-06-20  | Finanzierungsmappe: druck-/PDF-fertiges bankfaehiges Expose (/property/:id/finanzierungsmappe) — Objekt, Wirtschaftlichkeit, Kapitaldienst, Selbstauskunft, Bankfaehigkeit; Print-Button (@media print). Plus push.bat: Commit-Message automatisch aus deploy/commit_msg.txt. |
