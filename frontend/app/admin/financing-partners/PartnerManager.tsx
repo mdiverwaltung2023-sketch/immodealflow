@@ -6,8 +6,10 @@ import { Button, Input, Label, Select, Textarea } from "@/components/ui";
 import {
   FINANCING_PARTNER_TYPE_LABELS,
   FinancingPartnerTypeEnum,
+  ASSET_TYPE_LABELS,
   type FinancingPartnerT,
-  type FinancingPartnerTypeT
+  type FinancingPartnerTypeT,
+  type AssetTypeT
 } from "@/lib/api";
 import { useApiFetch } from "@/lib/client-fetch";
 
@@ -31,7 +33,8 @@ const EMPTY = {
   minVolume: "",
   maxVolume: "",
   maxLtv: "",
-  note: ""
+  note: "",
+  assetTypes: [] as AssetTypeT[]
 };
 
 export function PartnerManager({ initial }: { initial: FinancingPartnerT[] }) {
@@ -62,7 +65,8 @@ export function PartnerManager({ initial }: { initial: FinancingPartnerT[] }) {
         minVolume: num(form.minVolume),
         maxVolume: num(form.maxVolume),
         maxLtv: ltv,
-        note: form.note.trim() || null
+        note: form.note.trim() || null,
+        assetTypes: form.assetTypes
       };
       const res = await apiFetch("/admin/financing-partners", {
         method: "POST",
@@ -179,6 +183,17 @@ export function PartnerManager({ initial }: { initial: FinancingPartnerT[] }) {
               value={form.regions}
               onChange={(e) => setForm((f) => ({ ...f, regions: e.target.value }))}
             />
+          </div>
+          <div className="md:col-span-2">
+            <Label>Objektarten (leer = alle)</Label>
+            <div className="flex flex-wrap gap-3 pt-1">
+              {(Object.keys(ASSET_TYPE_LABELS) as AssetTypeT[]).map((k) => (
+                <label key={k} className="flex items-center gap-1 text-xs text-zinc-700">
+                  <input type="checkbox" checked={form.assetTypes.includes(k)} onChange={(e) => setForm((f) => ({ ...f, assetTypes: e.target.checked ? [...f.assetTypes, k] : f.assetTypes.filter((x) => x !== k) }))} />
+                  {ASSET_TYPE_LABELS[k]}
+                </label>
+              ))}
+            </div>
           </div>
           <div>
             <Label>Min. Volumen (EUR)</Label>

@@ -33,7 +33,8 @@ export default async function PropertyEditPage({ params }: { params: { id: strin
             yearBuilt: p.yearBuilt != null ? String(p.yearBuilt) : "",
             units: p.units != null ? String(p.units) : "",
             condition: p.condition ?? "",
-            energyClass: p.energyClass ?? ""
+            energyClass: p.energyClass ?? "",
+            assetType: p.assetType ?? ""
           }}
         />
       </Card>

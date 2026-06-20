@@ -330,6 +330,15 @@ const PropertyEnergyClassEnum = z.enum([
   "G",
   "H"
 ]);
+const PropertyAssetTypeLocalEnum = z.enum([
+  "MFH",
+  "COMMERCIAL",
+  "MIXED_USE",
+  "SINGLE_FAMILY",
+  "APARTMENT",
+  "LAND",
+  "OTHER"
+]);
 
 const PropertyCreateSchema = z.object({
   title: z.string().min(1),
@@ -341,7 +350,8 @@ const PropertyCreateSchema = z.object({
   yearBuilt: z.number().int().min(1800).max(2100).nullable().optional(),
   condition: PropertyConditionEnum.nullable().optional(),
   energyClass: PropertyEnergyClassEnum.nullable().optional(),
-  units: z.number().int().min(0).max(100000).nullable().optional()
+  units: z.number().int().min(0).max(100000).nullable().optional(),
+  assetType: PropertyAssetTypeLocalEnum.nullable().optional()
 });
 
 const PropertyUpdateSchema = z.object({
@@ -354,7 +364,8 @@ const PropertyUpdateSchema = z.object({
   yearBuilt: z.number().int().min(1800).max(2100).nullable().optional(),
   condition: PropertyConditionEnum.nullable().optional(),
   energyClass: PropertyEnergyClassEnum.nullable().optional(),
-  units: z.number().int().min(0).max(100000).nullable().optional()
+  units: z.number().int().min(0).max(100000).nullable().optional(),
+  assetType: PropertyAssetTypeLocalEnum.nullable().optional()
 });
 
 const NoteCreateSchema = z.object({
@@ -1411,6 +1422,12 @@ app.get("/properties/:id/financing-partners", async (req, res) => {
     .filter((pp) => pp.maxVolume == null || loan <= pp.maxVolume)
     .filter((pp) => pp.maxLtv == null || ltv <= pp.maxLtv)
     .filter((pp) => pp.regions.length === 0 || pp.regions.some((r) => loc.includes(r.toLowerCase())))
+    .filter(
+      (pp) =>
+        pp.assetTypes.length === 0 ||
+        property.assetType == null ||
+        pp.assetTypes.includes(property.assetType)
+    )
     .map((pp) => ({
       id: pp.id,
       name: pp.name,

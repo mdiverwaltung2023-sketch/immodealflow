@@ -45,7 +45,8 @@ export const PropertySchema = z.object({
   yearBuilt: z.number().nullable().optional(),
   condition: z.enum(["NEW", "REFURBISHED", "MODERNIZED", "MAINTAINED", "NEEDS_RENOVATION"]).nullable().optional(),
   energyClass: z.enum(["A_PLUS", "A", "B", "C", "D", "E", "F", "G", "H"]).nullable().optional(),
-  units: z.number().nullable().optional()
+  units: z.number().nullable().optional(),
+  assetType: z.enum(["MFH", "COMMERCIAL", "MIXED_USE", "SINGLE_FAMILY", "APARTMENT", "LAND", "OTHER"]).nullable().optional()
 });
 
 export const AnalysisSchema = z.object({

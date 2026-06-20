@@ -1,1 +1,1 @@
-Admin-Lead-Uebersicht: GET /admin/financing-leads + Seite /admin/financing-leads (uebergebene Anfragen: Investor/Objekt/Partner)
+Objektart (assetType) am Property (Migration) + schaerferes Partner-Matching + Mappe-Anzeige + Admin-Objektarten

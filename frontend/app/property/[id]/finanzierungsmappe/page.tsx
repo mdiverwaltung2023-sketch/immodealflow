@@ -6,6 +6,7 @@ import {
   MARKET_RATING_LABELS,
   BUILDING_CONDITION_LABELS,
   ENERGY_CLASS_LABELS,
+  ASSET_TYPE_LABELS,
   type Light
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
@@ -225,6 +226,7 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
               <Row label="Bezeichnung" value={p.title} />
               <Row label="Lage" value={p.location} />
               <Row label="Fläche" value={`${p.size} m²`} />
+              {p.assetType ? <Row label="Objektart" value={ASSET_TYPE_LABELS[p.assetType]} /> : null}
               {p.yearBuilt != null ? <Row label="Baujahr" value={String(p.yearBuilt)} /> : null}
               {p.units != null ? <Row label="Einheiten" value={String(p.units)} /> : null}
               {p.condition ? <Row label="Zustand" value={BUILDING_CONDITION_LABELS[p.condition]} /> : null}

@@ -1163,6 +1163,7 @@ model Property {
   size      Float
 
   // Phase O+ — erweiterte Objektdaten (Capital Layer / Finanzierungsmappe)
+  assetType   AssetType?
   yearBuilt   Int?
   condition   BuildingCondition?
   energyClass EnergyClass?

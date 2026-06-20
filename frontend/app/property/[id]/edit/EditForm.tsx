@@ -10,6 +10,7 @@ import {
   STATUS_ORDER,
   BUILDING_CONDITION_LABELS,
   ENERGY_CLASS_LABELS,
+  ASSET_TYPE_LABELS,
   type DealStatus
 } from "@/lib/api";
 import { useApiFetch } from "@/lib/client-fetch";
@@ -43,6 +44,7 @@ type EditInitial = {
   units: string;
   condition: string;
   energyClass: string;
+  assetType: string;
 };
 
 export function EditForm({ id, initial }: { id: string; initial: EditInitial }) {
@@ -78,7 +80,8 @@ export function EditForm({ id, initial }: { id: string; initial: EditInitial }) 
         yearBuilt: intOrNull(form.yearBuilt),
         units: intOrNull(form.units),
         condition: form.condition ? form.condition : null,
-        energyClass: form.energyClass ? form.energyClass : null
+        energyClass: form.energyClass ? form.energyClass : null,
+        assetType: form.assetType ? form.assetType : null
       };
       const res = await apiFetch(`/properties/${id}`, {
         method: "PATCH",
@@ -137,6 +140,15 @@ export function EditForm({ id, initial }: { id: string; initial: EditInitial }) 
           Objektdetails (für Finanzierungsmappe)
         </div>
         <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <Label>Objektart</Label>
+            <Select value={form.assetType} onChange={(e) => setForm((f) => ({ ...f, assetType: e.target.value }))}>
+              <option value="">— keine Angabe —</option>
+              {(Object.keys(ASSET_TYPE_LABELS) as (keyof typeof ASSET_TYPE_LABELS)[]).map((k) => (
+                <option key={k} value={k}>{ASSET_TYPE_LABELS[k]}</option>
+              ))}
+            </Select>
+          </div>
           <div>
             <Label>Baujahr</Label>
             <Input
