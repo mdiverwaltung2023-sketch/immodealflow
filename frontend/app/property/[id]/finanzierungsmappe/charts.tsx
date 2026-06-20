@@ -129,7 +129,12 @@ export function RangeBar({
   const x = (v: number) => pad + ((v - min) / span) * (width - 2 * pad);
   const col = value < low ? C.emerald : value > high ? C.rose : C.amber;
   return (
-    <svg width={width} height={h} viewBox={`0 0 ${width} ${h}`}>
+    <svg
+      width="100%"
+      viewBox={`0 0 ${width} ${h}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ height: "auto", display: "block", maxWidth: "100%" }}
+    >
       <line x1={pad} y1={26} x2={width - pad} y2={26} stroke={C.zinc200} strokeWidth={2} />
       <rect x={x(low)} y={20} width={Math.max(2, x(high) - x(low))} height={12} rx={3} fill={C.emeraldL} />
       <text x={x(low)} y={14} fontSize={10} fill={C.zinc500} textAnchor="middle">
@@ -139,7 +144,14 @@ export function RangeBar({
         {Math.round(high)}
       </text>
       <circle cx={x(value)} cy={26} r={6} fill={col} stroke="#fff" strokeWidth={2} />
-      <text x={x(value)} y={44} fontSize={11} fontWeight={700} fill={col} textAnchor="middle">
+      <text
+        x={x(value)}
+        y={44}
+        fontSize={11}
+        fontWeight={700}
+        fill={col}
+        textAnchor={value > high ? "end" : value < low ? "start" : "middle"}
+      >
         {Math.round(value)} {unit}
       </text>
     </svg>
@@ -175,7 +187,12 @@ export function AreaChart({
   const gridVals = [0, 0.25, 0.5, 0.75, 1].map((f) => yMax * f);
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <svg
+      width="100%"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ height: "auto", display: "block", maxWidth: "100%" }}
+    >
       {gridVals.map((gv, i) => (
         <g key={i}>
           <line x1={padL} y1={py(gv)} x2={width - padR} y2={py(gv)} stroke={C.zinc200} strokeWidth={1} />
@@ -229,7 +246,12 @@ export function StressBars({
   const py = (v: number) => padT + (1 - Math.max(0, Math.min(v, yMax)) / yMax) * (height - padT - padB);
   const x = (i: number) => padL + slot * i + (slot - bw) / 2;
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <svg
+      width="100%"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ height: "auto", display: "block", maxWidth: "100%" }}
+    >
       <line x1={padL} y1={py(0)} x2={width - padR} y2={py(0)} stroke={C.zinc300} strokeWidth={1} />
       {refLines.map((rl, i) => (
         <g key={i}>

@@ -1,1 +1,1 @@
-Finanzierungsmappe: Kennzahlen konsistent aus Profil-Eigenkapital (Dashboard == Bankfaehigkeit)
+Finanzierungsmappe: Diagramme responsiv (kein Ueberlauf), Marktvergleich-Beschriftung fix
