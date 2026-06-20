@@ -98,27 +98,17 @@ export default async function FinanzierungsmappePage({ params }: { params: { id:
     apiGet("/me/profile", InvestorProfileSchema).catch(() => null)
   ]);
 
-  const latest = p.analyses && p.analyses.length > 0 ? p.analyses[0] : null;
-  const asum: Assumptions = latest
-    ? {
-        equityRatio: latest.equityRatio,
-        loanInterestRate: latest.loanInterestRate,
-        loanRepaymentRate: latest.loanRepaymentRate,
-        taxRateIncome: latest.taxRateIncome,
-        closingCostsRate: latest.closingCostsRate,
-        maintenanceRate: latest.maintenanceRate,
-        vacancyRate: latest.vacancyRate,
-        buildingShare: latest.buildingShare,
-        afaRate: latest.afaRate
-      }
-    : (() => {
-        const d = { ...DEFAULT_ASSUMPTIONS };
-        const ti = p.price * (1 + d.closingCostsRate);
-        if (profile?.equity != null && ti > 0) {
-          d.equityRatio = Math.max(0.05, Math.min(0.95, profile.equity / ti));
-        }
-        return d;
-      })();
+  // Konsistent zur Bankfähigkeits-Ampel: IMMER aus dem TATSÄCHLICHEN
+  // Eigenkapital (Profil) rechnen, nicht aus einer gespeicherten Analyse —
+  // sonst widersprechen sich Dashboard und Bankfähigkeit (DSCR/LTV).
+  const asum: Assumptions = (() => {
+    const d = { ...DEFAULT_ASSUMPTIONS };
+    const ti = p.price * (1 + d.closingCostsRate);
+    if (profile?.equity != null && ti > 0) {
+      d.equityRatio = Math.max(0.05, Math.min(0.95, profile.equity / ti));
+    }
+    return d;
+  })();
 
   const fa = fullAnalysis(p.price, p.rent, asum);
   const kapitaldienst = fa.monthlyInterest + fa.monthlyRepayment;
