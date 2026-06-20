@@ -180,12 +180,22 @@ export const ReadinessCriterionSchema = z.object({
 });
 export type ReadinessCriterionT = z.infer<typeof ReadinessCriterionSchema>;
 
+export const ChecklistStatusEnum = z.enum(["done", "missing", "manual"]);
+export type ChecklistStatusT = z.infer<typeof ChecklistStatusEnum>;
+export const ChecklistItemSchema = z.object({
+  label: z.string(),
+  status: ChecklistStatusEnum,
+  hint: z.string().optional()
+});
+export type ChecklistItemT = z.infer<typeof ChecklistItemSchema>;
+
 export const FinancingReadinessSchema = z.object({
   overall: LightEnum,
   overallLabel: z.string(),
   readinessScore: z.number(),
   criteria: z.array(ReadinessCriterionSchema),
   measures: z.array(z.string()),
+  checklist: z.array(ChecklistItemSchema),
   basis: z.object({
     usedStoredAnalysis: z.boolean(),
     scenarioName: z.string().nullable(),

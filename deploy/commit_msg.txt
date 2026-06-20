@@ -1,1 +1,1 @@
-Capital Layer: Finanzierungsanfragen + Ampel-Konsistenz-Fix + Finanzierungsmappe
+Capital Layer: Bank-Readiness Unterlagen-Checkliste in der Finanzierungs-Ampel

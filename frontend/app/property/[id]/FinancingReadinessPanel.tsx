@@ -10,7 +10,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
-import { FinancingReadinessSchema, type FinancingReadinessT, type Light } from "@/lib/api";
+import {
+  FinancingReadinessSchema,
+  type FinancingReadinessT,
+  type Light,
+  type ChecklistStatusT
+} from "@/lib/api";
 import { useApiFetch } from "@/lib/client-fetch";
 
 const LIGHT_DOT: Record<Light, string> = {
@@ -44,6 +49,12 @@ function TrafficLight({ light, size = "md" }: { light: Light; size?: "sm" | "md"
       ))}
     </span>
   );
+}
+
+function checkGlyph(status: ChecklistStatusT) {
+  if (status === "done") return <span className="text-emerald-600">✓</span>;
+  if (status === "missing") return <span className="text-amber-600">✗</span>;
+  return <span className="text-zinc-400">○</span>;
 }
 
 export function FinancingReadinessPanel({ id }: { id: string }) {
@@ -164,6 +175,29 @@ export function FinancingReadinessPanel({ id }: { id: string }) {
           Daten bankfähig.
         </div>
       )}
+
+      {/* Unterlagen-Checkliste */}
+      <div className="rounded-xl border border-zinc-200 p-4">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Unterlagen für die Bank
+        </div>
+        <ul className="space-y-1.5 text-sm">
+          {data.checklist.map((it) => (
+            <li key={it.label} className="flex items-start gap-2">
+              <span className="mt-0.5 w-3 shrink-0 text-center font-semibold">
+                {checkGlyph(it.status)}
+              </span>
+              <span className="text-zinc-700">
+                {it.label}
+                {it.hint ? <span className="text-zinc-400"> — {it.hint}</span> : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 text-[11px] text-zinc-400">
+          ✓ vorhanden · ○ extern beizubringen · ✗ im Profil ergänzen
+        </div>
+      </div>
 
       <p className="text-[11px] leading-relaxed text-zinc-400">{data.disclaimer}</p>
     </div>

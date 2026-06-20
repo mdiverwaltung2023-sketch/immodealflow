@@ -23,6 +23,13 @@ import {
 
 export type Light = "GREEN" | "YELLOW" | "RED";
 
+export type ChecklistStatus = "done" | "missing" | "manual";
+export type ChecklistItem = {
+  label: string;
+  status: ChecklistStatus;
+  hint?: string;
+};
+
 export type ReadinessCriterion = {
   key:
     | "equity"
@@ -45,6 +52,7 @@ export type FinancingReadinessResult = {
   readinessScore: number;
   criteria: ReadinessCriterion[];
   measures: string[];
+  checklist: ChecklistItem[];
   basis: {
     usedStoredAnalysis: boolean;
     scenarioName: string | null;
@@ -118,7 +126,7 @@ export function computeFinancingReadiness(
   price: number,
   rent: number,
   profile: ProfileInput,
-  _stored?: Partial<Metrics> & { scenarioName?: string | null }
+  stored?: Partial<Metrics> & { scenarioName?: string | null }
 ): FinancingReadinessResult {
   // 1) Metriken IMMER konsistent aus dem TATSÄCHLICHEN Eigenkapital ableiten.
   const usedStoredAnalysis = false;
@@ -327,12 +335,26 @@ export function computeFinancingReadiness(
     .filter((c) => c.measure && c.light !== "GREEN")
     .map((c) => c.measure!) as string[];
 
+  const hasAnalysis =
+    stored != null && stored.loan != null && stored.monthlyInterest != null;
+  const checklist: ChecklistItem[] = [
+    { label: "Eigenkapital im Investor-Profil", status: profile?.equity != null ? "done" : "missing", hint: profile?.equity != null ? undefined : "Im Profil hinterlegen" },
+    { label: "Nettoeinkommen im Investor-Profil", status: profile?.monthlyIncome != null ? "done" : "missing", hint: profile?.monthlyIncome != null ? undefined : "Im Profil hinterlegen" },
+    { label: "Bank-Vorabzusage", status: profile?.financingPreApproved ? "done" : "missing", hint: profile?.financingPreApproved ? undefined : "Optional, stärkt die Position" },
+    { label: "Wirtschaftlichkeitsrechnung (Analyse-Szenario)", status: hasAnalysis ? "done" : "missing", hint: hasAnalysis ? undefined : "Auf der Objektseite ein Szenario anlegen" },
+    { label: "Aktuelle Mietaufstellung", status: "manual" },
+    { label: "Grundbuchauszug", status: "manual" },
+    { label: "Energieausweis", status: "manual" },
+    { label: "Objektfotos / Exposé", status: "manual" }
+  ];
+
   return {
     overall,
     overallLabel,
     readinessScore,
     criteria,
     measures,
+    checklist,
     basis: {
       usedStoredAnalysis,
       scenarioName,
