@@ -156,6 +156,11 @@ Auth-geschützt (`requireAuth`):
 | Methode | Pfad                              | Zweck                                                  |
 |---------|-----------------------------------|--------------------------------------------------------|
 | GET     | `/properties/:id/financing-readiness` | **Phase N** — Bankfaehigkeits-Ampel (live aus Property + Investor-Profil + letzter Analyse; keine DB-Tabelle, keine Vermittlung) |
+| GET     | `/me/financing/overview`          | **Phase N** — Capital-Layer-Cockpit: alle eigenen Objekte mit Ampel + Aggregat (gruen/gelb/rot) |
+| POST    | `/properties/:id/financing-requests` | **Phase O** — Finanzierungsanfrage anlegen (Snapshot der Ampel) |
+| GET     | `/me/financing-requests`          | **Phase O** — alle eigenen Finanzierungsanfragen (Cockpit-Liste) |
+| PATCH   | `/me/financing-requests/:id`      | **Phase O** — Status / Notiz / Volumen aktualisieren |
+| DELETE  | `/me/financing-requests/:id`      | **Phase O** — Finanzierungsanfrage loeschen |
 | GET     | `/me`                             | Aktueller User + `onboardingCompletedAt` + `legacyCount` |
 | PATCH   | `/me`                             | Felder updaten (Name, Rolle)                           |
 | POST    | `/me/complete-onboarding`         | Onboarding-Timestamp setzen (optional Rolle/Name mit)  |
@@ -894,6 +899,8 @@ PRIVATE/ON_REQUEST/PUBLIC ist nur bei Inquiry-Snapshot durchgesetzt.
 
 | Datum       | Inhalt                                                       |
 |-------------|--------------------------------------------------------------|
+| 2026-06-20  | Phase O: Persistente Finanzierungsanfrage (NEUE Tabelle FinancingRequest + Migration) — Speichern-Button am Objekt + Status-Liste im Cockpit (POST/GET/PATCH/DELETE /me/financing-requests). **Migration: 20260620120000_financing_requests — laeuft via `prisma migrate deploy` beim Railway-Start.** |
+| 2026-06-20  | Phase N+: Finanzierung als eigene Sidebar-Sektion (gruener Akzent) + Cockpit-Seite /finanzierung (GET /me/financing/overview) — Portfolio-weite Bankfaehigkeits-Ampel |
 | 2026-06-20  | Phase N: Oikos Capital Layer Schritt 1 — Financing-Readiness-Ampel (lib/financing.ts + GET /properties/:id/financing-readiness + FinancingReadinessPanel) |
 | 2026-05-20  | Phase M5.1: Bild-Reihenfolge per Drag-and-Drop (Kanban via @dnd-kit) + Backend-Reorder-Endpoint + Cover-Badge |
 | 2026-05-20  | Phase M5 Hotfix: Listing-Dedup-Window + Client-Upload via @vercel/blob/client + Multi-Select + Compression + Custom-Domain infinityoikos.com |

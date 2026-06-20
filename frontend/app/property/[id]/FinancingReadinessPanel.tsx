@@ -1,10 +1,10 @@
 "use client";
 
 // Phase N — Oikos Capital Layer, Schritt 1: Financing-Readiness-Ampel.
-// Laedt die live berechnete Bankfaehigkeits-Bewertung des Backends und
-// rendert Gesamt-Ampel + Einzelkriterien + Massnahmen.
+// Laedt die live berechnete Bankfähigkeits-Bewertung des Backends und
+// rendert Gesamt-Ampel + Einzelkriterien + Maßnahmen.
 //
-// Regulatorik: reine Selbsteinschaetzung, KEINE Finanzierungsberatung
+// Regulatorik: reine Selbsteinschätzung, KEINE Finanzierungsberatung
 // (Disclaimer kommt aus dem Backend mit).
 
 import { useCallback, useEffect, useState } from "react";
@@ -74,7 +74,7 @@ export function FinancingReadinessPanel({ id }: { id: string }) {
   }, [load]);
 
   if (busy && !data) {
-    return <div className="text-sm text-zinc-500">Bankfaehigkeit wird berechnet…</div>;
+    return <div className="text-sm text-zinc-500">Bankfähigkeit wird berechnet…</div>;
   }
 
   if (error) {
@@ -113,11 +113,11 @@ export function FinancingReadinessPanel({ id }: { id: string }) {
       {!data.basis.hasProfile ? (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-800">
           Noch kein Investor-Profil hinterlegt — Eigenkapital, Einkommen und
-          Bonitaet fehlen.{" "}
+          Bonität fehlen.{" "}
           <Link href="/profile" className="font-medium underline">
-            Profil vervollstaendigen
+            Profil vervollständigen
           </Link>{" "}
-          fuer eine belastbare Bewertung.
+          für eine belastbare Bewertung.
         </div>
       ) : null}
 
@@ -146,11 +146,11 @@ export function FinancingReadinessPanel({ id }: { id: string }) {
         </table>
       </div>
 
-      {/* Massnahmen */}
+      {/* Maßnahmen */}
       {data.measures.length > 0 ? (
         <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Naechste Schritte zur Bankfaehigkeit
+            Nächste Schritte zur Bankfähigkeit
           </div>
           <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-700">
             {data.measures.map((m, i) => (
@@ -160,8 +160,8 @@ export function FinancingReadinessPanel({ id }: { id: string }) {
         </div>
       ) : (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          Alle Kernkriterien erfuellt — dieser Deal ist aus den vorhandenen
-          Daten bankfaehig.
+          Alle Kernkriterien erfüllt — dieser Deal ist aus den vorhandenen
+          Daten bankfähig.
         </div>
       )}
 

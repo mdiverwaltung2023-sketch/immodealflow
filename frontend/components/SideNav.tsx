@@ -25,6 +25,7 @@ type Section = {
   id:
     | "overview"
     | "investor"
+    | "financing"
     | "seller"
     | "landlord"
     | "rentSearch"
@@ -34,9 +35,33 @@ type Section = {
     | "admin";
   title: string;
   items: Item[];
-  /** Optional gold/violet Akzent fuer Offmarket-Sektion */
-  accent?: "offmarket";
+  /** Optionaler Farb-Akzent fuer hervorgehobene Sektionen */
+  accent?: "offmarket" | "capital";
 };
+
+/** Akzent-Styles fuer hervorgehobene Sektionen (Offmarket=Gold, Capital=Gruen). */
+const ACCENTS = {
+  offmarket: {
+    wrap: "rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50/60 to-white px-1 py-2",
+    title: "px-3 mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700",
+    dot: "bg-amber-500",
+    dotShadow: "0 0 6px 1px rgba(245, 158, 11, 0.5)",
+    itemActive: "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-amber-100/80 text-amber-900",
+    itemIdle: "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-amber-50 hover:text-amber-900",
+    iconActive: "text-amber-600",
+    iconIdle: "text-amber-500/80"
+  },
+  capital: {
+    wrap: "rounded-xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/60 to-white px-1 py-2",
+    title: "px-3 mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700",
+    dot: "bg-emerald-500",
+    dotShadow: "0 0 6px 1px rgba(16, 185, 129, 0.5)",
+    itemActive: "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-emerald-100/80 text-emerald-900",
+    itemIdle: "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-emerald-50 hover:text-emerald-900",
+    iconActive: "text-emerald-600",
+    iconIdle: "text-emerald-500/80"
+  }
+} as const;
 
 /* ---------- Mini-Icon-Set (inline SVGs) ---------- */
 
@@ -167,6 +192,13 @@ const IcEnvelope = (
     <path d="M3 7l9 7 9-7" />
   </Icon>
 );
+const IcBank = (
+  <Icon>
+    <path d="M3 10l9-6 9 6" />
+    <path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8" />
+    <path d="M3 21h18" />
+  </Icon>
+);
 
 /* ---------- Sektionen ---------- */
 
@@ -186,6 +218,18 @@ const SECTION_INVESTOR: Section = {
     { href: "/auctions", label: "Versteigerungen", icon: IcGavel },
     { href: "/new", label: "Objekt beobachten", icon: IcChart },
     { href: "/bookmarklet", label: "Bookmarklet", icon: IcBookmark }
+  ]
+};
+
+// --- Phase N — Oikos Capital Layer ----------------------------------
+// Eigene, gruen akzentuierte Sektion. Die Finanzierung soll als
+// eigenstaendige Saeule sichtbar sein, nicht als Unterpunkt.
+const SECTION_FINANCING: Section = {
+  id: "financing",
+  title: "Finanzierung · Capital Layer",
+  accent: "capital",
+  items: [
+    { href: "/finanzierung", label: "Finanzierungs-Cockpit", icon: IcBank, exact: true }
   ]
 };
 
@@ -283,6 +327,7 @@ function sectionsForMode(mode: ViewMode): Section[] {
       return [
         SECTION_OVERVIEW,
         SECTION_INVESTOR,
+        SECTION_FINANCING,
         SECTION_OFFMARKET_INVESTOR,
         SECTION_ACCOUNT
       ];
@@ -355,27 +400,20 @@ export function SideNav({
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         {sections.map((section) => {
-          const isOffmarket = section.accent === "offmarket";
+          const acc = section.accent ? ACCENTS[section.accent] : null;
           return (
-            <div
-              key={section.id}
-              className={
-                isOffmarket
-                  ? "rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50/60 to-white px-1 py-2"
-                  : undefined
-              }
-            >
+            <div key={section.id} className={acc ? acc.wrap : undefined}>
               <div
                 className={
-                  isOffmarket
-                    ? "px-3 mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700"
+                  acc
+                    ? acc.title
                     : "px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400"
                 }
               >
-                {isOffmarket ? (
+                {acc ? (
                   <span
-                    className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500"
-                    style={{ boxShadow: '0 0 6px 1px rgba(245, 158, 11, 0.5)' }}
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${acc.dot}`}
+                    style={{ boxShadow: acc.dotShadow }}
                   />
                 ) : null}
                 <span>{section.title}</span>
@@ -383,18 +421,14 @@ export function SideNav({
               <ul className="space-y-1">
                 {section.items.map((item) => {
                   const active = isActive(pathname, item);
-                  if (isOffmarket) {
+                  if (acc) {
                     return (
                       <li key={item.href}>
                         <Link
                           href={item.href}
-                          className={
-                            active
-                              ? 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-amber-100/80 text-amber-900'
-                              : 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-amber-50 hover:text-amber-900'
-                          }
+                          className={active ? acc.itemActive : acc.itemIdle}
                         >
-                          <span className={active ? 'text-amber-600' : 'text-amber-500/80'}>
+                          <span className={active ? acc.iconActive : acc.iconIdle}>
                             {item.icon}
                           </span>
                           <span>{item.label}</span>

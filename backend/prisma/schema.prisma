@@ -266,6 +266,17 @@ enum UserPlan {
   SELLER_PRO
 }
 
+// Phase O — Oikos Capital Layer: persistente Finanzierungsanfrage.
+// Lebenszyklus eines Finanzierungsvorgangs vom Anlegen bis zur Zusage/Absage.
+enum FinancingRequestStatus {
+  OFFEN              // gerade angelegt
+  IN_VORBEREITUNG    // Unterlagen werden zusammengestellt
+  BEREIT             // bankfähig, bereit zur Einreichung
+  AN_PARTNER         // an Finanzierungspartner übergeben
+  ZUGESAGT           // Finanzierung zugesagt
+  ABGELEHNT          // abgelehnt / nicht weiterverfolgt
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -322,6 +333,9 @@ model User {
   offmarketInvitesSent  OffmarketInvite[]   @relation("OffmarketInvitesSentByOwner")
   offmarketInvitesRecv  OffmarketInvite[]   @relation("OffmarketInvitesReceivedByInvestor")
   offmarketMessages     OffmarketMessage[]  @relation("OffmarketMessageSender")
+
+  // Phase O — Capital Layer
+  financingRequests     FinancingRequest[]
 
   @@index([referredById])
 }
@@ -1149,6 +1163,7 @@ model Property {
   notes              Note[]
   marketComparison   MarketComparison?
   auction            AuctionInfo?
+  financingRequests  FinancingRequest[]
 
   @@index([ownerId])
 }
@@ -1248,6 +1263,38 @@ model AuctionInfo {
   bidLimit        Int?         // Berechnetes Bietlimit (max Kaufpreis bei CF n. Steuer ≥ 0)
   bidLimitNeutral Int?         // Bietlimit für CF n. Steuer = 0 (Break-Even)
   notes           String?      // Auffälligkeiten aus der Extraktion
+}
+
+// Phase O — Oikos Capital Layer: persistente Finanzierungsanfrage.
+// Wird aus einem Objekt heraus angelegt und bleibt im Finanzierungs-Cockpit
+// erhalten. Snapshot der Bankfähigkeit (overall + Score) zum Zeitpunkt des
+// Anlegens — damit der Vorgang nachvollziehbar bleibt, auch wenn sich
+// Profil/Analyse später ändern. Multi-Tenant via ownerId.
+//
+// Reine Aufbereitung/Organisation — KEINE Vermittlung (kein § 34i/§ 34c GewO).
+model FinancingRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  ownerId    String
+  owner      User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  status FinancingRequestStatus @default(OFFEN)
+
+  // Snapshot der Bankfähigkeits-Ampel beim Anlegen
+  overall        String?  // "GREEN" | "YELLOW" | "RED" (Snapshot)
+  readinessScore Int?     // 0..100 (Snapshot)
+
+  // Optionale Eckdaten des Vorgangs
+  desiredLoanAmount Int?    // gewünschtes Darlehensvolumen (EUR)
+  note              String? // freie Notiz des Investors
+
+  @@index([ownerId, status])
+  @@index([propertyId])
 }
 
 // =====================================================================

@@ -2,11 +2,11 @@
 // Phase N — Oikos Capital Layer, Schritt 1: Financing Readiness Score
 //
 // Beantwortet die Frage "Ist dieser Investor mit diesem Deal heute
-// bankfaehig?" als Ampel (GREEN / YELLOW / RED) mit Einzelkriterien
-// und konkreten Massnahmen.
+// bankfähig?" als Ampel (GREEN / YELLOW / RED) mit Einzelkriterien
+// und konkreten Maßnahmen.
 //
-// WICHTIG (Regulatorik): Das ist eine SELBSTEINSCHAETZUNG der allgemeinen
-// Bankfaehigkeit aus den im System vorhandenen Daten — KEINE Finanzierungs-
+// WICHTIG (Regulatorik): Das ist eine SELBSTEINSCHÄTZUNG der allgemeinen
+// Bankfähigkeit aus den im System vorhandenen Daten — KEINE Finanzierungs-
 // beratung und keine Empfehlung eines konkreten Kreditprodukts. Damit
 // bleibt das Modul im erlaubnisfreien Bereich (kein § 34i/§ 34c GewO).
 //
@@ -33,8 +33,8 @@ export type ReadinessCriterion = {
   label: string;
   light: Light;
   value: string; // menschenlesbarer Ist-Wert (z. B. "18,5 %")
-  detail: string; // kurze Erklaerung der Schwelle
-  // Optional: konkrete Massnahme, wenn nicht GREEN
+  detail: string; // kurze Erklärung der Schwelle
+  // Optional: konkrete Maßnahme, wenn nicht GREEN
   measure?: string;
 };
 
@@ -76,9 +76,9 @@ export type ProfileInput = {
 } | null;
 
 const DISCLAIMER =
-  "Selbsteinschaetzung der allgemeinen Bankfaehigkeit aus euren Daten — " +
+  "Selbsteinschätzung der allgemeinen Bankfähigkeit aus euren Daten — " +
   "keine Finanzierungsberatung und keine Empfehlung eines konkreten " +
-  "Kreditprodukts. Die konkrete Pruefung erfolgt durch einen Finanzierungspartner.";
+  "Kreditprodukts. Die konkrete Prüfung erfolgt durch einen Finanzierungspartner.";
 
 function eur(n: number): string {
   return new Intl.NumberFormat("de-DE", {
@@ -101,7 +101,7 @@ function worst(lights: Light[]): Light {
 
 // Affordability-Faustformel (analog computeAffordability im Backend):
 // 40 % Netto-Einkommen minus laufende Verbindlichkeiten als max. Kapitaldienst,
-// daraus per Annuitaet (5,8 % p. a.) das maximale Darlehen.
+// daraus per Annuität (5,8 % p. a.) das maximale Darlehen.
 function maxLoanFromIncome(
   monthlyIncome: number | null,
   monthlyDebt: number | null
@@ -118,7 +118,7 @@ function maxLoanFromIncome(
  *
  * @param price   Kaufpreis (EUR)
  * @param rent    Monatliche Ist-Miete (EUR)
- * @param profile Investor-Bonitaet (kann null sein, wenn kein Profil)
+ * @param profile Investor-Bonität (kann null sein, wenn kein Profil)
  * @param stored  Optional: gespeicherte letzte Analyse (Snapshot-Felder)
  */
 export function computeFinancingReadiness(
@@ -187,13 +187,13 @@ export function computeFinancingReadiness(
     let measure: string | undefined;
     if (equity == null) {
       light = "RED";
-      measure = "Eigenkapital im Investor-Profil hinterlegen, damit die Bankfaehigkeit bewertbar ist.";
+      measure = "Eigenkapital im Investor-Profil hinterlegen, damit die Bankfähigkeit bewertbar ist.";
     } else if (ekQuote! >= 0.2 && equity >= metrics.closingCosts) {
       light = "GREEN";
     } else if (ekQuote! >= 0.1) {
       light = "YELLOW";
       const needed = Math.max(0, Math.round(metrics.totalInvestment * 0.2 - equity));
-      measure = `Eigenkapital um ca. ${eur(needed)} erhoehen, um die 20-%-Schwelle zu erreichen.`;
+      measure = `Eigenkapital um ca. ${eur(needed)} erhöhen, um die 20-%-Schwelle zu erreichen.`;
     } else {
       light = "RED";
       const needed = Math.max(0, Math.round(metrics.totalInvestment * 0.2 - equity));
@@ -204,7 +204,7 @@ export function computeFinancingReadiness(
       label: "Eigenkapitalquote",
       light,
       value: ekQuote != null ? pct(ekQuote) : "—",
-      detail: "Gruen ab 20 % (inkl. Kaufnebenkosten), Gelb 10–20 %, Rot < 10 %.",
+      detail: "Grün ab 20 % (inkl. Kaufnebenkosten), Gelb 10–20 %, Rot < 10 %.",
       measure
     });
   }
@@ -220,7 +220,7 @@ export function computeFinancingReadiness(
       light = "GREEN";
     } else if (dscr >= 1.1) {
       light = "YELLOW";
-      measure = "Kapitaldienstdeckung knapp (< 1,25): mehr Eigenkapital oder laengere Zinsbindung/Tilgungsstruktur pruefen.";
+      measure = "Kapitaldienstdeckung knapp (< 1,25): mehr Eigenkapital oder längere Zinsbindung/Tilgungsstruktur prüfen.";
     } else {
       light = "RED";
       measure = "Kapitaldienstdeckung zu niedrig (< 1,10): Mieteinnahmen decken den Kapitaldienst kaum. Kaufpreis/Finanzierung anpassen.";
@@ -230,12 +230,12 @@ export function computeFinancingReadiness(
       label: "Kapitaldienstdeckung (DSCR)",
       light,
       value: Number.isFinite(dscr) ? dscr.toFixed(2).replace(".", ",") : "∞",
-      detail: "Netto-Mietertrag / Kapitaldienst. Gruen ≥ 1,25, Gelb 1,10–1,25, Rot < 1,10.",
+      detail: "Netto-Mietertrag / Kapitaldienst. Grün ≥ 1,25, Gelb 1,10–1,25, Rot < 1,10.",
       measure
     });
   }
 
-  // --- Kriterium 3: Bonitaet / Selbstauskunft ------------------------
+  // --- Kriterium 3: Bonität / Selbstauskunft ------------------------
   {
     const income = profile?.monthlyIncome ?? null;
     const equity = profile?.equity ?? null;
@@ -247,25 +247,25 @@ export function computeFinancingReadiness(
     let measure: string | undefined;
     if (income == null) {
       light = "RED";
-      measure = "Selbstauskunft unvollstaendig: Netto-Einkommen im Investor-Profil ergaenzen.";
+      measure = "Selbstauskunft unvollständig: Netto-Einkommen im Investor-Profil ergänzen.";
     } else if ((preApproved || incomeCovers) && equity != null) {
       light = "GREEN";
     } else {
       light = "YELLOW";
       if (equity == null) {
-        measure = "Selbstauskunft vervollstaendigen (Eigenkapital ergaenzen).";
+        measure = "Selbstauskunft vervollständigen (Eigenkapital ergänzen).";
       } else if (!incomeCovers && !preApproved) {
-        measure = "Tragfaehigkeit ggue. Einkommen knapp: Bank-Vorabzusage einholen oder Darlehensbedarf senken.";
+        measure = "Tragfähigkeit ggü. Einkommen knapp: Bank-Vorabzusage einholen oder Darlehensbedarf senken.";
       } else {
-        measure = "Selbstauskunft fast vollstaendig — Bank-Vorabzusage staerkt die Position.";
+        measure = "Selbstauskunft fast vollständig — Bank-Vorabzusage stärkt die Position.";
       }
     }
     const detailParts: string[] = [];
-    if (maxLoan != null) detailParts.push(`max. Darlehen ggue. Einkommen ca. ${eur(maxLoan)}`);
+    if (maxLoan != null) detailParts.push(`max. Darlehen ggü. Einkommen ca. ${eur(maxLoan)}`);
     detailParts.push(preApproved ? "Vorabzusage: ja" : "Vorabzusage: nein");
     criteria.push({
       key: "creditworthiness",
-      label: "Bonitaet / Selbstauskunft",
+      label: "Bonität / Selbstauskunft",
       light,
       value: income != null ? `${eur(income)}/Mon. Netto` : "—",
       detail: detailParts.join(" · "),
@@ -284,17 +284,17 @@ export function computeFinancingReadiness(
       light = "GREEN";
     } else if (ltv <= 0.9) {
       light = "YELLOW";
-      measure = "Beleihungsauslauf 80–90 %: mehr Eigenkapital senkt Zins und erhoeht die Zusagewahrscheinlichkeit.";
+      measure = "Beleihungsauslauf 80–90 %: mehr Eigenkapital senkt Zins und erhöht die Zusagewahrscheinlichkeit.";
     } else {
       light = "RED";
-      measure = "Beleihungsauslauf > 90 %: viele Haeuser finanzieren das nicht. Eigenkapital erhoehen.";
+      measure = "Beleihungsauslauf > 90 %: viele Häuser finanzieren das nicht. Eigenkapital erhöhen.";
     }
     criteria.push({
       key: "ltv",
       label: "Beleihungsauslauf (LTV)",
       light,
       value: ltv != null ? pct(ltv) : "—",
-      detail: "Darlehen / Kaufpreis. Gruen ≤ 80 %, Gelb 80–90 %, Rot > 90 %.",
+      detail: "Darlehen / Kaufpreis. Grün ≤ 80 %, Gelb 80–90 %, Rot > 90 %.",
       measure
     });
   }
@@ -311,20 +311,20 @@ export function computeFinancingReadiness(
       measure = "Objekt-Score mittel: Kaufpreis nachverhandeln oder Miet-/Vermietungspotenzial heben.";
     } else {
       light = "RED";
-      measure = "Objekt-Score niedrig: Rendite/Cashflow schwach — Kaufpreis kritisch pruefen.";
+      measure = "Objekt-Score niedrig: Rendite/Cashflow schwach — Kaufpreis kritisch prüfen.";
     }
     criteria.push({
       key: "objectScore",
       label: "Objekt-Score",
       light,
       value: `${score} / 100`,
-      detail: "Rendite-/Cashflow-Score der Analyse. Gruen ≥ 70, Gelb 55–69, Rot < 55.",
+      detail: "Rendite-/Cashflow-Score der Analyse. Grün ≥ 70, Gelb 55–69, Rot < 55.",
       measure
     });
   }
 
   // --- Gesamt-Ampel --------------------------------------------------
-  // Kern-Kriterien (EK, DSCR, Bonitaet, LTV) entscheiden ueber ROT.
+  // Kern-Kriterien (EK, DSCR, Bonität, LTV) entscheiden über ROT.
   const core: Light[] = [
     criteria.find((c) => c.key === "equity")!.light,
     criteria.find((c) => c.key === "dscr")!.light,
@@ -340,10 +340,10 @@ export function computeFinancingReadiness(
 
   const overallLabel =
     overall === "GREEN"
-      ? "Bankfaehig"
+      ? "Bankfähig"
       : overall === "YELLOW"
         ? "Finanzierbar mit Optimierung"
-        : "Noch nicht bankfaehig";
+        : "Noch nicht bankfähig";
 
   // Grobe 0..100-Reife: GREEN=100, YELLOW=60, RED=20 je Kriterium, Mittelwert.
   const perLight = (l: Light) => (l === "GREEN" ? 100 : l === "YELLOW" ? 60 : 20);
@@ -374,7 +374,7 @@ export function computeFinancingReadiness(
   };
 }
 
-// Lokaler Ratio-Clamp (calc.ts exportiert nur clampInt fuer Ganzzahlen).
+// Lokaler Ratio-Clamp (calc.ts exportiert nur clampInt für Ganzzahlen).
 function clampRatio(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }

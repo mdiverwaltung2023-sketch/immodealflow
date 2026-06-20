@@ -197,6 +197,43 @@ export const FinancingReadinessSchema = z.object({
 });
 export type FinancingReadinessT = z.infer<typeof FinancingReadinessSchema>;
 
+export const FinancingOverviewItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  location: z.string(),
+  price: z.number(),
+  rent: z.number(),
+  status: DealStatusEnum,
+  evaluated: z.boolean(),
+  overall: LightEnum.nullable(),
+  overallLabel: z.string().nullable(),
+  readinessScore: z.number().nullable()
+});
+export type FinancingOverviewItemT = z.infer<typeof FinancingOverviewItemSchema>;
+
+export const FinancingOverviewSchema = z.object({
+  hasProfile: z.boolean(),
+  total: z.number(),
+  counts: z.object({ green: z.number(), yellow: z.number(), red: z.number() }),
+  items: z.array(FinancingOverviewItemSchema)
+});
+export type FinancingOverviewT = z.infer<typeof FinancingOverviewSchema>;
+
+export const FinancingRequestStatusEnum = z.enum(["OFFEN","IN_VORBEREITUNG","BEREIT","AN_PARTNER","ZUGESAGT","ABGELEHNT"]);
+export type FinancingRequestStatusT = z.infer<typeof FinancingRequestStatusEnum>;
+export const FINANCING_REQUEST_STATUS_LABELS: Record<FinancingRequestStatusT, string> = {
+  OFFEN: "Offen", IN_VORBEREITUNG: "In Vorbereitung", BEREIT: "Bereit zur Einreichung",
+  AN_PARTNER: "An Partner übergeben", ZUGESAGT: "Zugesagt", ABGELEHNT: "Abgelehnt"
+};
+export const FINANCING_REQUEST_STATUS_ORDER: FinancingRequestStatusT[] = ["OFFEN","IN_VORBEREITUNG","BEREIT","AN_PARTNER","ZUGESAGT","ABGELEHNT"];
+export const FinancingRequestSchema = z.object({
+  id: z.string(), createdAt: z.string(), updatedAt: z.string(), propertyId: z.string(),
+  status: FinancingRequestStatusEnum, overall: LightEnum.nullable(), readinessScore: z.number().nullable(),
+  desiredLoanAmount: z.number().nullable(), note: z.string().nullable(),
+  property: z.object({ id: z.string(), title: z.string(), location: z.string(), price: z.number(), rent: z.number() }).optional()
+});
+export type FinancingRequestT = z.infer<typeof FinancingRequestSchema>;
+
 export const ImportExposeResponseSchema = z.object({
   title: z.string(),
   price: z.number(),

@@ -1005,6 +1005,216 @@ app.get("/properties/:id/financing-readiness", async (req, res) => {
   return res.json(result);
 });
 
+// GET /me/financing/overview — Capital-Layer-Cockpit.
+app.get("/me/financing/overview", async (req, res) => {
+  const userId = req.userId!;
+
+  const profile = await prisma.investorProfile.findUnique({ where: { userId } });
+  const profileInput = profile
+    ? {
+        equity: profile.equity,
+        monthlyIncome: profile.monthlyIncome,
+        monthlyDebt: profile.monthlyDebt,
+        financingPreApproved: profile.financingPreApproved
+      }
+    : null;
+
+  const properties = await prisma.property.findMany({
+    where: { ownerId: userId },
+    orderBy: { updatedAt: "desc" },
+    include: { analyses: { orderBy: { createdAt: "desc" }, take: 1 } }
+  });
+
+  const items = properties.map((p) => {
+    const base = {
+      id: p.id,
+      title: p.title,
+      location: p.location,
+      price: p.price,
+      rent: p.rent,
+      status: p.status
+    };
+    if (p.rent <= 0) {
+      return {
+        ...base,
+        evaluated: false,
+        overall: null,
+        overallLabel: null,
+        readinessScore: null
+      };
+    }
+    const latest = p.analyses[0] ?? null;
+    const r = computeFinancingReadiness(
+      p.price,
+      p.rent,
+      profileInput,
+      latest
+        ? {
+            scenarioName: latest.scenarioName,
+            closingCosts: latest.closingCosts,
+            totalInvestment: latest.totalInvestment,
+            loan: latest.loan,
+            monthlyInterest: latest.monthlyInterest,
+            monthlyRepayment: latest.monthlyRepayment,
+            monthlyMaintenance: latest.monthlyMaintenance,
+            monthlyVacancyLoss: latest.monthlyVacancyLoss,
+            score: latest.score
+          }
+        : undefined
+    );
+    return {
+      ...base,
+      evaluated: true,
+      overall: r.overall,
+      overallLabel: r.overallLabel,
+      readinessScore: r.readinessScore
+    };
+  });
+
+  const evaluated = items.filter((i) => i.evaluated);
+  const counts = {
+    green: evaluated.filter((i) => i.overall === "GREEN").length,
+    yellow: evaluated.filter((i) => i.overall === "YELLOW").length,
+    red: evaluated.filter((i) => i.overall === "RED").length
+  };
+
+  return res.json({
+    hasProfile: profile != null,
+    total: items.length,
+    counts,
+    items
+  });
+});
+
+// --- Phase O — Oikos Capital Layer: Finanzierungsanfragen ----------
+// Persistenter Finanzierungsvorgang pro Objekt. Reine Organisation/
+// Aufbereitung, keine Vermittlung. Multi-Tenant via ownerId.
+const FinancingRequestStatusEnum = z.enum([
+  "OFFEN",
+  "IN_VORBEREITUNG",
+  "BEREIT",
+  "AN_PARTNER",
+  "ZUGESAGT",
+  "ABGELEHNT"
+]);
+
+// POST /properties/:id/financing-requests — Anfrage aus einem Objekt anlegen.
+app.post("/properties/:id/financing-requests", async (req, res) => {
+  const { id } = req.params;
+  const body = z
+    .object({
+      desiredLoanAmount: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+      note: z.string().max(2000).nullable().optional()
+    })
+    .safeParse(req.body || {});
+  if (!body.success) {
+    return res.status(400).json({ error: "Invalid payload", details: body.error.flatten() });
+  }
+
+  const property = await prisma.property.findFirst({
+    where: { id, ownerId: req.userId! },
+    include: { analyses: { orderBy: { createdAt: "desc" }, take: 1 } }
+  });
+  if (!property) return res.status(404).json({ error: "Not found" });
+
+  // Snapshot der aktuellen Bankfähigkeit (nur wenn Miete vorhanden).
+  let overall: string | null = null;
+  let readinessScore: number | null = null;
+  if (property.rent > 0) {
+    const profile = await prisma.investorProfile.findUnique({ where: { userId: req.userId! } });
+    const latest = property.analyses[0] ?? null;
+    const r = computeFinancingReadiness(
+      property.price,
+      property.rent,
+      profile
+        ? {
+            equity: profile.equity,
+            monthlyIncome: profile.monthlyIncome,
+            monthlyDebt: profile.monthlyDebt,
+            financingPreApproved: profile.financingPreApproved
+          }
+        : null,
+      latest
+        ? {
+            scenarioName: latest.scenarioName,
+            closingCosts: latest.closingCosts,
+            totalInvestment: latest.totalInvestment,
+            loan: latest.loan,
+            monthlyInterest: latest.monthlyInterest,
+            monthlyRepayment: latest.monthlyRepayment,
+            monthlyMaintenance: latest.monthlyMaintenance,
+            monthlyVacancyLoss: latest.monthlyVacancyLoss,
+            score: latest.score
+          }
+        : undefined
+    );
+    overall = r.overall;
+    readinessScore = r.readinessScore;
+  }
+
+  const created = await prisma.financingRequest.create({
+    data: {
+      propertyId: id,
+      ownerId: req.userId!,
+      overall,
+      readinessScore,
+      desiredLoanAmount: body.data.desiredLoanAmount ?? null,
+      note: body.data.note ?? null
+    }
+  });
+
+  return res.status(201).json(created);
+});
+
+// GET /me/financing-requests — alle eigenen Anfragen (für das Cockpit).
+app.get("/me/financing-requests", async (req, res) => {
+  const requests = await prisma.financingRequest.findMany({
+    where: { ownerId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: {
+      property: { select: { id: true, title: true, location: true, price: true, rent: true } }
+    }
+  });
+  return res.json(requests);
+});
+
+// PATCH /me/financing-requests/:id — Status / Notiz / Volumen aktualisieren.
+app.patch("/me/financing-requests/:id", async (req, res) => {
+  const { id } = req.params;
+  const body = z
+    .object({
+      status: FinancingRequestStatusEnum.optional(),
+      note: z.string().max(2000).nullable().optional(),
+      desiredLoanAmount: z.number().int().min(0).max(1_000_000_000).nullable().optional()
+    })
+    .safeParse(req.body || {});
+  if (!body.success) {
+    return res.status(400).json({ error: "Invalid payload", details: body.error.flatten() });
+  }
+
+  const existing = await prisma.financingRequest.findFirst({
+    where: { id, ownerId: req.userId! }
+  });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+
+  const updated = await prisma.financingRequest.update({
+    where: { id },
+    data: body.data
+  });
+  return res.json(updated);
+});
+
+// DELETE /me/financing-requests/:id
+app.delete("/me/financing-requests/:id", async (req, res) => {
+  const { id } = req.params;
+  const existing = await prisma.financingRequest.findFirst({
+    where: { id, ownerId: req.userId! }
+  });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  await prisma.financingRequest.delete({ where: { id } });
+  return res.status(204).end();
+});
+
 // /me — eingeloggter User selbst
 app.get("/me", async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId! } });
