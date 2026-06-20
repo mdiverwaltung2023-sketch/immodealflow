@@ -277,6 +277,16 @@ enum FinancingRequestStatus {
   ABGELEHNT          // abgelehnt / nicht weiterverfolgt
 }
 
+// Phase P — Partnerökosystem. Typ eines Finanzierungspartners.
+enum FinancingPartnerType {
+  BANK
+  SPARKASSE
+  VOLKSBANK
+  VERMITTLER          // Finanzierungsvermittler (§ 34i/§ 34c GewO)
+  SPEZIALFINANZIERER
+  DEBT_FONDS
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -1301,6 +1311,36 @@ model FinancingRequest {
 
   @@index([ownerId, status])
   @@index([propertyId])
+}
+
+// Phase P — Oikos Capital Layer: Finanzierungspartner (Verzeichnis).
+// Neutrales, kriterienbasiertes Matching (Tippgeber) — KEINE Vermittlung
+// durch Oikos. Mandatskriterien steuern, zu welchen Deals ein Partner passt.
+// Admin-gepflegt. Leere Listen/null = keine Einschränkung.
+model FinancingPartner {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name   String
+  type   FinancingPartnerType
+  active Boolean              @default(true)
+
+  // Mandatskriterien
+  assetTypes    AssetType[] @default([])
+  regions       String[]    @default([])  // Bundesländer/Städte; leer = überall
+  minVolume     Int?                        // min. Darlehensvolumen (EUR)
+  maxVolume     Int?                        // max. Darlehensvolumen (EUR)
+  maxLtv        Float?                      // max. Beleihungsauslauf (0..1)
+  investorTypes String[]    @default([])    // "PRIVAT","HOLDING","SEMI_PRO","FAMILY_OFFICE"; leer = alle
+
+  // Kontakt (für spätere Lead-Übergabe; reine Kontaktdaten)
+  contactEmail String?
+  contactPhone String?
+  website      String?
+  note         String?
+
+  @@index([active, type])
 }
 
 // =====================================================================

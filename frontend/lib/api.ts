@@ -248,6 +248,31 @@ export const FinancingRequestSchema = z.object({
 });
 export type FinancingRequestT = z.infer<typeof FinancingRequestSchema>;
 
+export const FinancingPartnerTypeEnum = z.enum(["BANK","SPARKASSE","VOLKSBANK","VERMITTLER","SPEZIALFINANZIERER","DEBT_FONDS"]);
+export type FinancingPartnerTypeT = z.infer<typeof FinancingPartnerTypeEnum>;
+export const FINANCING_PARTNER_TYPE_LABELS: Record<FinancingPartnerTypeT, string> = {
+  BANK: "Bank", SPARKASSE: "Sparkasse", VOLKSBANK: "Volksbank", VERMITTLER: "Finanzierungsvermittler", SPEZIALFINANZIERER: "Spezialfinanzierer", DEBT_FONDS: "Private-Debt-Fonds"
+};
+const PartnerAssetTypeInline = z.enum(["MFH","COMMERCIAL","MIXED_USE","SINGLE_FAMILY","APARTMENT","LAND","OTHER"]);
+export const FinancingPartnerSchema = z.object({
+  id: z.string(), createdAt: z.string(), updatedAt: z.string(), name: z.string(), type: FinancingPartnerTypeEnum, active: z.boolean(),
+  assetTypes: z.array(PartnerAssetTypeInline), regions: z.array(z.string()), minVolume: z.number().nullable(), maxVolume: z.number().nullable(),
+  maxLtv: z.number().nullable(), investorTypes: z.array(z.string()), contactEmail: z.string().nullable(), contactPhone: z.string().nullable(),
+  website: z.string().nullable(), note: z.string().nullable()
+});
+export type FinancingPartnerT = z.infer<typeof FinancingPartnerSchema>;
+export const MatchedPartnerSchema = z.object({
+  id: z.string(), name: z.string(), type: FinancingPartnerTypeEnum, regions: z.array(z.string()), minVolume: z.number().nullable(),
+  maxVolume: z.number().nullable(), maxLtv: z.number().nullable(), website: z.string().nullable(), contactEmail: z.string().nullable(),
+  contactPhone: z.string().nullable(), note: z.string().nullable()
+});
+export type MatchedPartnerT = z.infer<typeof MatchedPartnerSchema>;
+export const PartnerMatchSchema = z.object({
+  basis: z.object({ loan: z.number(), ltv: z.number() }), total: z.number(), matchedCount: z.number(),
+  partners: z.array(MatchedPartnerSchema), disclaimer: z.string()
+});
+export type PartnerMatchT = z.infer<typeof PartnerMatchSchema>;
+
 export const ImportExposeResponseSchema = z.object({
   title: z.string(),
   price: z.number(),

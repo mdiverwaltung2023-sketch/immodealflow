@@ -1244,6 +1244,149 @@ app.delete("/me/financing-requests/:id", async (req, res) => {
   return res.status(204).end();
 });
 
+// =====================================================================
+// Phase P — Partnerökosystem: Finanzierungspartner (Verzeichnis + neutrales
+// Matching). Oikos = Tippgeber: kriterienbasierte Vorauswahl, KEINE
+// Empfehlung/Vermittlung. Admin pflegt das Verzeichnis.
+// =====================================================================
+const FinancingPartnerTypeEnum = z.enum([
+  "BANK",
+  "SPARKASSE",
+  "VOLKSBANK",
+  "VERMITTLER",
+  "SPEZIALFINANZIERER",
+  "DEBT_FONDS"
+]);
+const PartnerAssetTypeEnum = z.enum([
+  "MFH",
+  "COMMERCIAL",
+  "MIXED_USE",
+  "SINGLE_FAMILY",
+  "APARTMENT",
+  "LAND",
+  "OTHER"
+]);
+const FinancingPartnerBodySchema = z.object({
+  name: z.string().min(1).max(200),
+  type: FinancingPartnerTypeEnum,
+  active: z.boolean().optional(),
+  assetTypes: z.array(PartnerAssetTypeEnum).optional(),
+  regions: z.array(z.string().min(1).max(80)).max(60).optional(),
+  minVolume: z.number().int().min(0).nullable().optional(),
+  maxVolume: z.number().int().min(0).nullable().optional(),
+  maxLtv: z.number().min(0).max(2).nullable().optional(),
+  investorTypes: z.array(z.string().min(1).max(40)).max(20).optional(),
+  contactEmail: z.string().max(200).nullable().optional(),
+  contactPhone: z.string().max(80).nullable().optional(),
+  website: z.string().max(300).nullable().optional(),
+  note: z.string().max(2000).nullable().optional()
+});
+const FinancingPartnerUpdateSchema = FinancingPartnerBodySchema.partial();
+
+app.post("/admin/financing-partners", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const body = FinancingPartnerBodySchema.safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({ error: "Invalid payload", details: body.error.flatten() });
+  }
+  const created = await prisma.financingPartner.create({ data: body.data });
+  return res.status(201).json(created);
+});
+
+app.get("/admin/financing-partners", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const list = await prisma.financingPartner.findMany({
+    orderBy: [{ active: "desc" }, { type: "asc" }, { name: "asc" }]
+  });
+  return res.json(list);
+});
+
+app.patch("/admin/financing-partners/:id", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const body = FinancingPartnerUpdateSchema.safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({ error: "Invalid payload", details: body.error.flatten() });
+  }
+  const existing = await prisma.financingPartner.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  const updated = await prisma.financingPartner.update({
+    where: { id: req.params.id },
+    data: body.data
+  });
+  return res.json(updated);
+});
+
+app.delete("/admin/financing-partners/:id", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const existing = await prisma.financingPartner.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  await prisma.financingPartner.delete({ where: { id: req.params.id } });
+  return res.status(204).end();
+});
+
+app.post("/admin/financing-partners/seed-demo", async (req, res) => {
+  if (!(await ensureAdmin(req, res))) return;
+  const demo = [
+    { name: "Sparkasse Musterstadt", type: "SPARKASSE" as const, regions: ["Berlin", "Brandenburg"], minVolume: 50000, maxVolume: 2000000, maxLtv: 0.85, note: "Regionaler Bestandsfinanzierer" },
+    { name: "Volksbank Rhein-Ruhr", type: "VOLKSBANK" as const, regions: ["NRW", "Essen", "Düsseldorf", "Bochum"], minVolume: 50000, maxVolume: 1500000, maxLtv: 0.85, note: "Genossenschaftlich, Mittelstand" },
+    { name: "Bundesweite Geschäftsbank AG", type: "BANK" as const, regions: [], minVolume: 100000, maxVolume: 10000000, maxLtv: 0.8, note: "Standardfinanzierungen, größere Volumina" },
+    { name: "Capital Finanzvermittlung", type: "VERMITTLER" as const, regions: [], minVolume: 30000, maxVolume: 5000000, maxLtv: 0.9, note: "Marktüberblick + Antragsstrecke (§ 34i/§ 34c)" },
+    { name: "GewerbeInvest Spezial", type: "SPEZIALFINANZIERER" as const, regions: [], minVolume: 500000, maxVolume: 20000000, maxLtv: 0.8, note: "Gewerbe/Projektentwicklung, komplexe Fälle" },
+    { name: "Bridge Capital Debt Fund", type: "DEBT_FONDS" as const, regions: [], minVolume: 1000000, maxVolume: 50000000, maxLtv: 0.92, note: "Mezzanine/Bridge, hohe LTVs, Tempo" }
+  ];
+  await prisma.financingPartner.createMany({ data: demo });
+  const list = await prisma.financingPartner.findMany({ orderBy: { name: "asc" } });
+  return res.json(list);
+});
+
+// GET /properties/:id/financing-partners — neutrales, kriterienbasiertes Matching
+app.get("/properties/:id/financing-partners", async (req, res) => {
+  const property = await prisma.property.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!property) return res.status(404).json({ error: "Not found" });
+
+  const profile = await prisma.investorProfile.findUnique({ where: { userId: req.userId! } });
+  const ti = property.price * 1.1;
+  let er = 0.2;
+  if (profile?.equity != null && ti > 0) {
+    er = Math.max(0.05, Math.min(0.95, profile.equity / ti));
+  }
+  const loan = Math.round(ti * (1 - er));
+  const ltv = property.price > 0 ? loan / property.price : 0;
+  const loc = property.location.toLowerCase();
+
+  const partners = await prisma.financingPartner.findMany({ where: { active: true } });
+  const matched = partners
+    .filter((pp) => pp.minVolume == null || loan >= pp.minVolume)
+    .filter((pp) => pp.maxVolume == null || loan <= pp.maxVolume)
+    .filter((pp) => pp.maxLtv == null || ltv <= pp.maxLtv)
+    .filter((pp) => pp.regions.length === 0 || pp.regions.some((r) => loc.includes(r.toLowerCase())))
+    .map((pp) => ({
+      id: pp.id,
+      name: pp.name,
+      type: pp.type,
+      regions: pp.regions,
+      minVolume: pp.minVolume,
+      maxVolume: pp.maxVolume,
+      maxLtv: pp.maxLtv,
+      website: pp.website,
+      contactEmail: pp.contactEmail,
+      contactPhone: pp.contactPhone,
+      note: pp.note
+    }))
+    .sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+
+  return res.json({
+    basis: { loan, ltv },
+    total: partners.length,
+    matchedCount: matched.length,
+    partners: matched,
+    disclaimer:
+      "Neutrale, kriterienbasierte Vorauswahl — keine Empfehlung und keine Vermittlung durch Oikos. Beratung und Vermittlung erfolgen durch den Partner (§ 34i/§ 34c GewO)."
+  });
+});
+
 // /me — eingeloggter User selbst
 app.get("/me", async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId! } });

@@ -1,1 +1,1 @@
-Objekttiefe: Property um Baujahr/Zustand/Energieklasse/Einheiten erweitert (Migration) + Edit-Formular + Mappe-Anzeige
+Partneroekosystem: FinancingPartner-Verzeichnis (Migration) + neutrales Matching + Admin-Pflege + Objekt-Panel

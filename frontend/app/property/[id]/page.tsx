@@ -10,6 +10,7 @@ import { MarketComparisonPanel } from "./MarketComparisonPanel";
 import { AuctionPanel } from "./AuctionPanel";
 import { FinancingReadinessPanel } from "./FinancingReadinessPanel";
 import { CreateFinancingRequestButton } from "./CreateFinancingRequestButton";
+import { FinancingPartnersPanel } from "./FinancingPartnersPanel";
 
 function eur(n: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -108,6 +109,10 @@ export default async function PropertyPage({ params }: { params: { id: string } 
             </Link>
           </div>
         </div>
+      </Card>
+
+      <Card title="Passende Finanzierungspartner (neutral)">
+        <FinancingPartnersPanel id={p.id} />
       </Card>
 
       <Card title="Marktvergleich (Claude)">

@@ -277,7 +277,8 @@ const SECTION_ADMIN: Section = {
   title: "Admin",
   items: [
     { href: "/admin/coins", label: "Coin-Dashboard", icon: IcShield },
-    { href: "/admin/broker-leads", label: "Makler-Leads", icon: IcInbox }
+    { href: "/admin/broker-leads", label: "Makler-Leads", icon: IcInbox },
+    { href: "/admin/financing-partners", label: "Finanzierungspartner", icon: IcBank }
   ]
 };
 
