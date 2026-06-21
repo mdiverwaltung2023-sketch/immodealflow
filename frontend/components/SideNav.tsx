@@ -213,6 +213,7 @@ const SECTION_INVESTOR: Section = {
   title: "Als Investor (kaufen)",
   items: [
     { href: "/marketplace", label: "Marketplace", icon: IcStore },
+    { href: "/co-investments", label: "Co-Investment Hub", icon: IcRadar },
     { href: "/inquiries", label: "Meine Anfragen", icon: IcInbox },
     { href: "/empfangene-freigaben", label: "Erhaltene Unterlagen", icon: IcInbox },
     { href: "/auctions", label: "Versteigerungen", icon: IcGavel },

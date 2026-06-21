@@ -1935,3 +1935,138 @@ export type OffmarketImageT = z.infer<typeof OffmarketImageSchema>;
 
 // fetch-Funktionen wurden in lib/api-server.ts ausgelagert (server-only),
 // damit Client-Components diese Datei sicher mit-importieren können.
+
+// =====================================================================
+// Phase Q — Co-Investment Hub
+// =====================================================================
+
+export const InvestStrategyEnum = z.enum([
+  "BUY_AND_HOLD",
+  "FIX_AND_FLIP",
+  "PROJECT_DEVELOPMENT",
+  "VALUE_ADD",
+  "CASHFLOW",
+  "OTHER"
+]);
+export type InvestStrategyT = z.infer<typeof InvestStrategyEnum>;
+
+export const INVEST_STRATEGY_LABELS: Record<InvestStrategyT, string> = {
+  BUY_AND_HOLD: "Buy & Hold",
+  FIX_AND_FLIP: "Fix & Flip",
+  PROJECT_DEVELOPMENT: "Projektentwicklung",
+  VALUE_ADD: "Value-Add",
+  CASHFLOW: "Cashflow",
+  OTHER: "Sonstige"
+};
+
+export const CoInvestStatusEnum = z.enum(["DRAFT", "ACTIVE", "MATCHED", "CLOSED", "ARCHIVED"]);
+export type CoInvestStatusT = z.infer<typeof CoInvestStatusEnum>;
+
+export const COINVEST_STATUS_LABELS: Record<CoInvestStatusT, string> = {
+  DRAFT: "Entwurf",
+  ACTIVE: "Veröffentlicht",
+  MATCHED: "In Gesprächen",
+  CLOSED: "Abgeschlossen",
+  ARCHIVED: "Archiviert"
+};
+
+export const CoInvestRequestSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  ownerId: z.string(),
+  title: z.string(),
+  assetType: AssetTypeEnum.nullable().optional(),
+  location: z.string(),
+  purchasePrice: z.number().nullable().optional(),
+  equityAvailable: z.number().nullable().optional(),
+  capitalNeed: z.number().nullable().optional(),
+  strategy: InvestStrategyEnum.nullable().optional(),
+  holdingPeriodYears: z.number().nullable().optional(),
+  targetReturnPct: z.number().nullable().optional(),
+  description: z.string(),
+  status: CoInvestStatusEnum,
+  visibility: z.enum(["PRIVATE", "ON_REQUEST", "PUBLIC"])
+});
+export type CoInvestRequestT = z.infer<typeof CoInvestRequestSchema>;
+export const CoInvestRequestListSchema = z.array(CoInvestRequestSchema);
+
+export const CoInvestOwnerSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  label: z.string().optional(),
+  verified: z.boolean()
+});
+
+export const CoInvestMarketItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  assetType: AssetTypeEnum.nullable().optional(),
+  location: z.string(),
+  purchasePrice: z.number().nullable().optional(),
+  equityAvailable: z.number().nullable().optional(),
+  capitalNeed: z.number().nullable().optional(),
+  strategy: InvestStrategyEnum.nullable().optional(),
+  holdingPeriodYears: z.number().nullable().optional(),
+  targetReturnPct: z.number().nullable().optional(),
+  description: z.string().optional(),
+  createdAt: z.string(),
+  owner: CoInvestOwnerSchema
+});
+export type CoInvestMarketItemT = z.infer<typeof CoInvestMarketItemSchema>;
+export const CoInvestMarketListSchema = z.array(CoInvestMarketItemSchema);
+
+export const MatchPartsSchema = z.object({
+  region: z.number(),
+  assetType: z.number(),
+  volume: z.number(),
+  strategy: z.number(),
+  return: z.number(),
+  experience: z.number()
+});
+export type MatchPartsT = z.infer<typeof MatchPartsSchema>;
+
+export const CoInvestFeedItemSchema = z.object({
+  score: z.number(),
+  parts: MatchPartsSchema,
+  request: CoInvestMarketItemSchema
+});
+export const CoInvestFeedSchema = z.object({
+  hasProfile: z.boolean(),
+  count: z.number(),
+  hint: z.string().optional(),
+  matches: z.array(CoInvestFeedItemSchema)
+});
+export type CoInvestFeedT = z.infer<typeof CoInvestFeedSchema>;
+
+export const CoInvestMatchSchema = z.object({
+  score: z.number(),
+  parts: MatchPartsSchema,
+  capitalGiver: z.object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    label: z.string().optional(),
+    verified: z.boolean(),
+    experienceYears: z.number().nullable().optional(),
+    minTicketSize: z.number().nullable().optional(),
+    maxTicketSize: z.number().nullable().optional(),
+    preferredAssetTypes: z.array(AssetTypeEnum).optional(),
+    preferredRegions: z.array(z.string()).optional()
+  })
+});
+export const CoInvestMatchesSchema = z.object({
+  requestId: z.string(),
+  count: z.number(),
+  matches: z.array(CoInvestMatchSchema)
+});
+export type CoInvestMatchesT = z.infer<typeof CoInvestMatchesSchema>;
+,
+    preferredRegions: z.array(z.string()).optional()
+  })
+});
+export const CoInvestMatchesSchema = z.object({
+  requestId: z.string(),
+  count: z.number(),
+  matches: z.array(CoInvestMatchSchema)
+});
+export type CoInvestMatchesT = z.infer<typeof CoInvestMatchesSchema>;

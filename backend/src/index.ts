@@ -12,6 +12,7 @@ import {
   type AnalysisAssumptions
 } from "./lib/calc.js";
 import { computeFinancingReadiness } from "./lib/financing.js";
+import { scoreMatch } from "./lib/coinvest.js";
 import {
   generateOfferWithClaude,
   extractPropertyFromText,
@@ -298,6 +299,10 @@ app.use("/rental-marketplace", requireAuth);
 // Admin-Routen (Phase H8): zusätzlich isAdmin-Check pro Endpoint, aber
 // requireAuth muss vorher laufen, damit req.userId gesetzt ist.
 app.use("/admin", requireAuth);
+// Co-Investment Hub (Phase Q): Marktplatz + Feed nur eingeloggt
+// (Sichtbarkeits-Gate, keine anonymen Kontaktdaten). Eigene Gesuche
+// laufen unter /me und sind dort bereits durch requireAuth geschuetzt.
+app.use("/coinvest", requireAuth);
 // /import/* wird gleich pro-Endpoint gehandhabt (siehe weiter unten).
 
 const DealStatusEnum = z.enum([
@@ -6571,7 +6576,8 @@ app.post(
       });
       res.json(updated);
     } catch (e) {
-      console.error("stylize failed", e);
+      console.error("stylize failed",
+      e);
       res.status(503).json({
         error: "Stilisierung fehlgeschlagen",
         detail: (e as Error).message
@@ -6580,7 +6586,318 @@ app.post(
   }
 );
 
+// =====================================================================
+// Phase Q — Co-Investment Hub
+// Reine Kontakt-/Matching-Plattform. Eigene Gesuche unter /me/coinvest-requests,
+// Marktplatz + Feed (gescored) unter /coinvest. Owner-Filter ueberall.
+// AssetTypeEnum + ProfileVisibilityEnum sind oben (Profil-Routes) definiert.
+// =====================================================================
+
+const InvestStrategyEnum = z.enum([
+  "BUY_AND_HOLD",
+  "FIX_AND_FLIP",
+  "PROJECT_DEVELOPMENT",
+  "VALUE_ADD",
+  "CASHFLOW",
+  "OTHER"
+]);
+const CoInvestStatusEnum = z.enum(["DRAFT", "ACTIVE", "MATCHED", "CLOSED", "ARCHIVED"]);
+
+const CoInvestCreateSchema = z.object({
+  title: z.string().min(3).max(160),
+  assetType: AssetTypeEnum.optional(),
+  location: z.string().max(160).optional(),
+  purchasePrice: z.number().int().nonnegative().optional(),
+  equityAvailable: z.number().int().nonnegative().optional(),
+  capitalNeed: z.number().int().nonnegative().optional(),
+  strategy: InvestStrategyEnum.optional(),
+  holdingPeriodYears: z.number().int().min(0).max(99).optional(),
+  targetReturnPct: z.number().min(0).max(100).optional(),
+  description: z.string().max(8000).optional(),
+  status: CoInvestStatusEnum.optional(),
+  visibility: ProfileVisibilityEnum.optional()
+});
+const CoInvestPatchSchema = CoInvestCreateSchema.partial();
+
+// Anonymisierte Owner-Darstellung fuer Marktplatz/Feed:
+// Name nur bei PUBLIC-Sichtbarkeit, sonst generisches Label.
+// Kontaktdaten werden NIE hier ausgeliefert (erst Deal-Room, Phase Q2).
+function publicOwner(owner: { id: string; name: string | null } | null, visibility: string) {
+  if (!owner) return { label: "Investor", verified: false };
+  if (visibility === "PUBLIC") return { id: owner.id, name: owner.name ?? "Investor", verified: false };
+  return { label: "Verifizierter Investor", verified: false };
+}
+
+// --- Eigene Gesuche (Owner-Bereich) ----------------------------------
+
+// GET /me/coinvest-requests — eigene Gesuche (alle Status, optional Filter)
+app.get("/me/coinvest-requests", async (req, res) => {
+  const rawStatus = req.query.status;
+  const parsed = typeof rawStatus === "string" ? CoInvestStatusEnum.safeParse(rawStatus) : null;
+  const items = await prisma.coInvestRequest.findMany({
+    where: {
+      ownerId: req.userId!,
+      ...(parsed?.success ? { status: parsed.data } : {})
+    },
+    orderBy: { updatedAt: "desc" }
+  });
+  return res.json(items);
+});
+
+// POST /me/coinvest-requests — neues Gesuch (default DRAFT)
+app.post("/me/coinvest-requests", async (req, res) => {
+  const body = CoInvestCreateSchema.parse(req.body);
+  const created = await prisma.coInvestRequest.create({
+    data: {
+      ownerId: req.userId!,
+      title: body.title,
+      assetType: body.assetType ?? null,
+      location: body.location ?? "",
+      purchasePrice: body.purchasePrice ?? null,
+      equityAvailable: body.equityAvailable ?? null,
+      capitalNeed: body.capitalNeed ?? null,
+      strategy: body.strategy ?? null,
+      holdingPeriodYears: body.holdingPeriodYears ?? null,
+      targetReturnPct: body.targetReturnPct ?? null,
+      description: body.description ?? "",
+      status: body.status ?? "DRAFT",
+      visibility: body.visibility ?? "ON_REQUEST"
+    }
+  });
+  return res.json(created);
+});
+
+// GET /me/coinvest-requests/:id — eigenes Gesuch-Detail
+app.get("/me/coinvest-requests/:id", async (req, res) => {
+  const item = await prisma.coInvestRequest.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!item) return res.status(404).json({ error: "Not found" });
+  return res.json(item);
+});
+
+// PATCH /me/coinvest-requests/:id — Felder + Status updaten
+app.patch("/me/coinvest-requests/:id", async (req, res) => {
+  const body = CoInvestPatchSchema.parse(req.body);
+  const owned = await prisma.coInvestRequest.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  const updated = await prisma.coInvestRequest.update({
+    where: { id: owned.id },
+    data: {
+      ...(body.title !== undefined ? { title: body.title } : {}),
+      ...(body.assetType !== undefined ? { assetType: body.assetType } : {}),
+      ...(body.location !== undefined ? { location: body.location } : {}),
+      ...(body.purchasePrice !== undefined ? { purchasePrice: body.purchasePrice } : {}),
+      ...(body.equityAvailable !== undefined ? { equityAvailable: body.equityAvailable } : {}),
+      ...(body.capitalNeed !== undefined ? { capitalNeed: body.capitalNeed } : {}),
+      ...(body.strategy !== undefined ? { strategy: body.strategy } : {}),
+      ...(body.holdingPeriodYears !== undefined ? { holdingPeriodYears: body.holdingPeriodYears } : {}),
+      ...(body.targetReturnPct !== undefined ? { targetReturnPct: body.targetReturnPct } : {}),
+      ...(body.description !== undefined ? { description: body.description } : {}),
+      ...(body.status !== undefined ? { status: body.status } : {}),
+      ...(body.visibility !== undefined ? { visibility: body.visibility } : {})
+    }
+  });
+  return res.json(updated);
+});
+
+// DELETE /me/coinvest-requests/:id
+app.delete("/me/coinvest-requests/:id", async (req, res) => {
+  const owned = await prisma.coInvestRequest.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!owned) return res.status(404).json({ error: "Not found" });
+  await prisma.coInvestRequest.delete({ where: { id: owned.id } });
+  return res.json({ ok: true });
+});
+
+// GET /me/coinvest-requests/:id/matches — passende Kapitalgeber zum Gesuch.
+// Gesuchsteller-Sicht: scored InvestorProfiles (ausser eigenem), die
+// nicht PRIVATE sind. Liefert Score + Breakdown, KEINE Kontaktdaten.
+app.get("/me/coinvest-requests/:id/matches", async (req, res) => {
+  const request = await prisma.coInvestRequest.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!request) return res.status(404).json({ error: "Not found" });
+
+  const profiles = await prisma.investorProfile.findMany({
+    where: {
+      visibility: { not: "PRIVATE" },
+      userId: { not: req.userId! }
+    },
+    include: { user: { select: { id: true, name: true } } }
+  });
+
+  const reqInput = {
+    assetType: request.assetType,
+    location: request.location,
+    capitalNeed: request.capitalNeed,
+    strategy: request.strategy,
+    targetReturnPct: request.targetReturnPct
+  };
+
+  const scored = profiles
+    .map((p) => {
+      const { score, parts } = scoreMatch(reqInput, {
+        preferredAssetTypes: p.preferredAssetTypes,
+        preferredRegions: p.preferredRegions,
+        minTicketSize: p.minTicketSize,
+        maxTicketSize: p.maxTicketSize,
+        investmentExperienceYears: p.investmentExperienceYears
+      });
+      return {
+        score,
+        parts,
+        capitalGiver: {
+          ...publicOwner(p.user, p.visibility),
+          experienceYears: p.investmentExperienceYears,
+          minTicketSize: p.minTicketSize,
+          maxTicketSize: p.maxTicketSize,
+          preferredAssetTypes: p.preferredAssetTypes,
+          preferredRegions: p.visibility === "PUBLIC" ? p.preferredRegions : undefined
+        }
+      };
+    })
+    .filter((m) => m.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 50);
+
+  return res.json({ requestId: request.id, count: scored.length, matches: scored });
+});
+
+// --- Marktplatz + Feed (eingeloggt) ----------------------------------
+
+// GET /coinvest/marketplace — ACTIVE Gesuche, anonymisiert, filterbar.
+app.get("/coinvest/marketplace", async (req, res) => {
+  const assetType =
+    typeof req.query.assetType === "string" ? AssetTypeEnum.safeParse(req.query.assetType) : null;
+  const location = typeof req.query.location === "string" ? req.query.location.trim() : "";
+  const minNeed = Number(req.query.minNeed);
+  const maxNeed = Number(req.query.maxNeed);
+
+  const items = await prisma.coInvestRequest.findMany({
+    where: {
+      status: "ACTIVE",
+      ...(assetType?.success ? { assetType: assetType.data } : {}),
+      ...(location ? { location: { contains: location, mode: "insensitive" } } : {}),
+      ...(Number.isFinite(minNeed) ? { capitalNeed: { gte: minNeed } } : {}),
+      ...(Number.isFinite(maxNeed) ? { capitalNeed: { lte: maxNeed } } : {})
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 100,
+    include: { owner: { select: { id: true, name: true } } }
+  });
+
+  const out = items.map((it) => ({
+    id: it.id,
+    title: it.title,
+    assetType: it.assetType,
+    location: it.location,
+    purchasePrice: it.purchasePrice,
+    capitalNeed: it.capitalNeed,
+    strategy: it.strategy,
+    holdingPeriodYears: it.holdingPeriodYears,
+    targetReturnPct: it.targetReturnPct,
+    description: it.description,
+    createdAt: it.createdAt,
+    owner: publicOwner(it.owner, it.visibility)
+  }));
+  return res.json(out);
+});
+
+// GET /coinvest/marketplace/:id — Gesuch-Detail (nur ACTIVE; Sichtbarkeit beachtet)
+app.get("/coinvest/marketplace/:id", async (req, res) => {
+  const it = await prisma.coInvestRequest.findFirst({
+    where: { id: req.params.id, status: "ACTIVE" },
+    include: { owner: { select: { id: true, name: true } } }
+  });
+  if (!it) return res.status(404).json({ error: "Not found" });
+  return res.json({
+    id: it.id,
+    title: it.title,
+    assetType: it.assetType,
+    location: it.location,
+    purchasePrice: it.purchasePrice,
+    equityAvailable: it.equityAvailable,
+    capitalNeed: it.capitalNeed,
+    strategy: it.strategy,
+    holdingPeriodYears: it.holdingPeriodYears,
+    targetReturnPct: it.targetReturnPct,
+    description: it.description,
+    createdAt: it.createdAt,
+    owner: publicOwner(it.owner, it.visibility)
+  });
+});
+
+// GET /coinvest/feed — personalisiert: ACTIVE Gesuche, gescored gegen
+// mein InvestorProfile (Kapitalgeber-Sicht). Ohne Profil: leeres Ergebnis.
+app.get("/coinvest/feed", async (req, res) => {
+  const profile = await prisma.investorProfile.findUnique({
+    where: { userId: req.userId! }
+  });
+  if (!profile) {
+    return res.json({ hasProfile: false, count: 0, matches: [], hint: "Lege ein Investor-Profil an, um passende Gesuche zu sehen." });
+  }
+
+  const items = await prisma.coInvestRequest.findMany({
+    where: { status: "ACTIVE", ownerId: { not: req.userId! } },
+    orderBy: { updatedAt: "desc" },
+    take: 200,
+    include: { owner: { select: { id: true, name: true } } }
+  });
+
+  const profInput = {
+    preferredAssetTypes: profile.preferredAssetTypes,
+    preferredRegions: profile.preferredRegions,
+    minTicketSize: profile.minTicketSize,
+    maxTicketSize: profile.maxTicketSize,
+    investmentExperienceYears: profile.investmentExperienceYears
+  };
+
+  const scored = items
+    .map((it) => {
+      const { score, parts } = scoreMatch(
+        {
+          assetType: it.assetType,
+          location: it.location,
+          capitalNeed: it.capitalNeed,
+          strategy: it.strategy,
+          targetReturnPct: it.targetReturnPct
+        },
+        profInput
+      );
+      return {
+        score,
+        parts,
+        request: {
+          id: it.id,
+          title: it.title,
+          assetType: it.assetType,
+          location: it.location,
+          purchasePrice: it.purchasePrice,
+          capitalNeed: it.capitalNeed,
+          strategy: it.strategy,
+          holdingPeriodYears: it.holdingPeriodYears,
+          targetReturnPct: it.targetReturnPct,
+          createdAt: it.createdAt,
+          owner: publicOwner(it.owner, it.visibility)
+        }
+      };
+    })
+    .filter((m) => m.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 50);
+
+  return res.json({ hasProfile: true, count: scored.length, matches: scored });
+});
+
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {
-  console.log(`DealFlow AI API listening on http://localhost:${port}`);
+  console.log("DealFlow AI API listening on http://localhost:" + port);
+});
+}`);
 });

@@ -1,1 +1,1 @@
-Objektart (assetType) am Property (Migration) + schaerferes Partner-Matching + Mappe-Anzeige + Admin-Objektarten
+Phase Q1: Co-Investment Hub Fundament - CoInvestRequest-Modell + Migration (20260621120000_coinvest_requests), Matching-Engine (lib/coinvest.ts, 6-Faktor-Score), Backend-Endpunkte (CRUD /me/coinvest-requests, /coinvest/marketplace, /coinvest/feed, /me/coinvest-requests/:id/matches), Frontend /co-investments (Gesuch anlegen/veroeffentlichen, Marktplatz, Feed, Match-Detail) + SideNav-Eintrag. Reine Kontaktvermittlung, kein Crowdfunding.

@@ -347,6 +347,9 @@ model User {
   // Phase O — Capital Layer
   financingRequests     FinancingRequest[]
 
+  // Phase Q — Co-Investment Hub
+  coInvestRequests      CoInvestRequest[]   @relation("CoInvestRequests")
+
   @@index([referredById])
 }
 
@@ -1506,4 +1509,59 @@ model OffmarketLeadImage {
   caption      String?
 
   @@index([leadId, sortOrder])
+}
+
+// =====================================================================
+// Phase Q — Co-Investment Hub
+// Reine Kontakt-/Matching-Plattform: Investoren veroeffentlichen
+// Co-Investment-Gesuche, Kapitalgeber (= bestehendes InvestorProfile)
+// werden per Match-Score zugeordnet. KEIN Crowdfunding, keine
+// Geldannahme, keine Erfolgsprovision. Siehe phase_Q_concept.md.
+// =====================================================================
+
+// Investitionsstrategie eines Co-Investment-Gesuchs.
+enum InvestStrategy {
+  BUY_AND_HOLD
+  FIX_AND_FLIP
+  PROJECT_DEVELOPMENT
+  VALUE_ADD
+  CASHFLOW
+  OTHER
+}
+
+// Lebenszyklus eines Co-Investment-Gesuchs.
+enum CoInvestStatus {
+  DRAFT
+  ACTIVE
+  MATCHED
+  CLOSED
+  ARCHIVED
+}
+
+// Ein Co-Investment-Gesuch: "Ich habe diesen Deal und suche einen
+// Kapital-/Co-Investment-Partner." Gehoert einem User (Owner-Filter).
+model CoInvestRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation("CoInvestRequests", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  title              String
+  assetType          AssetType?
+  location           String          @default("")
+  purchasePrice      Int?
+  equityAvailable    Int?
+  capitalNeed        Int?
+  strategy           InvestStrategy?
+  holdingPeriodYears Int?
+  targetReturnPct    Float?
+  description        String          @default("")
+
+  status     CoInvestStatus    @default(DRAFT)
+  visibility ProfileVisibility @default(ON_REQUEST)
+
+  @@index([ownerId, status])
+  @@index([status, assetType])
 }
