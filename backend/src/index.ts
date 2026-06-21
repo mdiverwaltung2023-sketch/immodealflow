@@ -13,6 +13,7 @@ import {
 } from "./lib/calc.js";
 import { computeFinancingReadiness } from "./lib/financing.js";
 import { scoreMatch } from "./lib/coinvest.js";
+import { computeTrustScore, trustTips, type TrustInput } from "./lib/trust.js";
 import {
   generateOfferWithClaude,
   extractPropertyFromText,
@@ -6722,6 +6723,35 @@ app.delete("/me/coinvest-requests/:id", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// --- Phase Q3 — Trust-Score-Helfer ---
+function trustCompleteness(p: {
+  bio: string | null;
+  equity: number | null;
+  monthlyIncome: number | null;
+  investmentExperienceYears: number;
+  preferredAssetTypes: unknown[];
+  preferredRegions: unknown[];
+  minTicketSize: number | null;
+  maxTicketSize: number | null;
+} | null): number {
+  if (!p) return 0;
+  const fields = [
+    !!p.bio,
+    (p.equity ?? 0) > 0,
+    (p.monthlyIncome ?? 0) > 0,
+    p.investmentExperienceYears > 0,
+    p.preferredAssetTypes.length > 0,
+    p.preferredRegions.length > 0,
+    p.minTicketSize != null,
+    p.maxTicketSize != null
+  ];
+  return fields.filter(Boolean).length / fields.length;
+}
+function avgStars(stars: number[]): number | null {
+  if (stars.length === 0) return null;
+  return Math.round((stars.reduce((a, b) => a + b, 0) / stars.length) * 10) / 10;
+}
+
 // GET /me/coinvest-requests/:id/matches — passende Kapitalgeber zum Gesuch.
 // Gesuchsteller-Sicht: scored InvestorProfiles (ausser eigenem), die
 // nicht PRIVATE sind. Liefert Score + Breakdown, KEINE Kontaktdaten.
@@ -6736,7 +6766,17 @@ app.get("/me/coinvest-requests/:id/matches", async (req, res) => {
       visibility: { not: "PRIVATE" },
       userId: { not: req.userId! }
     },
-    include: { user: { select: { id: true, name: true } } }
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          trackrecordItems: { select: { verifiedBy: true } },
+          ratingsReceived: { select: { stars: true } },
+          _count: { select: { coInvestRequests: true } }
+        }
+      }
+    }
   });
 
   const reqInput = {
@@ -6756,11 +6796,28 @@ app.get("/me/coinvest-requests/:id/matches", async (req, res) => {
         maxTicketSize: p.maxTicketSize,
         investmentExperienceYears: p.investmentExperienceYears
       });
+      const trust = computeTrustScore({
+        hasProfile: true,
+        equity: p.equity,
+        monthlyIncome: p.monthlyIncome,
+        experienceYears: p.investmentExperienceYears,
+        financingPreApproved: p.financingPreApproved,
+        profileCompleteness: trustCompleteness(p),
+        trackrecordCount: p.user.trackrecordItems.length,
+        trackrecordVerifiedCount: p.user.trackrecordItems.filter((t) => !!t.verifiedBy).length,
+        ratingAvg: avgStars(p.user.ratingsReceived.map((r) => r.stars)),
+        ratingCount: p.user.ratingsReceived.length,
+        acceptedDeals: 0,
+        activeRequests: p.user._count.coInvestRequests
+      });
       return {
         score,
         parts,
         capitalGiver: {
           ...publicOwner(p.user, p.visibility),
+          trustScore: trust.score,
+          trustTier: trust.tier,
+          trustBadges: trust.badges,
           experienceYears: p.investmentExperienceYears,
           minTicketSize: p.minTicketSize,
           maxTicketSize: p.maxTicketSize,
@@ -7187,6 +7244,37 @@ app.delete("/me/coinvest-interests/:id/documents/:docId", async (req, res) => {
   if (!doc) return res.status(404).json({ error: "Nicht gefunden" });
   await prisma.coInvestDocument.delete({ where: { id: doc.id } });
   return res.json({ ok: true });
+});
+
+// =====================================================================
+// Phase Q3 — GET /me/trust-score: eigener Score + Breakdown + Tipps
+// =====================================================================
+app.get("/me/trust-score", async (req, res) => {
+  const profile = await prisma.investorProfile.findUnique({ where: { userId: req.userId! } });
+  const [trackrecord, ratings, acceptedDeals, activeRequests] = await Promise.all([
+    prisma.trackrecordItem.findMany({ where: { userId: req.userId! }, select: { verifiedBy: true } }),
+    ratingSummaryFor(req.userId!),
+    prisma.coInvestInterest.count({
+      where: { OR: [{ ownerId: req.userId! }, { fromUserId: req.userId! }], status: "ACCEPTED" }
+    }),
+    prisma.coInvestRequest.count({ where: { ownerId: req.userId!, status: "ACTIVE" } })
+  ]);
+  const input: TrustInput = {
+    hasProfile: !!profile,
+    equity: profile?.equity ?? null,
+    monthlyIncome: profile?.monthlyIncome ?? null,
+    experienceYears: profile?.investmentExperienceYears ?? 0,
+    financingPreApproved: profile?.financingPreApproved ?? false,
+    profileCompleteness: trustCompleteness(profile),
+    trackrecordCount: trackrecord.length,
+    trackrecordVerifiedCount: trackrecord.filter((t) => !!t.verifiedBy).length,
+    ratingAvg: ratings.avg,
+    ratingCount: ratings.count,
+    acceptedDeals,
+    activeRequests
+  };
+  const result = computeTrustScore(input);
+  return res.json({ ...result, hasProfile: input.hasProfile, tips: trustTips(input) });
 });
 
 const port = Number(process.env.PORT ?? 4000);

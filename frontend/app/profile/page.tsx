@@ -2,7 +2,8 @@ import {
   BillingStateSchema,
   InvestorProfileSchema,
   RatingsReceivedResponseSchema,
-  TenantProfileSchema
+  TenantProfileSchema,
+  TrustScoreSchema
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { Card } from "@/components/ui";
@@ -11,10 +12,11 @@ import { ProfileEditor } from "./ProfileEditor";
 import { TenantProfileEditor } from "./TenantProfileEditor";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { BillingCard } from "./BillingCard";
+import { TrustScorePanel } from "./TrustScorePanel";
 
 export default async function ProfilePage() {
   const me = await requireOnboardedUser();
-  const [investorProfile, tenantProfile, ratings, billing] = await Promise.all([
+  const [investorProfile, tenantProfile, ratings, billing, trust] = await Promise.all([
     apiGet("/me/profile", InvestorProfileSchema),
     apiGet("/me/tenant-profile", TenantProfileSchema),
     apiGet("/me/ratings/received", RatingsReceivedResponseSchema),
@@ -23,7 +25,8 @@ export default async function ProfilePage() {
       planValidUntil: null,
       hasSubscription: false,
       stripeReady: false
-    }))
+    })),
+    apiGet("/me/trust-score", TrustScoreSchema).catch(() => null)
   ]);
 
   return (
@@ -38,6 +41,8 @@ export default async function ProfilePage() {
       </div>
 
       <BillingCard billing={billing} />
+
+      {trust ? <TrustScorePanel trust={trust} /> : null}
 
       <Card title="Bewertungen über mich">
         <div className="flex flex-wrap items-center gap-3">

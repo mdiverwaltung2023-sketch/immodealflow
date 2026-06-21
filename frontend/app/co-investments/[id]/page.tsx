@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { CoInvestVisual } from "../CoInvestVisual";
+import { TrustBadge } from "@/components/TrustBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -79,8 +80,13 @@ export default async function CoInvestDetailPage({ params }: { params: { id: str
                     <span className="text-[9px] uppercase">Match</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-slate-900">
-                      {m.capitalGiver.name ?? m.capitalGiver.label ?? "Verifizierter Investor"}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-slate-900">
+                        {m.capitalGiver.name ?? m.capitalGiver.label ?? "Verifizierter Investor"}
+                      </span>
+                      {m.capitalGiver.trustTier ? (
+                        <TrustBadge tier={m.capitalGiver.trustTier} score={m.capitalGiver.trustScore} />
+                      ) : null}
                     </div>
                     <div className="text-sm text-slate-600">
                       Ticket {eur(m.capitalGiver.minTicketSize)} – {eur(m.capitalGiver.maxTicketSize)}

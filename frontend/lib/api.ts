@@ -2059,6 +2059,9 @@ export const CoInvestMatchSchema = z.object({
     name: z.string().optional(),
     label: z.string().optional(),
     verified: z.boolean(),
+    trustScore: z.number().optional(),
+    trustTier: z.enum(["BRONZE", "SILBER", "GOLD", "PLATIN"]).optional(),
+    trustBadges: z.array(z.string()).optional(),
     experienceYears: z.number().nullable().optional(),
     minTicketSize: z.number().nullable().optional(),
     maxTicketSize: z.number().nullable().optional(),
@@ -2160,6 +2163,40 @@ export type CoInvestDocumentT = z.infer<typeof CoInvestDocumentSchema>;
 export const CoInvestDocumentsResponseSchema = z.object({
   documents: z.array(CoInvestDocumentSchema)
 });
+
+// --- Phase Q3 — Investor Trust Score ---
+export const TrustTierEnum = z.enum(["BRONZE", "SILBER", "GOLD", "PLATIN"]);
+export type TrustTierT = z.infer<typeof TrustTierEnum>;
+export const TRUST_TIER_LABELS: Record<TrustTierT, string> = {
+  BRONZE: "Bronze",
+  SILBER: "Silber",
+  GOLD: "Gold",
+  PLATIN: "Platin"
+};
+export const TRUST_BADGE_LABELS: Record<string, string> = {
+  EK_ANGEGEBEN: "Eigenkapital angegeben",
+  FINANZIERUNG_BEREIT: "Finanzierung bereit",
+  ERFAHREN: "Erfahren (5+ J.)",
+  TRACK_RECORD: "Track Record",
+  VERIFIZIERTE_DEALS: "Verifizierte Deals",
+  TOP_BEWERTET: "Top bewertet",
+  AKTIV: "Aktiv"
+};
+export const TRUST_BREAKDOWN_MAX = { verifizierung: 30, trackRecord: 30, bewertungen: 25, aktivitaet: 15 };
+export const TrustScoreSchema = z.object({
+  score: z.number(),
+  tier: TrustTierEnum,
+  badges: z.array(z.string()),
+  breakdown: z.object({
+    verifizierung: z.number(),
+    trackRecord: z.number(),
+    bewertungen: z.number(),
+    aktivitaet: z.number()
+  }),
+  hasProfile: z.boolean(),
+  tips: z.array(z.string())
+});
+export type TrustScoreT = z.infer<typeof TrustScoreSchema>;
 
 export const CoInvestMarketDetailSchema = z.object({
   id: z.string(),
