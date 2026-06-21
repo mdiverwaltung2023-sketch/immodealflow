@@ -2072,3 +2072,98 @@ export const CoInvestMatchesSchema = z.object({
   matches: z.array(CoInvestMatchSchema)
 });
 export type CoInvestMatchesT = z.infer<typeof CoInvestMatchesSchema>;
+
+// --- Phase Q2 — Interesse + Deal-Room ---
+
+export const CoInvestInterestStatusEnum = z.enum(["PENDING", "ACCEPTED", "DECLINED", "WITHDRAWN"]);
+export type CoInvestInterestStatusT = z.infer<typeof CoInvestInterestStatusEnum>;
+export const COINVEST_INTEREST_STATUS_LABELS: Record<CoInvestInterestStatusT, string> = {
+  PENDING: "Offen",
+  ACCEPTED: "Angenommen",
+  DECLINED: "Abgelehnt",
+  WITHDRAWN: "Zurückgezogen"
+};
+
+export const CoInvestInterestRequestSchema = z.object({
+  id: z.string(),
+  kind: CoInvestKindEnum.default("GENERAL"),
+  title: z.string(),
+  imageUrl: z.string().nullable().optional(),
+  assetType: AssetTypeEnum.nullable().optional(),
+  location: z.string(),
+  purchasePrice: z.number().nullable().optional(),
+  capitalNeed: z.number().nullable().optional(),
+  strategy: InvestStrategyEnum.nullable().optional(),
+  targetReturnPct: z.number().nullable().optional()
+});
+export type CoInvestInterestRequestT = z.infer<typeof CoInvestInterestRequestSchema>;
+
+const CoInvestPartySchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  label: z.string().optional()
+});
+
+export const CoInvestInterestReceivedSchema = z.object({
+  id: z.string(),
+  status: CoInvestInterestStatusEnum,
+  createdAt: z.string(),
+  fromNote: z.string().nullable().optional(),
+  request: CoInvestInterestRequestSchema,
+  fromUser: CoInvestPartySchema
+});
+export const CoInvestInterestReceivedListSchema = z.array(CoInvestInterestReceivedSchema);
+export type CoInvestInterestReceivedT = z.infer<typeof CoInvestInterestReceivedSchema>;
+
+export const CoInvestInterestSentSchema = z.object({
+  id: z.string(),
+  status: CoInvestInterestStatusEnum,
+  createdAt: z.string(),
+  request: CoInvestInterestRequestSchema,
+  owner: CoInvestPartySchema
+});
+export const CoInvestInterestSentListSchema = z.array(CoInvestInterestSentSchema);
+export type CoInvestInterestSentT = z.infer<typeof CoInvestInterestSentSchema>;
+
+export const CoInvestInterestDetailSchema = z.object({
+  id: z.string(),
+  status: CoInvestInterestStatusEnum,
+  createdAt: z.string(),
+  iAmOwner: z.boolean(),
+  fromNote: z.string().nullable().optional(),
+  ownerNote: z.string().nullable().optional(),
+  request: CoInvestInterestRequestSchema,
+  counterpart: z.object({ name: z.string(), role: z.string() }).nullable()
+});
+export type CoInvestInterestDetailT = z.infer<typeof CoInvestInterestDetailSchema>;
+
+export const CoInvestMessageSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  interestId: z.string(),
+  senderId: z.string(),
+  body: z.string(),
+  readAt: z.string().nullable().optional()
+});
+export type CoInvestMessageT = z.infer<typeof CoInvestMessageSchema>;
+
+export const CoInvestMarketDetailSchema = z.object({
+  id: z.string(),
+  kind: CoInvestKindEnum.default("GENERAL"),
+  title: z.string(),
+  imageUrl: z.string().nullable().optional(),
+  assetType: AssetTypeEnum.nullable().optional(),
+  location: z.string(),
+  purchasePrice: z.number().nullable().optional(),
+  equityAvailable: z.number().nullable().optional(),
+  capitalNeed: z.number().nullable().optional(),
+  strategy: InvestStrategyEnum.nullable().optional(),
+  holdingPeriodYears: z.number().nullable().optional(),
+  targetReturnPct: z.number().nullable().optional(),
+  description: z.string().optional(),
+  createdAt: z.string(),
+  owner: CoInvestOwnerSchema,
+  isOwner: z.boolean(),
+  myInterest: z.object({ id: z.string(), status: CoInvestInterestStatusEnum }).nullable()
+});
+export type CoInvestMarketDetailT = z.infer<typeof CoInvestMarketDetailSchema>;

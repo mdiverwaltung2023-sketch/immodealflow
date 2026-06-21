@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   ASSET_TYPE_LABELS,
@@ -67,9 +68,10 @@ export function MarketplaceExplorer({ items }: { items: CoInvestMarketItemT[] })
       ) : (
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((r) => (
-            <li
-              key={r.id}
-              className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+            <li key={r.id}>
+            <Link
+              href={`/co-investments/marketplace/${r.id}`}
+              className="group block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               <div className="relative">
                 <CoInvestVisual imageUrl={r.imageUrl} assetType={r.assetType} title={r.title} />
@@ -125,6 +127,7 @@ export function MarketplaceExplorer({ items }: { items: CoInvestMarketItemT[] })
                   <span className="text-xs text-slate-400">{ownerLabel(r.owner)}</span>
                 </div>
               </div>
+            </Link>
             </li>
           ))}
         </ul>

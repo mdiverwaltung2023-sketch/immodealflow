@@ -6825,6 +6825,10 @@ app.get("/coinvest/marketplace/:id", async (req, res) => {
     include: { owner: { select: { id: true, name: true } } }
   });
   if (!it) return res.status(404).json({ error: "Not found" });
+  const myInterest = await prisma.coInvestInterest.findUnique({
+    where: { uniq_coinvest_interest: { requestId: it.id, fromUserId: req.userId! } },
+    select: { id: true, status: true }
+  });
   return res.json({
     id: it.id,
     kind: it.kind,
@@ -6840,7 +6844,9 @@ app.get("/coinvest/marketplace/:id", async (req, res) => {
     targetReturnPct: it.targetReturnPct,
     description: it.description,
     createdAt: it.createdAt,
-    owner: publicOwner(it.owner, it.visibility)
+    owner: publicOwner(it.owner, it.visibility),
+    isOwner: it.ownerId === req.userId!,
+    myInterest: myInterest ?? null
   });
 });
 
@@ -6906,6 +6912,218 @@ app.get("/coinvest/feed", async (req, res) => {
     .slice(0, 50);
 
   return res.json({ hasProfile: true, count: scored.length, matches: scored });
+});
+
+// =====================================================================
+// Phase Q2 — Co-Investment Interesse + Deal-Room (Chat, Polling)
+// Analog Offmarket-Invite/Message. Owner = Gesuchsteller, fromUser =
+// Kapitalgeber. Kontaktdaten/Chat erst nach ACCEPTED.
+// =====================================================================
+
+const CoInvestInterestCreateSchema = z.object({
+  note: z.string().max(2000).optional().nullable()
+});
+const CoInvestRespondSchema = z.object({
+  action: z.enum(["ACCEPT", "DECLINE"]),
+  note: z.string().max(2000).optional().nullable()
+});
+const CoInvestMsgBodySchema = z.object({
+  body: z.string().min(1).max(8000)
+});
+
+function interestRequestView(r: {
+  id: string; kind: string; title: string; imageUrl: string | null;
+  assetType: unknown; location: string; purchasePrice: number | null;
+  capitalNeed: number | null; strategy: unknown; targetReturnPct: number | null;
+}) {
+  return {
+    id: r.id, kind: r.kind, title: r.title, imageUrl: r.imageUrl,
+    assetType: r.assetType, location: r.location, purchasePrice: r.purchasePrice,
+    capitalNeed: r.capitalNeed, strategy: r.strategy, targetReturnPct: r.targetReturnPct
+  };
+}
+
+// POST /coinvest/marketplace/:id/interest — Kapitalgeber bekundet Interesse
+app.post("/coinvest/marketplace/:id/interest", async (req, res) => {
+  const body = CoInvestInterestCreateSchema.parse(req.body);
+  const request = await prisma.coInvestRequest.findFirst({
+    where: { id: req.params.id, status: "ACTIVE" }
+  });
+  if (!request) return res.status(404).json({ error: "Gesuch nicht gefunden oder nicht aktiv" });
+  if (request.ownerId === req.userId!) {
+    return res.status(400).json({ error: "Eigenes Gesuch — kein Interesse moeglich" });
+  }
+  const existing = await prisma.coInvestInterest.findUnique({
+    where: { uniq_coinvest_interest: { requestId: request.id, fromUserId: req.userId! } }
+  });
+  if (existing) {
+    return res.json({ ok: true, id: existing.id, status: existing.status, already: true });
+  }
+  const created = await prisma.coInvestInterest.create({
+    data: {
+      requestId: request.id,
+      ownerId: request.ownerId,
+      fromUserId: req.userId!,
+      fromNote: body.note ?? null,
+      status: "PENDING"
+    }
+  });
+  await prisma.userNotification.create({
+    data: {
+      userId: request.ownerId,
+      kind: "INQUIRY_RECEIVED",
+      title: "Neues Interesse an deinem Co-Investment-Gesuch",
+      body: `Ein Kapitalpartner hat Interesse an "${request.title}" bekundet.`,
+      link: `/co-investments/deal/${created.id}`,
+      payloadJson: { interestId: created.id, requestId: request.id }
+    }
+  });
+  return res.status(201).json({ ok: true, id: created.id, status: created.status });
+});
+
+// GET /me/coinvest-interests/received — Interessen auf MEINE Gesuche (Gesuchsteller)
+app.get("/me/coinvest-interests/received", async (req, res) => {
+  const items = await prisma.coInvestInterest.findMany({
+    where: { ownerId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: { request: true, fromUser: { select: { id: true, name: true } } }
+  });
+  const out = items.map((it) => ({
+    id: it.id,
+    status: it.status,
+    createdAt: it.createdAt,
+    fromNote: it.fromNote,
+    request: interestRequestView(it.request),
+    fromUser: it.status === "ACCEPTED"
+      ? { id: it.fromUser.id, name: it.fromUser.name ?? "Investor" }
+      : { label: "Interessent" }
+  }));
+  return res.json(out);
+});
+
+// GET /me/coinvest-interests/sent — Interessen, die ICH bekundet habe (Kapitalgeber)
+app.get("/me/coinvest-interests/sent", async (req, res) => {
+  const items = await prisma.coInvestInterest.findMany({
+    where: { fromUserId: req.userId! },
+    orderBy: { createdAt: "desc" },
+    include: { request: { include: { owner: { select: { id: true, name: true } } } } }
+  });
+  const out = items.map((it) => ({
+    id: it.id,
+    status: it.status,
+    createdAt: it.createdAt,
+    request: interestRequestView(it.request),
+    owner: it.status === "ACCEPTED"
+      ? { id: it.request.owner?.id ?? "", name: it.request.owner?.name ?? "Gesuchsteller" }
+      : { label: "Gesuchsteller" }
+  }));
+  return res.json(out);
+});
+
+// GET /me/coinvest-interests/:id — Detail (Teilnehmer: Owner oder fromUser)
+app.get("/me/coinvest-interests/:id", async (req, res) => {
+  const it = await prisma.coInvestInterest.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId! }, { fromUserId: req.userId! }] },
+    include: {
+      request: { include: { owner: { select: { id: true, name: true } } } },
+      fromUser: { select: { id: true, name: true } }
+    }
+  });
+  if (!it) return res.status(404).json({ error: "Nicht gefunden" });
+  const iAmOwner = it.ownerId === req.userId!;
+  const accepted = it.status === "ACCEPTED";
+  return res.json({
+    id: it.id,
+    status: it.status,
+    createdAt: it.createdAt,
+    iAmOwner,
+    fromNote: it.fromNote,
+    ownerNote: it.ownerNote,
+    request: interestRequestView(it.request),
+    counterpart: accepted
+      ? (iAmOwner
+          ? { name: it.fromUser.name ?? "Investor", role: "Kapitalpartner" }
+          : { name: it.request.owner?.name ?? "Gesuchsteller", role: "Gesuchsteller" })
+      : null
+  });
+});
+
+// POST /me/coinvest-interests/:id/respond — Gesuchsteller nimmt an / lehnt ab
+app.post("/me/coinvest-interests/:id/respond", async (req, res) => {
+  const it = await prisma.coInvestInterest.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    include: { request: { select: { title: true } } }
+  });
+  if (!it) return res.status(404).json({ error: "Nicht gefunden" });
+  if (it.status !== "PENDING") return res.status(400).json({ error: "Bereits beantwortet" });
+  const body = CoInvestRespondSchema.parse(req.body);
+  const updated = await prisma.coInvestInterest.update({
+    where: { id: it.id },
+    data: {
+      status: body.action === "ACCEPT" ? "ACCEPTED" : "DECLINED",
+      ownerNote: body.note ?? null,
+      respondedAt: new Date()
+    }
+  });
+  if (updated.status === "ACCEPTED") {
+    await prisma.userNotification.create({
+      data: {
+        userId: it.fromUserId,
+        kind: "INQUIRY_RECEIVED",
+        title: "Dein Interesse wurde angenommen",
+        body: `Der Gesuchsteller von "${it.request.title}" hat den Deal-Room freigeschaltet.`,
+        link: `/co-investments/deal/${it.id}`,
+        payloadJson: { interestId: it.id }
+      }
+    });
+  }
+  return res.json({ ok: true, status: updated.status });
+});
+
+// POST /me/coinvest-interests/:id/withdraw — Kapitalgeber zieht zurueck
+app.post("/me/coinvest-interests/:id/withdraw", async (req, res) => {
+  const it = await prisma.coInvestInterest.findFirst({
+    where: { id: req.params.id, fromUserId: req.userId! }
+  });
+  if (!it) return res.status(404).json({ error: "Nicht gefunden" });
+  if (it.status !== "PENDING") return res.status(400).json({ error: "Nicht mehr offen" });
+  await prisma.coInvestInterest.update({
+    where: { id: it.id },
+    data: { status: "WITHDRAWN", respondedAt: new Date() }
+  });
+  return res.json({ ok: true });
+});
+
+// GET /me/coinvest-interests/:id/messages — Deal-Room-Chat (nur ACCEPTED)
+app.get("/me/coinvest-interests/:id/messages", async (req, res) => {
+  const it = await prisma.coInvestInterest.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId! }, { fromUserId: req.userId! }] }
+  });
+  if (!it) return res.status(404).json({ error: "Nicht gefunden" });
+  if (it.status !== "ACCEPTED") return res.status(403).json({ error: "Chat erst nach Annahme freigegeben" });
+  const messages = await prisma.coInvestMessage.findMany({
+    where: { interestId: it.id },
+    orderBy: { createdAt: "asc" }
+  });
+  await prisma.coInvestMessage.updateMany({
+    where: { interestId: it.id, senderId: { not: req.userId! }, readAt: null },
+    data: { readAt: new Date() }
+  });
+  return res.json({ messages });
+});
+
+// POST /me/coinvest-interests/:id/messages — neue Nachricht (nur ACCEPTED)
+app.post("/me/coinvest-interests/:id/messages", async (req, res) => {
+  const it = await prisma.coInvestInterest.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId! }, { fromUserId: req.userId! }] }
+  });
+  if (!it) return res.status(404).json({ error: "Nicht gefunden" });
+  if (it.status !== "ACCEPTED") return res.status(403).json({ error: "Chat erst nach Annahme freigegeben" });
+  const body = CoInvestMsgBodySchema.parse(req.body);
+  const msg = await prisma.coInvestMessage.create({
+    data: { interestId: it.id, senderId: req.userId!, body: body.body }
+  });
+  return res.status(201).json(msg);
 });
 
 const port = Number(process.env.PORT ?? 4000);

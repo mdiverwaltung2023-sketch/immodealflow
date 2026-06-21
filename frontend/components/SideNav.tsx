@@ -261,7 +261,8 @@ const SECTION_COINVEST: Section = {
   items: [
     { href: "/co-investments", label: "Co-Investment-Marktplatz", icon: IcBuildings, exact: true },
     { href: "/co-investments/neu", label: "Gesuch anlegen", icon: IcPlus },
-    { href: "/co-investments/meine", label: "Meine Gesuche", icon: IcList }
+    { href: "/co-investments/meine", label: "Meine Gesuche", icon: IcList },
+    { href: "/co-investments/interests", label: "Anfragen & Deal-Rooms", icon: IcInbox }
   ]
 };
 

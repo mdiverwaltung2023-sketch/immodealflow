@@ -349,6 +349,9 @@ model User {
 
   // Phase Q — Co-Investment Hub
   coInvestRequests      CoInvestRequest[]   @relation("CoInvestRequests")
+  coInvestInterestsRecv CoInvestInterest[]  @relation("CoInvestInterestsReceivedByOwner")
+  coInvestInterestsSent CoInvestInterest[]  @relation("CoInvestInterestsSentByUser")
+  coInvestMessages      CoInvestMessage[]   @relation("CoInvestMessageSender")
 
   @@index([referredById])
 }
@@ -1545,6 +1548,14 @@ enum CoInvestKind {
   OBJECT
 }
 
+// Lebenszyklus einer Interessenbekundung auf ein Gesuch (Phase Q2).
+enum CoInvestInterestStatus {
+  PENDING     // Kapitalgeber hat Interesse bekundet, Antwort offen
+  ACCEPTED    // Gesuchsteller hat angenommen -> Deal-Room/Chat frei
+  DECLINED    // Gesuchsteller hat abgelehnt
+  WITHDRAWN   // Kapitalgeber hat zurueckgezogen
+}
+
 // Ein Co-Investment-Gesuch: "Ich habe diesen Deal und suche einen
 // Kapital-/Co-Investment-Partner." Gehoert einem User (Owner-Filter).
 model CoInvestRequest {
@@ -1571,6 +1582,56 @@ model CoInvestRequest {
   status     CoInvestStatus    @default(DRAFT)
   visibility ProfileVisibility @default(ON_REQUEST)
 
+  interests CoInvestInterest[]
+
   @@index([ownerId, status])
   @@index([status, assetType])
+}
+
+// Phase Q2 — Interessenbekundung eines Kapitalgebers auf ein Gesuch.
+// Analog OffmarketInvite: PENDING -> ACCEPTED/DECLINED -> Deal-Room (Chat).
+model CoInvestInterest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requestId String
+  request   CoInvestRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  // Owner = Gesuchsteller (denormalisiert fuer schnellen Owner-Filter)
+  ownerId   String
+  owner     User @relation("CoInvestInterestsReceivedByOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // fromUser = Kapitalgeber, der Interesse bekundet
+  fromUserId String
+  fromUser   User @relation("CoInvestInterestsSentByUser", fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  status      CoInvestInterestStatus @default(PENDING)
+  fromNote    String?   // Vorstellungstext des Kapitalgebers
+  ownerNote   String?   // Antworttext des Gesuchstellers bei ACCEPT/DECLINE
+  respondedAt DateTime?
+
+  messages    CoInvestMessage[]
+
+  // Pro (Gesuch, Kapitalgeber) genau eine Interessenbekundung.
+  @@unique([requestId, fromUserId], name: "uniq_coinvest_interest")
+  @@index([fromUserId, status])
+  @@index([ownerId, status])
+}
+
+// Phase Q2 — Deal-Room-Nachricht (1:1-Chat, Polling). Analog OffmarketMessage.
+model CoInvestMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  interestId String
+  interest   CoInvestInterest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  senderId  String
+  sender    User     @relation("CoInvestMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  body      String
+  readAt    DateTime?
+
+  @@index([interestId, createdAt])
 }
