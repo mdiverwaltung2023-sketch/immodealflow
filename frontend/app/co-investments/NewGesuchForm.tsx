@@ -7,8 +7,10 @@ import {
   ASSET_TYPE_LABELS,
   INVEST_STRATEGY_LABELS,
   type AssetTypeT,
-  type InvestStrategyT
+  type InvestStrategyT,
+  type CoInvestKindT
 } from "@/lib/api";
+import { CoInvestVisual } from "./CoInvestVisual";
 
 const inputCls =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500";
@@ -23,13 +25,16 @@ function toFloatOrUndef(v: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-export function NewGesuchForm() {
+export function NewGesuchForm({ redirectOnSuccess = true }: { redirectOnSuccess?: boolean }) {
   const apiFetch = useApiFetch();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [kind, setKind] = useState<CoInvestKindT>("OBJECT");
   const [title, setTitle] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [assetType, setAssetType] = useState("");
   const [location, setLocation] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
@@ -40,6 +45,27 @@ export function NewGesuchForm() {
   const [targetReturnPct, setTargetReturnPct] = useState("");
   const [description, setDescription] = useState("");
 
+  const isObject = kind === "OBJECT";
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-image", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Upload fehlgeschlagen (${res.status})`);
+      setImageUrl(data.url as string);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload fehlgeschlagen");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -49,7 +75,8 @@ export function NewGesuchForm() {
     }
     setSaving(true);
     try {
-      const body: Record<string, unknown> = { title: title.trim() };
+      const body: Record<string, unknown> = { kind, title: title.trim() };
+      if (isObject && imageUrl) body.imageUrl = imageUrl;
       if (assetType) body.assetType = assetType;
       if (location.trim()) body.location = location.trim();
       const pp = toIntOrUndef(purchasePrice);
@@ -71,7 +98,12 @@ export function NewGesuchForm() {
       });
       if (!res.ok) throw new Error(`Speichern fehlgeschlagen (${res.status})`);
 
-      setTitle(""); setAssetType(""); setLocation(""); setPurchasePrice("");
+      if (redirectOnSuccess) {
+        router.push("/co-investments/meine");
+        router.refresh();
+        return;
+      }
+      setTitle(""); setImageUrl(""); setAssetType(""); setLocation(""); setPurchasePrice("");
       setEquityAvailable(""); setCapitalNeed(""); setStrategy("");
       setHoldingPeriodYears(""); setTargetReturnPct(""); setDescription("");
       router.refresh();
@@ -83,12 +115,65 @@ export function NewGesuchForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="space-y-5">
+      {/* Art des Gesuchs */}
+      <div>
+        <label className={labelCls}>Art des Gesuchs</label>
+        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <button
+            type="button"
+            onClick={() => setKind("OBJECT")}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+              isObject ? "bg-white text-teal-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Konkretes Objekt
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind("GENERAL")}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+              !isObject ? "bg-white text-teal-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Allgemeine Suche
+          </button>
+        </div>
+        <p className="mt-1.5 text-xs text-slate-500">
+          {isObject
+            ? "Du hast einen konkreten Deal und suchst Kapital-/Co-Investment-Partner — mit Bild und Eckdaten."
+            : "Du suchst allgemein nach Co-Investment-Gelegenheiten nach deinen Kriterien — ohne konkretes Objekt."}
+        </p>
+      </div>
+
       <div>
         <label className={labelCls}>Titel *</label>
         <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)}
-          placeholder="z. B. MFH Leipzig-Plagwitz, 12 Einheiten" />
+          placeholder={isObject ? "z. B. MFH Leipzig-Plagwitz, 12 Einheiten" : "z. B. Suche Value-Add MFH in Sachsen, Ticket 250–500k"} />
       </div>
+
+      {/* Bild nur fuer Objekt-Gesuche */}
+      {isObject && (
+        <div>
+          <label className={labelCls}>Objektbild</label>
+          <div className="flex items-center gap-4">
+            <div className="w-40 shrink-0">
+              <CoInvestVisual imageUrl={imageUrl || null} assetType={assetType || null} heightCls="h-24" rounded="rounded-lg" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="inline-block cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                {uploading ? "Lädt …" : imageUrl ? "Bild ersetzen" : "Bild hochladen"}
+                <input type="file" accept="image/*" className="hidden" onChange={onPickImage} disabled={uploading} />
+              </label>
+              {imageUrl && (
+                <button type="button" onClick={() => setImageUrl("")}
+                  className="ml-2 text-xs text-slate-400 hover:text-red-500">entfernen</button>
+              )}
+              <p className="text-xs text-slate-400">JPG/PNG, bis 4 MB. Ohne Bild zeigen wir eine Objektart-Grafik.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
@@ -101,7 +186,7 @@ export function NewGesuchForm() {
           </select>
         </div>
         <div>
-          <label className={labelCls}>Standort</label>
+          <label className={labelCls}>{isObject ? "Standort" : "Wunsch-Region"}</label>
           <input className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)}
             placeholder="z. B. Leipzig / Sachsen" />
         </div>
@@ -117,18 +202,20 @@ export function NewGesuchForm() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <label className={labelCls}>Kaufpreis (€)</label>
-          <input className={inputCls} value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)}
-            inputMode="numeric" placeholder="1.800.000" />
-        </div>
+        {isObject && (
+          <div>
+            <label className={labelCls}>Kaufpreis (€)</label>
+            <input className={inputCls} value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)}
+              inputMode="numeric" placeholder="1.800.000" />
+          </div>
+        )}
         <div>
           <label className={labelCls}>Eigenkapital vorhanden (€)</label>
           <input className={inputCls} value={equityAvailable} onChange={(e) => setEquityAvailable(e.target.value)}
             inputMode="numeric" placeholder="300.000" />
         </div>
         <div>
-          <label className={labelCls}>Kapitalbedarf (€)</label>
+          <label className={labelCls}>{isObject ? "Kapitalbedarf (€)" : "Gewünschtes Ticket (€)"}</label>
           <input className={inputCls} value={capitalNeed} onChange={(e) => setCapitalNeed(e.target.value)}
             inputMode="numeric" placeholder="450.000" />
         </div>
@@ -150,13 +237,13 @@ export function NewGesuchForm() {
       <div>
         <label className={labelCls}>Beschreibung</label>
         <textarea className={inputCls} rows={4} value={description} onChange={(e) => setDescription(e.target.value)}
-          placeholder="Objekt, Strategie, was du vom Partner suchst …" />
+          placeholder={isObject ? "Objekt, Strategie, was du vom Partner suchst …" : "Welche Gelegenheiten suchst du? Erfahrung, Beteiligungsmodell, was du einbringst …"} />
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={saving}
+        <button type="submit" disabled={saving || uploading}
           className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
           {saving ? "Speichern …" : "Gesuch als Entwurf anlegen"}
         </button>

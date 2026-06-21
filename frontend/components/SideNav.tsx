@@ -26,6 +26,7 @@ type Section = {
     | "overview"
     | "investor"
     | "financing"
+    | "coinvest"
     | "seller"
     | "landlord"
     | "rentSearch"
@@ -36,7 +37,7 @@ type Section = {
   title: string;
   items: Item[];
   /** Optionaler Farb-Akzent fuer hervorgehobene Sektionen */
-  accent?: "offmarket" | "capital";
+  accent?: "offmarket" | "capital" | "coinvest";
 };
 
 /** Akzent-Styles fuer hervorgehobene Sektionen (Offmarket=Gold, Capital=Gruen). */
@@ -60,6 +61,16 @@ const ACCENTS = {
     itemIdle: "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-emerald-50 hover:text-emerald-900",
     iconActive: "text-emerald-600",
     iconIdle: "text-emerald-500/80"
+  },
+  coinvest: {
+    wrap: "rounded-xl border border-teal-300/70 bg-gradient-to-b from-teal-50/80 to-white px-1 py-2 shadow-sm",
+    title: "px-3 mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-700",
+    dot: "bg-teal-500",
+    dotShadow: "0 0 6px 1px rgba(20, 184, 166, 0.55)",
+    itemActive: "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-teal-100/80 text-teal-900",
+    itemIdle: "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-teal-50 hover:text-teal-900",
+    iconActive: "text-teal-600",
+    iconIdle: "text-teal-500/80"
   }
 } as const;
 
@@ -192,6 +203,13 @@ const IcEnvelope = (
     <path d="M3 7l9 7 9-7" />
   </Icon>
 );
+const IcBuildings = (
+  <Icon>
+    <rect x="3" y="9" width="8" height="12" rx="1" />
+    <path d="M11 21h10V4a1 1 0 00-1-1h-7a1 1 0 00-1 1v5" />
+    <path d="M6 13h2M6 17h2M15 7h2M15 11h2M15 15h2" />
+  </Icon>
+);
 const IcBank = (
   <Icon>
     <path d="M3 10l9-6 9 6" />
@@ -213,7 +231,6 @@ const SECTION_INVESTOR: Section = {
   title: "Als Investor (kaufen)",
   items: [
     { href: "/marketplace", label: "Marketplace", icon: IcStore },
-    { href: "/co-investments", label: "Co-Investment Hub", icon: IcRadar },
     { href: "/inquiries", label: "Meine Anfragen", icon: IcInbox },
     { href: "/empfangene-freigaben", label: "Erhaltene Unterlagen", icon: IcInbox },
     { href: "/auctions", label: "Versteigerungen", icon: IcGavel },
@@ -231,6 +248,20 @@ const SECTION_FINANCING: Section = {
   accent: "capital",
   items: [
     { href: "/finanzierung", label: "Finanzierungs-Cockpit", icon: IcBank, exact: true }
+  ]
+};
+
+// --- Phase Q — Co-Investment Hub -----------------------------------
+// Eigene, teal akzentuierte Saeule. Partnersuche fuer Co-Investments
+// soll als eigenstaendiger Bereich sichtbar sein, nicht als Unterpunkt.
+const SECTION_COINVEST: Section = {
+  id: "coinvest",
+  title: "Co-Investment · Partner finden",
+  accent: "coinvest",
+  items: [
+    { href: "/co-investments", label: "Co-Investment-Marktplatz", icon: IcBuildings, exact: true },
+    { href: "/co-investments/neu", label: "Gesuch anlegen", icon: IcPlus },
+    { href: "/co-investments/meine", label: "Meine Gesuche", icon: IcList }
   ]
 };
 
@@ -330,6 +361,7 @@ function sectionsForMode(mode: ViewMode): Section[] {
       return [
         SECTION_OVERVIEW,
         SECTION_INVESTOR,
+        SECTION_COINVEST,
         SECTION_FINANCING,
         SECTION_OFFMARKET_INVESTOR,
         SECTION_ACCOUNT

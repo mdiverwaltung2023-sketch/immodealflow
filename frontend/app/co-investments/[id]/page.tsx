@@ -4,9 +4,11 @@ import {
   CoInvestRequestSchema,
   CoInvestMatchesSchema,
   ASSET_TYPE_LABELS,
-  INVEST_STRATEGY_LABELS
+  INVEST_STRATEGY_LABELS,
+  COINVEST_KIND_LABELS
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
+import { CoInvestVisual } from "../CoInvestVisual";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +38,14 @@ export default async function CoInvestDetailPage({ params }: { params: { id: str
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
       <Link href="/co-investments" className="text-sm text-teal-700 hover:underline">← Zurück zum Hub</Link>
 
-      <header className="mt-3 mb-6">
+      <div className="relative mt-3 overflow-hidden rounded-2xl border border-slate-200">
+        <CoInvestVisual imageUrl={request.imageUrl} assetType={request.assetType} title={request.title} heightCls="h-44" rounded="" />
+        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-teal-700 shadow-sm">
+          {COINVEST_KIND_LABELS[request.kind]}
+        </span>
+      </div>
+
+      <header className="mt-4 mb-6">
         <h1 className="text-2xl font-bold text-slate-900">{request.title}</h1>
         <p className="mt-1 text-sm text-slate-600">
           {assetLabel(request.assetType)} · {request.location || "—"}

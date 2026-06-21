@@ -3,15 +3,14 @@ import {
   CoInvestRequestListSchema,
   CoInvestMarketListSchema,
   CoInvestFeedSchema,
-  COINVEST_STATUS_LABELS,
-  INVEST_STRATEGY_LABELS,
   ASSET_TYPE_LABELS,
+  INVEST_STRATEGY_LABELS,
   type CoInvestRequestT,
   type CoInvestMarketItemT
 } from "@/lib/api";
 import { apiGet, requireOnboardedUser } from "@/lib/api-server";
-import { NewGesuchForm } from "./NewGesuchForm";
-import { PublishButtons } from "./PublishButtons";
+import { CoInvestVisual } from "./CoInvestVisual";
+import { MarketplaceExplorer } from "./MarketplaceExplorer";
 
 export const dynamic = "force-dynamic";
 
@@ -19,14 +18,9 @@ function eur(n: number | null | undefined): string {
   if (n == null) return "—";
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
-
 function assetLabel(t: string | null | undefined): string {
   if (!t) return "—";
   return (ASSET_TYPE_LABELS as Record<string, string>)[t] ?? t;
-}
-
-function ownerLabel(o: CoInvestMarketItemT["owner"]): string {
-  return o.name ?? o.label ?? "Investor";
 }
 
 export default async function CoInvestmentsPage() {
@@ -38,79 +32,79 @@ export default async function CoInvestmentsPage() {
     apiGet("/coinvest/feed", CoInvestFeedSchema).catch(() => ({ hasProfile: false, count: 0, matches: [] as const }))
   ]);
 
+  const topMatches = feed.hasProfile ? feed.matches.slice(0, 3) : [];
+
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Co-Investment Hub</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Veröffentliche Co-Investment-Gesuche und finde passende Kapitalpartner. Oikos stellt nur den
-          Kontakt her — keine Anlagevermittlung, keine Kapitalabwicklung. Die Prüfung und der Abschluss
-          liegen allein bei den Beteiligten.
-        </p>
-      </header>
-
-      {/* Neues Gesuch */}
-      <section className="mb-10 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold text-slate-900">Neues Gesuch anlegen</h2>
-        <NewGesuchForm />
-      </section>
-
-      {/* Eigene Gesuche */}
-      <section className="mb-10">
-        <h2 className="mb-3 text-lg font-semibold text-slate-900">Meine Gesuche</h2>
-        {own.length === 0 ? (
-          <p className="text-sm text-slate-500">Noch keine Gesuche. Lege oben dein erstes an.</p>
-        ) : (
-          <ul className="space-y-3">
-            {own.map((r) => (
-              <li key={r.id} className="rounded-lg border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <span className="font-medium text-slate-900">{r.title}</span>
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                      {COINVEST_STATUS_LABELS[r.status]}
-                    </span>
-                  </div>
-                  <PublishButtons id={r.id} status={r.status} />
-                </div>
-                <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-slate-600 sm:grid-cols-4">
-                  <div><dt className="text-xs text-slate-400">Objektart</dt><dd>{assetLabel(r.assetType)}</dd></div>
-                  <div><dt className="text-xs text-slate-400">Standort</dt><dd>{r.location || "—"}</dd></div>
-                  <div><dt className="text-xs text-slate-400">Kapitalbedarf</dt><dd>{eur(r.capitalNeed)}</dd></div>
-                  <div><dt className="text-xs text-slate-400">Rendite-Erw.</dt><dd>{r.targetReturnPct != null ? `${r.targetReturnPct} %` : "—"}</dd></div>
-                </dl>
-                <Link href={`/co-investments/${r.id}`} className="mt-2 inline-block text-sm font-medium text-teal-700 hover:underline">
-                  Passende Kapitalgeber ansehen →
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+    <main className="mx-auto w-full max-w-6xl px-4 py-8">
+      {/* Hero */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-700 via-teal-800 to-emerald-900 p-7 text-white shadow-lg sm:p-9">
+        <svg className="pointer-events-none absolute -right-8 -top-8 h-56 w-56 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+          <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
+        </svg>
+        <div className="relative max-w-2xl">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.15em] backdrop-blur-sm">
+            Co-Investment Hub
+          </span>
+          <h1 className="mt-3 text-3xl font-bold leading-tight sm:text-4xl">
+            Finde Partner für deine Immobilien-Deals
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-teal-50/90 sm:text-base">
+            Veröffentliche konkrete Objekte oder eine allgemeine Suche und finde passende Kapitalpartner.
+            Oikos stellt nur den Kontakt her — keine Anlagevermittlung, keine Kapitalabwicklung.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/co-investments/neu"
+              className="rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-teal-800 shadow-sm transition hover:bg-teal-50">
+              + Gesuch anlegen
+            </Link>
+            <Link href="/co-investments/meine"
+              className="rounded-lg border border-white/40 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10">
+              Meine Gesuche ({own.length})
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* Personalisierter Feed */}
-      <section className="mb-10">
-        <h2 className="mb-3 text-lg font-semibold text-slate-900">Für mich passende Gesuche</h2>
+      <section className="mt-9">
+        <div className="mb-4 flex items-end justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Für dich passende Gesuche</h2>
+        </div>
         {!feed.hasProfile ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             Lege ein Investor-Profil an (Eigenkapital, Asset-Klassen, Regionen, Ticketgröße), um
             personalisierte Matches zu sehen.{" "}
-            <Link href="/profil" className="font-medium underline">Profil bearbeiten</Link>
+            <Link href="/profile" className="font-medium underline">Profil bearbeiten</Link>
           </p>
-        ) : feed.matches.length === 0 ? (
-          <p className="text-sm text-slate-500">Aktuell keine passenden Gesuche. Schau später wieder vorbei.</p>
+        ) : topMatches.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            Aktuell keine passenden Gesuche. Schau später wieder vorbei.
+          </p>
         ) : (
-          <ul className="space-y-3">
-            {feed.matches.map((m) => (
-              <li key={m.request.id} className="flex items-start gap-4 rounded-lg border border-slate-200 bg-white p-4">
-                <ScoreBadge score={m.score} />
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-slate-900">{m.request.title}</div>
-                  <div className="text-sm text-slate-600">
-                    {assetLabel(m.request.assetType)} · {m.request.location || "—"} · Bedarf {eur(m.request.capitalNeed)}
-                    {m.request.strategy ? ` · ${INVEST_STRATEGY_LABELS[m.request.strategy]}` : ""}
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {topMatches.map((m) => (
+              <li key={m.request.id}
+                className="overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm">
+                <div className="relative">
+                  <CoInvestVisual imageUrl={m.request.imageUrl} assetType={m.request.assetType} title={m.request.title} heightCls="h-32" />
+                  <div className="absolute right-3 top-3 flex h-11 w-11 flex-col items-center justify-center rounded-xl bg-white/95 shadow">
+                    <span className="text-sm font-bold leading-none text-teal-700">{m.score}</span>
+                    <span className="text-[8px] font-semibold uppercase text-slate-400">Match</span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-400">von {ownerLabel(m.request.owner)}</div>
+                </div>
+                <div className="p-4">
+                  <h3 className="line-clamp-1 font-semibold text-slate-900">{m.request.title}</h3>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    {assetLabel(m.request.assetType)}{m.request.location ? ` · ${m.request.location}` : ""}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="font-semibold text-teal-700">{eur(m.request.capitalNeed)}</span>
+                    {m.request.strategy && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {INVEST_STRATEGY_LABELS[m.request.strategy]}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}
@@ -119,45 +113,16 @@ export default async function CoInvestmentsPage() {
       </section>
 
       {/* Marktplatz */}
-      <section className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold text-slate-900">Marktplatz — alle aktiven Gesuche</h2>
-        {market.length === 0 ? (
-          <p className="text-sm text-slate-500">Noch keine veröffentlichten Gesuche.</p>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {market.map((r) => (
-              <li key={r.id} className="rounded-lg border border-slate-200 bg-white p-4">
-                <div className="font-medium text-slate-900">{r.title}</div>
-                <div className="mt-1 text-sm text-slate-600">
-                  {assetLabel(r.assetType)} · {r.location || "—"}
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-x-4 text-sm text-slate-600">
-                  <div><span className="text-xs text-slate-400">Kaufpreis</span><br />{eur(r.purchasePrice)}</div>
-                  <div><span className="text-xs text-slate-400">Kapitalbedarf</span><br />{eur(r.capitalNeed)}</div>
-                </div>
-                <div className="mt-2 text-xs text-slate-400">von {ownerLabel(r.owner)}</div>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="mt-10">
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Marktplatz</h2>
+        <MarketplaceExplorer items={market} />
       </section>
 
-      <p className="mt-8 border-t border-slate-100 pt-4 text-xs text-slate-400">
+      <p className="mt-10 border-t border-slate-100 pt-4 text-xs text-slate-400">
         Hinweis: Infinity Oikos ist eine reine Kontakt- und Matching-Plattform. Es findet keine
         Anlageberatung, Anlagevermittlung oder Kapitalabwicklung statt. Alle Angaben sind
         eigenverantwortlich zu prüfen.
       </p>
     </main>
-  );
-}
-
-function ScoreBadge({ score }: { score: number }) {
-  const tone =
-    score >= 75 ? "bg-teal-600" : score >= 50 ? "bg-teal-500" : score >= 30 ? "bg-amber-500" : "bg-slate-400";
-  return (
-    <div className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg text-white ${tone}`}>
-      <span className="text-sm font-bold leading-none">{score}</span>
-      <span className="text-[9px] uppercase tracking-wide">Match</span>
-    </div>
   );
 }

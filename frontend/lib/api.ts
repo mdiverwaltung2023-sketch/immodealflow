@@ -1970,12 +1970,22 @@ export const COINVEST_STATUS_LABELS: Record<CoInvestStatusT, string> = {
   ARCHIVED: "Archiviert"
 };
 
+export const CoInvestKindEnum = z.enum(["GENERAL", "OBJECT"]);
+export type CoInvestKindT = z.infer<typeof CoInvestKindEnum>;
+
+export const COINVEST_KIND_LABELS: Record<CoInvestKindT, string> = {
+  GENERAL: "Allgemeine Suche",
+  OBJECT: "Konkretes Objekt"
+};
+
 export const CoInvestRequestSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
   ownerId: z.string(),
+  kind: CoInvestKindEnum.default("GENERAL"),
   title: z.string(),
+  imageUrl: z.string().nullable().optional(),
   assetType: AssetTypeEnum.nullable().optional(),
   location: z.string(),
   purchasePrice: z.number().nullable().optional(),
@@ -2000,7 +2010,9 @@ export const CoInvestOwnerSchema = z.object({
 
 export const CoInvestMarketItemSchema = z.object({
   id: z.string(),
+  kind: CoInvestKindEnum.default("GENERAL"),
   title: z.string(),
+  imageUrl: z.string().nullable().optional(),
   assetType: AssetTypeEnum.nullable().optional(),
   location: z.string(),
   purchasePrice: z.number().nullable().optional(),

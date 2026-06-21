@@ -1538,6 +1538,13 @@ enum CoInvestStatus {
   ARCHIVED
 }
 
+// Art des Gesuchs: allgemeine Partnersuche (Kriterien/Strategie) vs.
+// konkretes Objekt (mit Bild, Adresse, Kaufpreis).
+enum CoInvestKind {
+  GENERAL
+  OBJECT
+}
+
 // Ein Co-Investment-Gesuch: "Ich habe diesen Deal und suche einen
 // Kapital-/Co-Investment-Partner." Gehoert einem User (Owner-Filter).
 model CoInvestRequest {
@@ -1548,7 +1555,9 @@ model CoInvestRequest {
   ownerId String
   owner   User   @relation("CoInvestRequests", fields: [ownerId], references: [id], onDelete: Cascade)
 
+  kind               CoInvestKind    @default(GENERAL)
   title              String
+  imageUrl           String?
   assetType          AssetType?
   location           String          @default("")
   purchasePrice      Int?

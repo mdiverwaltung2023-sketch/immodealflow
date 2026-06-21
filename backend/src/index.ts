@@ -6602,9 +6602,12 @@ const InvestStrategyEnum = z.enum([
   "OTHER"
 ]);
 const CoInvestStatusEnum = z.enum(["DRAFT", "ACTIVE", "MATCHED", "CLOSED", "ARCHIVED"]);
+const CoInvestKindEnum = z.enum(["GENERAL", "OBJECT"]);
 
 const CoInvestCreateSchema = z.object({
+  kind: CoInvestKindEnum.optional(),
   title: z.string().min(3).max(160),
+  imageUrl: z.string().url().max(2048).optional().or(z.literal("")),
   assetType: AssetTypeEnum.optional(),
   location: z.string().max(160).optional(),
   purchasePrice: z.number().int().nonnegative().optional(),
@@ -6650,7 +6653,9 @@ app.post("/me/coinvest-requests", async (req, res) => {
   const created = await prisma.coInvestRequest.create({
     data: {
       ownerId: req.userId!,
+      kind: body.kind ?? "GENERAL",
       title: body.title,
+      imageUrl: body.imageUrl ? body.imageUrl : null,
       assetType: body.assetType ?? null,
       location: body.location ?? "",
       purchasePrice: body.purchasePrice ?? null,
@@ -6687,7 +6692,9 @@ app.patch("/me/coinvest-requests/:id", async (req, res) => {
   const updated = await prisma.coInvestRequest.update({
     where: { id: owned.id },
     data: {
+      ...(body.kind !== undefined ? { kind: body.kind } : {}),
       ...(body.title !== undefined ? { title: body.title } : {}),
+      ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl ? body.imageUrl : null } : {}),
       ...(body.assetType !== undefined ? { assetType: body.assetType } : {}),
       ...(body.location !== undefined ? { location: body.location } : {}),
       ...(body.purchasePrice !== undefined ? { purchasePrice: body.purchasePrice } : {}),
@@ -6794,7 +6801,9 @@ app.get("/coinvest/marketplace", async (req, res) => {
 
   const out = items.map((it) => ({
     id: it.id,
+    kind: it.kind,
     title: it.title,
+    imageUrl: it.imageUrl,
     assetType: it.assetType,
     location: it.location,
     purchasePrice: it.purchasePrice,
@@ -6818,7 +6827,9 @@ app.get("/coinvest/marketplace/:id", async (req, res) => {
   if (!it) return res.status(404).json({ error: "Not found" });
   return res.json({
     id: it.id,
+    kind: it.kind,
     title: it.title,
+    imageUrl: it.imageUrl,
     assetType: it.assetType,
     location: it.location,
     purchasePrice: it.purchasePrice,
@@ -6875,7 +6886,9 @@ app.get("/coinvest/feed", async (req, res) => {
         parts,
         request: {
           id: it.id,
+          kind: it.kind,
           title: it.title,
+          imageUrl: it.imageUrl,
           assetType: it.assetType,
           location: it.location,
           purchasePrice: it.purchasePrice,
