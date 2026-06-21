@@ -35,7 +35,7 @@ export default async function CoInvestmentsPage() {
   const topMatches = feed.hasProfile ? feed.matches.slice(0, 3) : [];
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8">
+    <main className="w-full px-4 py-8">
       {/* Hero */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-700 via-teal-800 to-emerald-900 p-7 text-white shadow-lg sm:p-9">
         <svg className="pointer-events-none absolute -right-8 -top-8 h-56 w-56 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">

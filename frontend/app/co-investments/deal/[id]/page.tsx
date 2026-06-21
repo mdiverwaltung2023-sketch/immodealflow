@@ -10,6 +10,7 @@ import { apiGet, requireOnboardedUser } from "@/lib/api-server";
 import { CoInvestVisual } from "../../CoInvestVisual";
 import { InterestResponseForm } from "../../InterestResponseForm";
 import { DealRoomChat } from "../../DealRoomChat";
+import { DealRoomDocuments } from "../../DealRoomDocuments";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function DealRoomPage({ params }: { params: { id: string } 
   const accepted = it.status === "ACCEPTED";
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+    <main className="w-full px-4 py-8">
       <Link href="/co-investments/interests" className="text-sm text-teal-700 hover:underline">← Anfragen & Deal-Rooms</Link>
 
       <div className="relative mt-3 overflow-hidden rounded-2xl border border-slate-200">
@@ -80,7 +81,10 @@ export default async function DealRoomPage({ params }: { params: { id: string } 
 
       <section className="mt-6">
         {accepted ? (
-          <DealRoomChat interestId={it.id} />
+          <div className="space-y-5">
+            <DealRoomChat interestId={it.id} />
+            <DealRoomDocuments interestId={it.id} />
+          </div>
         ) : it.iAmOwner && it.status === "PENDING" ? (
           <InterestResponseForm interestId={it.id} />
         ) : it.status === "PENDING" ? (

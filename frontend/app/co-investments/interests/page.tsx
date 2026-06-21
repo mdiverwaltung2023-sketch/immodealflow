@@ -74,7 +74,7 @@ export default async function InterestsPage() {
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+    <main className="w-full px-4 py-8">
       <Link href="/co-investments" className="text-sm text-teal-700 hover:underline">← Zum Marktplatz</Link>
       <header className="mb-6 mt-2">
         <h1 className="text-2xl font-bold text-slate-900">Anfragen & Deal-Rooms</h1>

@@ -2147,6 +2147,20 @@ export const CoInvestMessageSchema = z.object({
 });
 export type CoInvestMessageT = z.infer<typeof CoInvestMessageSchema>;
 
+export const CoInvestDocumentSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  name: z.string(),
+  url: z.string(),
+  mimeType: z.string().nullable().optional(),
+  size: z.number().nullable().optional(),
+  mine: z.boolean()
+});
+export type CoInvestDocumentT = z.infer<typeof CoInvestDocumentSchema>;
+export const CoInvestDocumentsResponseSchema = z.object({
+  documents: z.array(CoInvestDocumentSchema)
+});
+
 export const CoInvestMarketDetailSchema = z.object({
   id: z.string(),
   kind: CoInvestKindEnum.default("GENERAL"),

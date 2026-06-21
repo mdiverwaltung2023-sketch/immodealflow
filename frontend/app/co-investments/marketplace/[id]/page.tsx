@@ -27,7 +27,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
   if (!r) notFound();
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+    <main className="w-full px-4 py-8">
       <Link href="/co-investments" className="text-sm text-teal-700 hover:underline">← Zum Marktplatz</Link>
 
       <div className="relative mt-3 overflow-hidden rounded-2xl border border-slate-200">

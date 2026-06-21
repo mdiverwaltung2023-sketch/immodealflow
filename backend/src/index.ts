@@ -7126,6 +7126,69 @@ app.post("/me/coinvest-interests/:id/messages", async (req, res) => {
   return res.status(201).json(msg);
 });
 
+// --- Deal-Room-Dokumente (Phase Q2.1, nur ACCEPTED, nur Teilnehmer) ---
+const CoInvestDocCreateSchema = z.object({
+  name: z.string().min(1).max(300),
+  url: z.string().url().max(2048),
+  mimeType: z.string().max(160).optional().nullable(),
+  size: z.number().int().nonnegative().optional().nullable()
+});
+
+// GET /me/coinvest-interests/:id/documents
+app.get("/me/coinvest-interests/:id/documents", async (req, res) => {
+  const it = await prisma.coInvestInterest.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId! }, { fromUserId: req.userId! }] }
+  });
+  if (!it) return res.status(404).json({ error: "Nicht gefunden" });
+  if (it.status !== "ACCEPTED") return res.status(403).json({ error: "Dokumente erst nach Annahme" });
+  const docs = await prisma.coInvestDocument.findMany({
+    where: { interestId: it.id },
+    orderBy: { createdAt: "desc" }
+  });
+  return res.json({
+    documents: docs.map((d) => ({
+      id: d.id,
+      createdAt: d.createdAt,
+      name: d.name,
+      url: d.url,
+      mimeType: d.mimeType,
+      size: d.size,
+      mine: d.uploaderId === req.userId!
+    }))
+  });
+});
+
+// POST /me/coinvest-interests/:id/documents — Dokument registrieren
+app.post("/me/coinvest-interests/:id/documents", async (req, res) => {
+  const it = await prisma.coInvestInterest.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId! }, { fromUserId: req.userId! }] }
+  });
+  if (!it) return res.status(404).json({ error: "Nicht gefunden" });
+  if (it.status !== "ACCEPTED") return res.status(403).json({ error: "Dokumente erst nach Annahme" });
+  const body = CoInvestDocCreateSchema.parse(req.body);
+  const doc = await prisma.coInvestDocument.create({
+    data: {
+      interestId: it.id,
+      uploaderId: req.userId!,
+      name: body.name,
+      url: body.url,
+      mimeType: body.mimeType ?? null,
+      size: body.size ?? null
+    }
+  });
+  return res.status(201).json({ id: doc.id, createdAt: doc.createdAt, name: doc.name, url: doc.url, mimeType: doc.mimeType, size: doc.size, mine: true });
+});
+
+// DELETE /me/coinvest-interests/:id/documents/:docId — nur Uploader
+app.delete("/me/coinvest-interests/:id/documents/:docId", async (req, res) => {
+  const doc = await prisma.coInvestDocument.findFirst({
+    where: { id: req.params.docId, interestId: req.params.id, uploaderId: req.userId! }
+  });
+  if (!doc) return res.status(404).json({ error: "Nicht gefunden" });
+  await prisma.coInvestDocument.delete({ where: { id: doc.id } });
+  return res.json({ ok: true });
+});
+
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {
   console.log("DealFlow AI API listening on http://localhost:" + port);

@@ -35,7 +35,7 @@ export default async function CoInvestDetailPage({ params }: { params: { id: str
     .catch(() => ({ requestId: params.id, count: 0, matches: [] as const }));
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+    <main className="w-full px-4 py-8">
       <Link href="/co-investments" className="text-sm text-teal-700 hover:underline">← Zurück zum Hub</Link>
 
       <div className="relative mt-3 overflow-hidden rounded-2xl border border-slate-200">

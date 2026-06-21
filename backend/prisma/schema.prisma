@@ -352,6 +352,7 @@ model User {
   coInvestInterestsRecv CoInvestInterest[]  @relation("CoInvestInterestsReceivedByOwner")
   coInvestInterestsSent CoInvestInterest[]  @relation("CoInvestInterestsSentByUser")
   coInvestMessages      CoInvestMessage[]   @relation("CoInvestMessageSender")
+  coInvestDocuments     CoInvestDocument[]  @relation("CoInvestDocumentUploader")
 
   @@index([referredById])
 }
@@ -1612,6 +1613,7 @@ model CoInvestInterest {
   respondedAt DateTime?
 
   messages    CoInvestMessage[]
+  documents   CoInvestDocument[]
 
   // Pro (Gesuch, Kapitalgeber) genau eine Interessenbekundung.
   @@unique([requestId, fromUserId], name: "uniq_coinvest_interest")
@@ -1632,6 +1634,25 @@ model CoInvestMessage {
 
   body      String
   readAt    DateTime?
+
+  @@index([interestId, createdAt])
+}
+
+// Phase Q2.1 — Dokument im Deal-Room (geteilt erst nach ACCEPTED).
+model CoInvestDocument {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  interestId String
+  interest   CoInvestInterest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  uploaderId String
+  uploader   User @relation("CoInvestDocumentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  name     String
+  url      String
+  mimeType String?
+  size     Int?
 
   @@index([interestId, createdAt])
 }

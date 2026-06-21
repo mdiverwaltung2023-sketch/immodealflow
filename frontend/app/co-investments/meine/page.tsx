@@ -28,7 +28,7 @@ export default async function MyCoInvestPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8">
+    <main className="w-full px-4 py-8">
       <Link href="/co-investments" className="text-sm text-teal-700 hover:underline">← Zum Marktplatz</Link>
       <header className="mb-6 mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>

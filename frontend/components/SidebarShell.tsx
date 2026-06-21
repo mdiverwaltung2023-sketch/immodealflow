@@ -24,7 +24,7 @@ export async function SidebarShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar userRole={userRole} plan={plan} />
         <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto max-w-7xl">{children}</div>
+          <div className="mx-auto max-w-[1500px]">{children}</div>
         </main>
         <footer className="border-t border-zinc-200 bg-white px-4 py-4 lg:px-8 text-xs text-zinc-500">
           Infinity Oikos · Marketplace für Investoren und Verkäufer ·{" "}
