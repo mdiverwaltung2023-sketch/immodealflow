@@ -5,6 +5,7 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { randomBytes } from "node:crypto";
 import { prisma } from "./lib/prisma.js";
+import { buildExposePdf } from "./lib/exposePdf.js";
 import {
   computeFullAnalysis,
   computeBidLimit,
@@ -131,6 +132,113 @@ app.options("/import/auction", bookmarkletCors);
 app.options("/import/auction-list", bookmarkletCors);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// --- Eidos Sales Copilot: Exposé-Liste (Server-zu-Server, Shared-Secret) ------
+// Kein requireAuth (Clerk) — der Aufruf kommt vom Eidos-Backend, abgesichert
+// ueber ein geteiltes Geheimnis (EIDOS_API_SECRET), Stil wie Eidos' ?secret=.
+// Liefert aktive Listings (optional auf EIDOS_OWNER_ID gefiltert) im vom
+// Copilot erwarteten Schema. Read-only.
+app.get("/eidos/exposes", async (req, res) => {
+  const secret = process.env.EIDOS_API_SECRET ?? "";
+  if (!secret) {
+    return res.status(503).json({ error: "EIDOS_API_SECRET ist nicht konfiguriert." });
+  }
+  const provided =
+    (typeof req.query.secret === "string" ? req.query.secret : "") ||
+    (typeof req.headers["x-eidos-secret"] === "string" ? (req.headers["x-eidos-secret"] as string) : "");
+  if (provided !== secret) {
+    return res.status(401).json({ error: "Ungueltiges Eidos-Secret." });
+  }
+
+  const query = (typeof req.query.query === "string" ? req.query.query : "").trim();
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "8"), 10) || 8, 1), 25);
+  const ownerId = (process.env.EIDOS_OWNER_ID || "").trim() || undefined;
+  const base = (
+    (process.env.EIDOS_EXPOSE_BASE_URL || (process.env.FRONTEND_ORIGIN || "").split(",")[0] || "")
+  ).trim().replace(/\/+$/, "");
+  const apiBase = (process.env.EIDOS_API_PUBLIC_URL || ("https://" + (req.get("host") || ""))).replace(/\/+$/, "");
+
+  try {
+    const where: any = { status: "ACTIVE" };
+    if (ownerId) where.ownerId = ownerId;
+    const rows = await prisma.listing.findMany({
+      where,
+      orderBy: [{ featuredUntil: "desc" }, { createdAt: "desc" }],
+      take: 50,
+    });
+
+    let list = rows;
+    const tokens = query
+      .toLowerCase()
+      .split(/[^a-zA-Z0-9äöüß]+/)
+      .filter((t) => t.length >= 3);
+    if (tokens.length) {
+      const scored = rows.map((l) => {
+        const hay = [
+          l.title, l.city, l.district ?? "", l.description ?? "",
+          (l.highlights || []).join(" "), (l.features || []).join(" "), String(l.propertyType),
+        ].join(" ").toLowerCase();
+        const score = tokens.reduce((acc, t) => acc + (hay.includes(t) ? 1 : 0), 0);
+        return { l, score };
+      });
+      const matched = scored.filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+      if (matched.length) list = matched.map((x) => x.l);
+    }
+
+    const exposes = list.slice(0, limit).map((l) => {
+      const location = [l.district, l.city].filter(Boolean).join(", ") || l.city;
+      const price = l.askingPrice ? `${l.askingPrice.toLocaleString("de-DE")} €` : null;
+      const hl = (l.highlights || []).length ? `${(l.highlights || []).join(" · ")}. ` : "";
+      const summary = (hl + (l.description || "").slice(0, 220)).trim() || null;
+      return {
+        id: l.id,
+        title: l.title,
+        location,
+        price,
+        summary,
+        public_url: base ? `${base}/marketplace/${l.id}` : null,
+        pdf_url: `${apiBase}/eidos/expose/${l.id}/pdf`,
+      };
+    });
+
+    res.json({ exposes });
+  } catch (e) {
+    console.error("eidos/exposes error", e);
+    res.status(500).json({ error: String((e as Error)?.message || e) });
+  }
+});
+
+// --- Eidos Sales Copilot: Exposé als druckbares PDF (oeffentlich, nur ACTIVE) -
+// Kein Secret, weil der Link an Investoren weitergegeben wird. Nur veroeffentlichte
+// (ACTIVE) Inserate werden ausgeliefert; alles andere => 404.
+app.get("/eidos/expose/:id/pdf", async (req, res) => {
+  try {
+    const l = await prisma.listing.findUnique({
+      where: { id: req.params.id },
+      include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
+    });
+    if (!l || l.status !== "ACTIVE") {
+      return res.status(404).json({ error: "Exposé nicht gefunden oder nicht veröffentlicht." });
+    }
+    let img: Buffer | null = null;
+    const imgUrl = l.images?.[0]?.url;
+    if (imgUrl) {
+      try {
+        const r = await fetch(imgUrl);
+        if (r.ok) img = Buffer.from(await r.arrayBuffer());
+      } catch {
+        /* Bild optional */
+      }
+    }
+    const pdf = await buildExposePdf(l, img);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="Expose-${l.id}.pdf"`);
+    res.send(pdf);
+  } catch (e) {
+    console.error("eidos/expose pdf error", e);
+    res.status(500).json({ error: String((e as Error)?.message || e) });
+  }
+});
 
 // --- Phase L11.2 — Public Sales-Advisor (Claude-Refinement) -----
 // Kein requireAuth, weil die Landing-Page anonym aufrufbar sein soll.
