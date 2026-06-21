@@ -2060,13 +2060,3 @@ export const CoInvestMatchesSchema = z.object({
   matches: z.array(CoInvestMatchSchema)
 });
 export type CoInvestMatchesT = z.infer<typeof CoInvestMatchesSchema>;
-,
-    preferredRegions: z.array(z.string()).optional()
-  })
-});
-export const CoInvestMatchesSchema = z.object({
-  requestId: z.string(),
-  count: z.number(),
-  matches: z.array(CoInvestMatchSchema)
-});
-export type CoInvestMatchesT = z.infer<typeof CoInvestMatchesSchema>;
