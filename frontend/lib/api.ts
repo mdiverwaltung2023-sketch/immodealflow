@@ -368,7 +368,8 @@ export const MeSchema = z.object({
   isAdmin: z.boolean().optional(),
   // Oikos Investor Club — Gruendungsmitglied
   isFoundingMember: z.boolean().optional(),
-  foundingMemberNo: z.number().nullable().optional()
+  foundingMemberNo: z.number().nullable().optional(),
+  investorClubActive: z.boolean().optional()
 });
 
 export type Me = z.infer<typeof MeSchema>;

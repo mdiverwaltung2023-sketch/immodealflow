@@ -53,6 +53,24 @@ export function getPlanLimits(plan: PlanT): PlanLimits {
   return PLAN_LIMITS[plan];
 }
 
+
+/**
+ * Effektiver Plan fuer Feature-Gating. Source-of-Truth fuer "kostet nichts":
+ * - INVESTOR_FREE_PHASE (Default an): in der Wachstumsphase bekommen ALLE
+ *   Investoren INVESTOR_PRO-Entitlement gratis. Spaeter via Env abschaltbar.
+ * - Gruendungsmitglieder (isFoundingMember) behalten INVESTOR_PRO dauerhaft
+ *   gratis, auch wenn die Free-Phase endet.
+ * Aendert NICHT den gespeicherten Plan/Stripe-Status - nur die Berechtigung.
+ */
+export function effectivePlan(
+  user: { plan?: PlanT | string | null; isFoundingMember?: boolean | null } | null | undefined
+): PlanT {
+  const investorsFree = (process.env.INVESTOR_FREE_PHASE ?? "true") !== "false";
+  if (investorsFree) return "INVESTOR_PRO";
+  if (user?.isFoundingMember) return "INVESTOR_PRO";
+  return ((user?.plan ?? "FREE") as PlanT);
+}
+
 /** Wieviele aktive Inserate hat der User aktuell? */
 export async function countActiveListings(userId: string): Promise<number> {
   return prisma.listing.count({

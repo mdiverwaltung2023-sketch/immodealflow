@@ -37,6 +37,7 @@ import {
   countActiveListings,
   countInquiriesLast30d,
   getPlanLimits,
+  effectivePlan,
   paywallBody,
   type PlanT
 } from "./lib/billing.js";
@@ -1599,7 +1600,8 @@ app.get("/me", async (req, res) => {
     isEarlyBird: user.isEarlyBird,
     isAdmin: user.isAdmin,
     isFoundingMember: user.isFoundingMember,
-    foundingMemberNo: user.foundingMemberNo
+    foundingMemberNo: user.foundingMemberNo,
+    investorClubActive: effectivePlan(user) === "INVESTOR_PRO"
   });
 });
 
@@ -2421,9 +2423,9 @@ app.patch("/me/listings/:id", async (req, res) => {
   if (body.status === "ACTIVE" && owned.status !== "ACTIVE") {
     const me = await prisma.user.findUnique({
       where: { id: req.userId! },
-      select: { plan: true }
+      select: { plan: true, isFoundingMember: true }
     });
-    const plan = (me?.plan ?? "FREE") as PlanT;
+    const plan = effectivePlan(me);
     const limits = getPlanLimits(plan);
     if (limits.activeListingsMax != null) {
       const active = await countActiveListings(req.userId!);
@@ -2735,9 +2737,9 @@ app.post("/me/inquiries", async (req, res) => {
   // Phase G3 — Inquiry-Limit (Free: 3 in 30d). Pro: unlimited.
   const me = await prisma.user.findUnique({
     where: { id: req.userId! },
-    select: { plan: true }
+    select: { plan: true, isFoundingMember: true }
   });
-  const plan = (me?.plan ?? "FREE") as PlanT;
+  const plan = effectivePlan(me);
   const limits = getPlanLimits(plan);
   if (limits.inquiriesPer30dMax != null) {
     const sent = await countInquiriesLast30d(req.userId!);
@@ -3222,9 +3224,9 @@ app.get("/marketplace", async (req, res) => {
   if (q.offMarket) {
     const me = await prisma.user.findUnique({
       where: { id: req.userId! },
-      select: { plan: true }
+      select: { plan: true, isFoundingMember: true }
     });
-    const plan = (me?.plan ?? "FREE") as PlanT;
+    const plan = effectivePlan(me);
     if (!getPlanLimits(plan).canSeeOffMarket) {
       return res.status(402).json(
         paywallBody({
