@@ -63,13 +63,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       const clerkUser = await clerk.users.getUser(clerkUserId);
       const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
       const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null;
-      user = await prisma.user.create({
-        data: {
-          clerkId: clerkUserId,
-          email,
-          name
-        }
-      });
+      // Oikos Investor Club: im Gruendungsfenster wird jeder neue User automatisch
+      // Gruendungsmitglied (fortlaufende Nummer). Abschaltbar via FOUNDING_MEMBER_OPEN=false.
+      const foundingOpen = (process.env.FOUNDING_MEMBER_OPEN ?? "true") !== "false";
+      const createData: any = { clerkId: clerkUserId, email, name };
+      if (foundingOpen) {
+        const foundingCount = await prisma.user.count({ where: { isFoundingMember: true } });
+        createData.isFoundingMember = true;
+        createData.foundingMemberAt = new Date();
+        createData.foundingMemberNo = foundingCount + 1;
+      }
+      user = await prisma.user.create({ data: createData });
     } catch (e) {
       return res.status(500).json({
         error: "User-Provisioning fehlgeschlagen",

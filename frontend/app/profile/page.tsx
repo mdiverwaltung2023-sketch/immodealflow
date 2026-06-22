@@ -40,6 +40,20 @@ export default async function ProfilePage() {
         </div>
       </div>
 
+      {me.isFoundingMember ? (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50 to-white p-4">
+          <span className="text-2xl">🏅</span>
+          <div>
+            <div className="font-semibold text-amber-900">
+              Oikos Investor Club — Gründungsmitglied{me.foundingMemberNo ? ` #${me.foundingMemberNo}` : ""}
+            </div>
+            <div className="text-sm text-amber-800">
+              Dauerhaft kostenloser Zugang als Gründungsmitglied — danke, dass du von Anfang an dabei bist.
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <BillingCard billing={billing} />
 
       {trust ? <TrustScorePanel trust={trust} /> : null}

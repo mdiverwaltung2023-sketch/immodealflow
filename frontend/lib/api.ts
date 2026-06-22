@@ -365,7 +365,10 @@ export const MeSchema = z.object({
   coinsBalance: z.number().optional(),
   isEarlyBird: z.boolean().optional(),
   // Phase H8: Admin-Flag
-  isAdmin: z.boolean().optional()
+  isAdmin: z.boolean().optional(),
+  // Oikos Investor Club — Gruendungsmitglied
+  isFoundingMember: z.boolean().optional(),
+  foundingMemberNo: z.number().nullable().optional()
 });
 
 export type Me = z.infer<typeof MeSchema>;

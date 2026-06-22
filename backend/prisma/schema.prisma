@@ -313,6 +313,12 @@ model User {
   isEarlyBird  Boolean @default(false)
   // Admin-Flag für /admin/coins-Dashboard. Default false; manuell via SQL setzen.
   isAdmin      Boolean @default(false)
+
+  // --- Oikos Investor Club (Gruendungsangebot) ---
+  // Im Gruendungsfenster wird jeder neue User automatisch Gruendungsmitglied.
+  isFoundingMember Boolean   @default(false)
+  foundingMemberAt DateTime?
+  foundingMemberNo Int?
   // Self-Referral: User wurde von einem anderen User geworben.
   referredById String?
   referredBy   User?   @relation("UserReferrals", fields: [referredById], references: [id])

@@ -1597,7 +1597,9 @@ app.get("/me", async (req, res) => {
     // --- Coin-System (Phase H3 + H8) ---
     coinsBalance,
     isEarlyBird: user.isEarlyBird,
-    isAdmin: user.isAdmin
+    isAdmin: user.isAdmin,
+    isFoundingMember: user.isFoundingMember,
+    foundingMemberNo: user.foundingMemberNo
   });
 });
 
