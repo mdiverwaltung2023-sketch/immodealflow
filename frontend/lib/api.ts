@@ -1069,6 +1069,96 @@ export const ListingSchema = z.object({
 });
 export type ListingT = z.infer<typeof ListingSchema>;
 
+// --- Exposé (Phase P): KI-Investment-These ------------------------
+export const ExposeAudienceEnum = z.enum(["AUTO", "INVESTOR", "OWNER"]);
+export type ExposeAudienceT = z.infer<typeof ExposeAudienceEnum>;
+
+export const EXPOSE_AUDIENCE_LABELS: Record<ExposeAudienceT, string> = {
+  AUTO: "Automatisch",
+  INVESTOR: "Investoren",
+  OWNER: "Eigennutzer"
+};
+
+export const ExposeContentSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  listingId: z.string(),
+  audience: ExposeAudienceEnum,
+  headline: z.string(),
+  thesis: z.string(),
+  strengths: z.array(z.string()).default([]),
+  risks: z.array(z.string()).default([]),
+  locationText: z.string().nullable().optional(),
+  callToAction: z.string().nullable().optional(),
+  model: z.string().nullable().optional()
+});
+export type ExposeContentT = z.infer<typeof ExposeContentSchema>;
+
+// Öffentliche, tokenbasierte Käufer-Ansicht des Exposés (Phase P4).
+export const PublicExposeListingSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  propertyType: AssetTypeEnum,
+  anonymizationLevel: AnonymizationLevelEnum,
+  city: z.string(),
+  postalCode: z.string().nullable().optional(),
+  district: z.string().nullable().optional(),
+  fullAddress: z.string().nullable().optional(),
+  askingPrice: z.number(),
+  totalArea: z.number(),
+  totalRent: z.number().nullable().optional(),
+  yearBuilt: z.number().nullable().optional(),
+  lastRenovation: z.number().nullable().optional(),
+  condition: BuildingConditionEnum.nullable().optional(),
+  livingArea: z.number().nullable().optional(),
+  commercialArea: z.number().nullable().optional(),
+  landArea: z.number().nullable().optional(),
+  floors: z.number().nullable().optional(),
+  residentialUnits: z.number().nullable().optional(),
+  commercialUnits: z.number().nullable().optional(),
+  energyClass: EnergyClassEnum.nullable().optional(),
+  energyConsumption: z.number().nullable().optional(),
+  energyCarrier: EnergyCarrierEnum.nullable().optional(),
+  heatingType: z.string().nullable().optional(),
+  actualRent: z.number().nullable().optional(),
+  vacancyRate: z.number().nullable().optional(),
+  waltMonths: z.number().nullable().optional(),
+  rentIndexed: z.boolean().nullable().optional(),
+  rentUpsidePotential: z.number().nullable().optional(),
+  gegCompliant: z.boolean().nullable().optional(),
+  commissionFree: z.boolean().nullable().optional(),
+  features: z.array(z.string()).default([]),
+  highlights: z.array(z.string()).default([]),
+  images: z
+    .array(z.object({ id: z.string(), url: z.string(), alt: z.string().nullable().optional() }))
+    .default([])
+});
+
+export const PublicExposeCopySchema = z.object({
+  audience: ExposeAudienceEnum,
+  headline: z.string(),
+  thesis: z.string(),
+  strengths: z.array(z.string()).default([]),
+  risks: z.array(z.string()).default([]),
+  locationText: z.string().nullable().optional(),
+  callToAction: z.string().nullable().optional(),
+  model: z.string().nullable().optional()
+});
+
+export const PublicExposeSchema = z.object({
+  reference: z.string(),
+  buyerLabel: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+  allowedDocKinds: z.array(SaleDocKindEnum).default([]),
+  expose: PublicExposeCopySchema.nullable(),
+  documents: z
+    .array(z.object({ kind: SaleDocKindEnum, url: z.string(), filename: z.string() }))
+    .default([]),
+  listing: PublicExposeListingSchema
+});
+export type PublicExposeT = z.infer<typeof PublicExposeSchema>;
+
 export const MarketplaceListingSchema = ListingSchema.extend({
   owner: z.object({
     id: z.string(),

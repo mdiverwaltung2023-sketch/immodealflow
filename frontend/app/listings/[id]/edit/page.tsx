@@ -34,6 +34,12 @@ export default async function ListingEditPage({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Link
+            href={`/expose/${listing.id}`}
+            className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700"
+          >
+            Exposé ansehen / drucken
+          </Link>
+          <Link
             href={`/listings/${listing.id}/inquiries`}
             className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
           >

@@ -113,6 +113,7 @@ function AccessRow({
   const apiFetch = useApiFetch();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedExpose, setCopiedExpose] = useState(false);
 
   const isRevoked = !!access.revokedAt;
   const isExpired =
@@ -130,11 +131,26 @@ function AccessRow({
     return `${window.location.origin}/zugang/${access.token}`;
   }, [access.token]);
 
+  const exposeUrl = useMemo(() => {
+    if (typeof window === "undefined") return `/objekt/${access.token}`;
+    return `${window.location.origin}/objekt/${access.token}`;
+  }, [access.token]);
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* noop */
+    }
+  }
+
+  async function copyExpose() {
+    try {
+      await navigator.clipboard.writeText(exposeUrl);
+      setCopiedExpose(true);
+      setTimeout(() => setCopiedExpose(false), 1500);
     } catch {
       /* noop */
     }
@@ -229,10 +245,17 @@ function AccessRow({
         <div className="flex shrink-0 flex-wrap gap-1">
           <button
             type="button"
+            onClick={copyExpose}
+            className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-800 hover:bg-teal-100"
+          >
+            {copiedExpose ? "Kopiert ✓" : "Exposé-Link"}
+          </button>
+          <button
+            type="button"
             onClick={copy}
             className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50"
           >
-            {copied ? "Kopiert ✓" : "Link kopieren"}
+            {copied ? "Kopiert ✓" : "Dok.-Link"}
           </button>
           {isRevoked ? (
             <button

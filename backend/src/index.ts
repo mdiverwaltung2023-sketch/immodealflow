@@ -25,7 +25,9 @@ import {
   evaluateBuyerOffer,
   evaluateRentalApplicant,
   refineSalesAdvice,
+  generateExposeCopy,
   type ListingMarketInput,
+  type ExposeAudienceT,
   type RentalUnitInput,
   type RentalApplicantInput,
   type SalesAdvisorRefineInput
@@ -4465,6 +4467,143 @@ app.get("/public/buyer-access/:token", async (req, res) => {
   });
 });
 
+// GET /public/expose/:token — öffentliche, tokenbasierte Käufer-Ansicht
+// des vollständigen Exposés (Phase P4). Kein Account nötig. Nutzt denselben
+// BuyerDocAccess-Token wie /public/buyer-access: Objektdaten (anonymisiert
+// je anonymizationLevel), KI-Investment-These, freigegebene Dokumente.
+app.get("/public/expose/:token", async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!/^[a-f0-9]{32,128}$/.test(token)) {
+    return res.status(404).json({ error: "Nicht gefunden." });
+  }
+  const access = await prisma.buyerDocAccess.findUnique({
+    where: { token },
+    include: {
+      listing: {
+        include: {
+          images: { orderBy: { sortOrder: "asc" }, select: { id: true, url: true, alt: true } },
+          exposeContent: true,
+          saleProcesses: {
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+            select: {
+              documents: {
+                select: { id: true, kind: true, url: true, filename: true }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+  if (!access) return res.status(404).json({ error: "Nicht gefunden." });
+  if (access.revokedAt) return res.status(404).json({ error: "Freigabe widerrufen." });
+  if (access.expiresAt && access.expiresAt.getTime() < Date.now()) {
+    return res.status(404).json({ error: "Freigabe abgelaufen." });
+  }
+
+  // Audit + Erst-Abruf-Notification (fire-and-forget) — wie buyer-access.
+  const wasFirstAccess = access.accessCount === 0;
+  await prisma.buyerDocAccess
+    .update({
+      where: { id: access.id },
+      data: { lastAccessedAt: new Date(), accessCount: { increment: 1 } }
+    })
+    .catch(() => undefined);
+  if (wasFirstAccess) {
+    try {
+      const buyerLabel = access.buyerLabel ?? "Ein Kaufinteressent";
+      await prisma.userNotification.create({
+        data: {
+          userId: access.sellerId,
+          kind: "FIRST_BUYER_ACCESS",
+          title: `${buyerLabel} hat dein Exposé geöffnet`,
+          body: `Für „${access.listing.title}" — Exposé mit ${access.allowedDocKinds.length} Dokument-Kategorie(n).`,
+          link: `/listings/${access.listingId}/edit`,
+          payloadJson: {
+            accessId: access.id,
+            listingId: access.listingId,
+            listingTitle: access.listing.title,
+            buyerLabel: access.buyerLabel,
+            source: "expose"
+          }
+        }
+      });
+    } catch {
+      /* leise */
+    }
+  }
+
+  const l = access.listing;
+  const showFull = l.anonymizationLevel === "FULL_ADDRESS";
+  const showDistrict = showFull || l.anonymizationLevel === "DISTRICT_ONLY";
+
+  const allowed = new Set(access.allowedDocKinds);
+  const proc = l.saleProcesses[0] ?? null;
+  const documents = (proc?.documents ?? [])
+    .filter((d) => allowed.has(d.kind))
+    .map((d) => ({ kind: d.kind, url: d.url, filename: d.filename }));
+
+  const ec = l.exposeContent;
+  const expose = ec
+    ? {
+        audience: ec.audience,
+        headline: ec.headline,
+        thesis: ec.thesis,
+        strengths: ec.strengths,
+        risks: ec.risks,
+        locationText: ec.locationText,
+        callToAction: ec.callToAction,
+        model: ec.model
+      }
+    : null;
+
+  return res.json({
+    reference: `OIKOS-${l.id.slice(-6).toUpperCase()}`,
+    buyerLabel: access.buyerLabel,
+    expiresAt: access.expiresAt,
+    allowedDocKinds: access.allowedDocKinds,
+    expose,
+    documents,
+    listing: {
+      title: l.title,
+      description: l.description,
+      propertyType: l.propertyType,
+      anonymizationLevel: l.anonymizationLevel,
+      city: l.city,
+      postalCode: showFull ? l.postalCode : null,
+      district: showDistrict ? l.district : null,
+      fullAddress: showFull ? l.fullAddress : null,
+      askingPrice: l.askingPrice,
+      totalArea: l.totalArea,
+      totalRent: l.totalRent,
+      yearBuilt: l.yearBuilt,
+      lastRenovation: l.lastRenovation,
+      condition: l.condition,
+      livingArea: l.livingArea,
+      commercialArea: l.commercialArea,
+      landArea: l.landArea,
+      floors: l.floors,
+      residentialUnits: l.residentialUnits,
+      commercialUnits: l.commercialUnits,
+      energyClass: l.energyClass,
+      energyConsumption: l.energyConsumption,
+      energyCarrier: l.energyCarrier,
+      heatingType: l.heatingType,
+      actualRent: l.actualRent,
+      vacancyRate: l.vacancyRate,
+      waltMonths: l.waltMonths,
+      rentIndexed: l.rentIndexed,
+      rentUpsidePotential: l.rentUpsidePotential,
+      gegCompliant: l.gegCompliant,
+      commissionFree: l.commissionFree,
+      features: l.features,
+      highlights: l.highlights,
+      images: l.images
+    }
+  });
+});
+
 // =========================================================
 // KI-Marktanalyse + Angebotsbewertung (Phase K3)
 // =========================================================
@@ -4639,6 +4778,101 @@ app.delete("/me/listings/:id/market-analysis", async (req, res) => {
   });
   if (!listing) return res.status(404).json({ error: "Not found" });
   await prisma.marketAnalysis.deleteMany({ where: { listingId: listing.id } });
+  return res.json({ ok: true });
+});
+
+// ============================================================
+// Phase P — Exposé: KI-Investment-These
+// ============================================================
+
+// GET /me/listings/:id/expose — gespeicherten Exposé-Text laden (oder null)
+app.get("/me/listings/:id/expose", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden" });
+  const content = await prisma.exposeContent.findUnique({
+    where: { listingId: listing.id }
+  });
+  return res.json(content);
+});
+
+// POST /me/listings/:id/expose — Exposé-Text generieren + speichern
+// Body optional: { audience?: "AUTO" | "INVESTOR" | "OWNER" }
+// Query ?force=true erzwingt Neu-Generierung (sonst 1h-Cache-Schutz).
+app.post("/me/listings/:id/expose", async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "ANTHROPIC_API_KEY nicht konfiguriert." });
+  }
+  const parsed = z
+    .object({ audience: z.enum(["AUTO", "INVESTOR", "OWNER"]).optional() })
+    .safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Ungültige Zielgruppe" });
+  }
+  const audience: ExposeAudienceT = parsed.data.audience ?? "AUTO";
+  const force = String(req.query.force ?? "") === "true";
+
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! }
+  });
+  if (!listing) return res.status(404).json({ error: "Listing nicht gefunden" });
+
+  // Cache-Schutz: gleiche Zielgruppe + <1h alt => nicht neu generieren
+  if (!force) {
+    const existing = await prisma.exposeContent.findUnique({
+      where: { listingId: listing.id }
+    });
+    if (
+      existing &&
+      existing.audience === audience &&
+      Date.now() - existing.updatedAt.getTime() < 60 * 60 * 1000
+    ) {
+      return res.json({ ...existing, cached: true });
+    }
+  }
+
+  let result;
+  try {
+    result = await generateExposeCopy({
+      listing: listingToMarketInput(listing as never),
+      audience
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
+    return res.status(502).json({ error: `KI-Aufruf fehlgeschlagen: ${msg}` });
+  }
+
+  const data = {
+    audience,
+    headline: result.headline,
+    thesis: result.thesis,
+    strengths: result.strengths,
+    risks: result.risks,
+    locationText: result.locationText || null,
+    callToAction: result.callToAction || null,
+    rawJson: result.rawJson as never,
+    model: result.model
+  };
+
+  const saved = await prisma.exposeContent.upsert({
+    where: { listingId: listing.id },
+    create: { listingId: listing.id, ...data },
+    update: data
+  });
+
+  return res.json({ ...saved, cached: false });
+});
+
+// DELETE /me/listings/:id/expose — Exposé-Text zurücksetzen
+app.delete("/me/listings/:id/expose", async (req, res) => {
+  const listing = await prisma.listing.findFirst({
+    where: { id: req.params.id, ownerId: req.userId! },
+    select: { id: true }
+  });
+  if (!listing) return res.status(404).json({ error: "Not found" });
+  await prisma.exposeContent.deleteMany({ where: { listingId: listing.id } });
   return res.json({ ok: true });
 });
 

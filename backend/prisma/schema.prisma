@@ -655,6 +655,7 @@ model Listing {
   buyerAccesses    BuyerDocAccess[]
   marketAnalysis   MarketAnalysis?
   offerEvaluations OfferEvaluation[]
+  exposeContent    ExposeContent?
 
   @@index([ownerId])
   @@index([status])
@@ -927,6 +928,36 @@ model MarketAnalysis {
   model            String?
   promptTokens     Int?
   completionTokens Int?
+}
+
+// Phase P (Exposé) — KI-generierter Exposé-Text ("Investment-These").
+// 1:1 zum Listing, analog MarketAnalysis. audience steuert die Tonalitaet
+// (AUTO = Modell entscheidet je nach Objekt/Zielgruppe). rawJson = volle
+// Claude-Antwort fuer Audit; die Felder darueber speisen das Exposé.
+enum ExposeAudience {
+  AUTO
+  INVESTOR
+  OWNER
+}
+
+model ExposeContent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId String   @unique
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  audience     ExposeAudience @default(AUTO)
+  headline     String         // Schlagzeile / Aufhaenger
+  thesis       String         // Investment-These / Fliesstext (mehrere Absaetze)
+  strengths    String[]       @default([])  // Staerken / Kaufargumente
+  risks        String[]       @default([])  // ehrliche Hinweise / zu pruefen
+  locationText String?        // Lage- und Umfeldbeschreibung
+  callToAction String?        // Abschluss-Absatz
+
+  rawJson Json
+  model   String?
 }
 
 // Phase L — Mietobjekt. Eigene Tabelle (nicht Erweiterung von Listing),

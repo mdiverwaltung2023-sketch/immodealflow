@@ -54,6 +54,12 @@ export default async function SaleProcessDetailPage({
           </div>
         </div>
         <div className="text-right text-sm">
+          <Link
+            href={`/expose/${process.listing.id}`}
+            className="mb-2 inline-flex items-center gap-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700"
+          >
+            Exposé ansehen / drucken
+          </Link>
           <div className="text-[10px] uppercase tracking-wider text-zinc-500">
             Aktueller Status
           </div>

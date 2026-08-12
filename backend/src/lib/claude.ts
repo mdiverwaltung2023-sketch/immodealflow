@@ -1176,3 +1176,118 @@ Sonst leerer String.`,
     model
   };
 }
+
+// ============================================================
+// Phase P — Exposé: KI-Investment-These / Kaufthese generieren
+// ============================================================
+//
+// Erzeugt hochwertigen, datenbasierten Exposé-Text. Nutzt dieselbe
+// Daten-Aufbereitung (listingDataAsBriefing) wie die Marktanalyse.
+// audience steuert die Tonalitaet; AUTO laesst das Modell nach Objektart
+// entscheiden. Strikt: nur gelieferte Fakten, keine Erfindungen.
+
+export type ExposeAudienceT = "AUTO" | "INVESTOR" | "OWNER";
+
+export type ExposeCopyResult = {
+  headline: string;
+  thesis: string;
+  strengths: string[];
+  risks: string[];
+  locationText: string;
+  callToAction: string;
+};
+
+const EXPOSE_SYSTEM = [
+  "Du bist ein Spitzen-Texter fuer hochwertige Immobilien-Exposés im deutschen Markt.",
+  "Ziel: ein ueberzeugender, verkaufsstarker, aber serioeser Exposé-Text, der das Objekt",
+  "nicht nur beschreibt, sondern ein klares Kaufargument aufbaut.",
+  "Stil: klar, konkret, hochwertig; keine Floskeln, keine leeren Superlative.",
+  "Nutze AUSSCHLIESSLICH die gelieferten Objektdaten. Erfinde keine Ausstattung,",
+  "keine Lagevorteile, keine POIs und keine Zahlen, die nicht in den Daten stehen.",
+  "Sei bei Risiken ehrlich — das schafft Vertrauen und hebt das Exposé von reiner",
+  "Makler-Werbung ab. Antworte ausschliesslich auf Deutsch."
+].join(" ");
+
+function exposeAudienceGuidance(a: ExposeAudienceT): string {
+  if (a === "INVESTOR") {
+    return "Zielgruppe: Kapitalanleger/Investoren. Fokus auf Rendite, Cashflow, Mietsituation, Wertsteigerungs- und Upside-Potenzial sowie Finanzierbarkeit. Sachlicher, zahlenorientierter Ton.";
+  }
+  if (a === "OWNER") {
+    return "Zielgruppe: Eigennutzer/Privatkaeufer. Fokus auf Wohnqualitaet, Lage, Lebensgefuehl, Ausstattung und Alltagstauglichkeit. Bildhafter, emotionaler, aber serioeser Ton.";
+  }
+  return "Zielgruppe selbst bestimmen: vermietete Mehrfamilien-/Gewerbeobjekte -> Investoren-Ton (Rendite); eigennutzbare Wohnungen/Haeuser -> Eigennutzer-Ton (Lebensgefuehl); bei Mischnutzung beide Aspekte abwaegen.";
+}
+
+export async function generateExposeCopy(input: {
+  listing: ListingMarketInput;
+  audience: ExposeAudienceT;
+}): Promise<ExposeCopyResult & { model: string; rawJson: unknown }> {
+  const briefing = listingDataAsBriefing(input.listing);
+  const { data, model } = await callWithTool<ExposeCopyResult>({
+    systemPrompt: EXPOSE_SYSTEM,
+    userMessage: [
+      "OBJEKTDATEN:",
+      briefing,
+      "",
+      exposeAudienceGuidance(input.audience),
+      "",
+      "Erstelle den Exposé-Text:",
+      "1. headline: eine praegnante, hochwertige Schlagzeile (max ~12 Woerter).",
+      "2. thesis: die Investment- bzw. Kaufthese als Fliesstext (2-4 kurze Absaetze, mit Leerzeile getrennt) — WARUM lohnt sich dieses Objekt fuer die Zielgruppe? Argumentativ, auf Basis der Daten.",
+      "3. strengths: 4-6 konkrete Kaufargumente/Staerken (je 1 kurzer Satz), aus den Daten abgeleitet.",
+      "4. risks: 2-4 ehrliche Hinweise / zu pruefende Punkte (fair, nicht abschreckend).",
+      "5. locationText: 2-3 Saetze zu Lage und Umfeld (nur serioes aus Stadt/Stadtteil Ableitbares, keine erfundenen Orte).",
+      "6. callToAction: 1-2 Saetze Abschluss, der zum naechsten Schritt (Unterlagen / gesicherter Datenraum / persoenliches Gespraech) einlaedt."
+    ].join("\n"),
+    toolName: "generate_expose_copy",
+    toolDescription:
+      "Erstellt hochwertigen, datenbasierten Exposé-Text (Investment-/Kaufthese) fuer ein Immobilien-Inserat.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: "Praegnante, hochwertige Schlagzeile, max ~12 Woerter"
+        },
+        thesis: {
+          type: "string",
+          description: "Investment-/Kaufthese als Fliesstext, 2-4 Absaetze durch Leerzeilen getrennt"
+        },
+        strengths: {
+          type: "array",
+          maxItems: 6,
+          items: { type: "string" },
+          description: "4-6 konkrete Staerken/Kaufargumente (je 1 kurzer Satz)"
+        },
+        risks: {
+          type: "array",
+          maxItems: 4,
+          items: { type: "string" },
+          description: "2-4 ehrliche Hinweise / zu pruefende Punkte"
+        },
+        locationText: {
+          type: "string",
+          description: "2-3 Saetze zu Lage und Umfeld"
+        },
+        callToAction: {
+          type: "string",
+          description: "1-2 Saetze Abschluss / Handlungsaufforderung"
+        }
+      },
+      required: ["headline", "thesis", "strengths", "risks", "locationText", "callToAction"]
+    },
+    maxTokens: 1400,
+    temperature: 0.5
+  });
+
+  return {
+    headline: data.headline,
+    thesis: data.thesis,
+    strengths: Array.isArray(data.strengths) ? data.strengths.slice(0, 6) : [],
+    risks: Array.isArray(data.risks) ? data.risks.slice(0, 4) : [],
+    locationText: data.locationText ?? "",
+    callToAction: data.callToAction ?? "",
+    model,
+    rawJson: data
+  };
+}
